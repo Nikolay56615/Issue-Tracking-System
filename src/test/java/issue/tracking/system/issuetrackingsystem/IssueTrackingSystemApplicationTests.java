@@ -1,4 +1,4 @@
-package ru.nsu.lebedev.tracking_system.issuetrackingsystem;
+package issue.tracking.system.issuetrackingsystem;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

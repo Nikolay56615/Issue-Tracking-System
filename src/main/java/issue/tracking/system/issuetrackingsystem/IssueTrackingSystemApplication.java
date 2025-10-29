@@ -1,4 +1,4 @@
-package ru.nsu.lebedev.tracking_system.issuetrackingsystem;
+package issue.tracking.system.issuetrackingsystem;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

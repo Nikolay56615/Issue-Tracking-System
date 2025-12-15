@@ -4,7 +4,7 @@ import type {
   LoginRequest,
   RegisterRequest,
   RegisterResponse,
-} from '@/features/auth/model/auth.types.ts';
+} from '@/features/auth/model';
 
 export const register = async ({
   email,

@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { Issue, IssueStatus } from '../types.ts';
+import type { Issue, IssueStatus } from './board.types.ts';
 
 const initialState: { issues: Issue[] } = {
   issues: [

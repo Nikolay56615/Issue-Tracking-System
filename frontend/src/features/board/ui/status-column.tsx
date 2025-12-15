@@ -1,4 +1,4 @@
-import type { Issue, IssueStatus } from '../types.ts';
+import type { Issue, IssueStatus } from '../model/board.types.ts';
 import { useDroppable } from '@dnd-kit/core';
 import {
   SortableContext,

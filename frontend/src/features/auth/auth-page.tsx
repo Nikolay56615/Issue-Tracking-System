@@ -1,4 +1,4 @@
-import { AuthForm } from '@/features/auth/ui/auth-form.tsx';
+import { AuthForm } from '@/features/auth/ui';
 
 export const AuthPage = () => {
   return (

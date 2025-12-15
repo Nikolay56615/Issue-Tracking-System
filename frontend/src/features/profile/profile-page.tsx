@@ -1,5 +1,5 @@
-import { Profile } from './components/profile.tsx';
-import type { RootState } from '../../store/types.ts';
+import { Profile } from './ui/profile.tsx';
+import type { RootState } from '@/store/types.ts';
 import { useSelector } from 'react-redux';
 
 export const ProfilePage = () => {

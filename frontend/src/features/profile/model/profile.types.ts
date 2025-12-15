@@ -1,4 +1,4 @@
-import type { Project } from '../project/types.ts';
+import type { Project } from '@/features/project';
 
 export interface UserProfile {
   id: string;

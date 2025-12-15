@@ -129,7 +129,7 @@ export const Board = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="flex flex-row gap-16 rounded-lg px-8 py-4">
+      <Card className="flex flex-row gap-16 rounded-lg px-8 py-4 items-center">
         <IssueForm mode="add" />
         <div className="py-4">Current Role: {userRole}</div>
       </Card>

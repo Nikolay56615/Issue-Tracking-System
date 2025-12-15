@@ -23,7 +23,7 @@ export const IssueForm = ({ mode }: IssueFormProps) => {
 
   return (
     <Dialog>
-      <DialogTrigger>
+      <DialogTrigger asChild>
         <Button variant="default">{title}</Button>
       </DialogTrigger>
       <DialogContent>

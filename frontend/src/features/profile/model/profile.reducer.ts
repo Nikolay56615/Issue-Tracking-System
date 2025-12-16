@@ -1,19 +1,38 @@
 import { createSlice } from '@reduxjs/toolkit';
-import type { UserProfile } from './profile.types.ts';
+import type {Project} from "@/features/profile/model/profile.types.ts";
+import { fetchProjects } from './profile.actions.ts';
 
-const initialState: UserProfile = {
-  id: '1',
-  name: 'test user',
-  projects: [
-    { id: '1', name: 'project 1', description: 'some description', users: [] },
-    { id: '2', name: 'project 2', description: 'some description', users: [] },
-  ],
+interface ProfileState {
+  projects: Project[];
+  loading: 'idle' | 'pending' | 'succeeded' | 'failed';
+  error: string | null;
+}
+
+const initialState: ProfileState = {
+  projects: [],
+  loading: 'idle',
+  error: null,
 };
 
 const profileSlice = createSlice({
-  name: 'profile',
+  name: 'projects',
   initialState,
   reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchProjects.pending, (state) => {
+        state.loading = 'pending';
+        state.error = null;
+      })
+      .addCase(fetchProjects.fulfilled, (state, action) => {
+        state.loading = 'succeeded';
+        state.projects = action.payload;
+      })
+      .addCase(fetchProjects.rejected, (state, action) => {
+        state.loading = 'failed';
+        state.error = action.payload ?? 'Failed to fetch projects';
+      });
+  },
 });
 
 export const profileReducer = profileSlice.reducer;

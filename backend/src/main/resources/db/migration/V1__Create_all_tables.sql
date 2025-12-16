@@ -1,75 +1,75 @@
--- V1__Create_all_tables.sql
-
--- 1. Пользователи
-CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    username VARCHAR(255) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_username ON users(username);
-
--- 2. Проекты (projects - во множественном числе)
-CREATE TABLE projects (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    owner_id BIGINT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    is_archived BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (owner_id) REFERENCES users(id)
-);
-
--- 3. Участники проектов
-CREATE TABLE project_members (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    project_id BIGINT NOT NULL,
-    role VARCHAR(50) NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    UNIQUE (user_id, project_id)  -- один пользователь не может быть в проекте дважды
-);
-
-CREATE INDEX idx_project_members_user_id ON project_members(user_id);
-CREATE INDEX idx_project_members_project_id ON project_members(project_id);
-
--- 4. Задачи (issues - во множественном числе)
-CREATE TABLE issues (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    type VARCHAR(50) NOT NULL,
-    priority VARCHAR(50) NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    project_id BIGINT NOT NULL,
-    author_id BIGINT NOT NULL,
-    assignee_id BIGINT,
-    start_date DATE,
-    due_date DATE,
-    deleted_at TIMESTAMP,
-    version BIGINT DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id),
-    FOREIGN KEY (author_id) REFERENCES users(id),
-    FOREIGN KEY (assignee_id) REFERENCES users(id)
-);
-
-CREATE INDEX idx_issues_project_id ON issues(project_id);
-CREATE INDEX idx_issues_status ON issues(status);
-CREATE INDEX idx_issues_author_id ON issues(author_id);
-CREATE INDEX idx_issues_assignee_id ON issues(assignee_id);
-
--- 5. Вложения (attachments)
-CREATE TABLE attachments (
-    id BIGSERIAL PRIMARY KEY,
-    file_name VARCHAR(255) NOT NULL,
-    url VARCHAR(500),
-    issue_id BIGINT NOT NULL,
-    FOREIGN KEY (issue_id) REFERENCES issues(id) ON DELETE CASCADE
-);
-
-CREATE INDEX idx_attachments_issue_id ON attachments(issue_id);
+-- -- V1__Create_all_tables.sql
+--
+-- -- 1. Пользователи
+-- CREATE TABLE users (
+--     id BIGSERIAL PRIMARY KEY,
+--     email VARCHAR(255) NOT NULL UNIQUE,
+--     username VARCHAR(255) NOT NULL,
+--     password_hash VARCHAR(255) NOT NULL,
+--     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- );
+--
+-- CREATE INDEX idx_users_email ON users(email);
+-- CREATE INDEX idx_users_username ON users(username);
+--
+-- -- 2. Проекты (projects - во множественном числе)
+-- CREATE TABLE projects (
+--     id BIGSERIAL PRIMARY KEY,
+--     name VARCHAR(255) NOT NULL,
+--     owner_id BIGINT NOT NULL,
+--     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     is_archived BOOLEAN DEFAULT FALSE,
+--     FOREIGN KEY (owner_id) REFERENCES users(id)
+-- );
+--
+-- -- 3. Участники проектов
+-- CREATE TABLE project_members (
+--     id BIGSERIAL PRIMARY KEY,
+--     user_id BIGINT NOT NULL,
+--     project_id BIGINT NOT NULL,
+--     role VARCHAR(50) NOT NULL,
+--     FOREIGN KEY (user_id) REFERENCES users(id),
+--     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+--     UNIQUE (user_id, project_id)  -- один пользователь не может быть в проекте дважды
+-- );
+--
+-- CREATE INDEX idx_project_members_user_id ON project_members(user_id);
+-- CREATE INDEX idx_project_members_project_id ON project_members(project_id);
+--
+-- -- 4. Задачи (issues - во множественном числе)
+-- CREATE TABLE issues (
+--     id BIGSERIAL PRIMARY KEY,
+--     name VARCHAR(255) NOT NULL,
+--     description TEXT,
+--     type VARCHAR(50) NOT NULL,
+--     priority VARCHAR(50) NOT NULL,
+--     status VARCHAR(50) NOT NULL,
+--     project_id BIGINT NOT NULL,
+--     author_id BIGINT NOT NULL,
+--     assignee_id BIGINT,
+--     start_date DATE,
+--     due_date DATE,
+--     deleted_at TIMESTAMP,
+--     version BIGINT DEFAULT 0,
+--     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP,
+--     FOREIGN KEY (project_id) REFERENCES projects(id),
+--     FOREIGN KEY (author_id) REFERENCES users(id),
+--     FOREIGN KEY (assignee_id) REFERENCES users(id)
+-- );
+--
+-- CREATE INDEX idx_issues_project_id ON issues(project_id);
+-- CREATE INDEX idx_issues_status ON issues(status);
+-- CREATE INDEX idx_issues_author_id ON issues(author_id);
+-- CREATE INDEX idx_issues_assignee_id ON issues(assignee_id);
+--
+-- -- 5. Вложения (attachments)
+-- CREATE TABLE attachments (
+--     id BIGSERIAL PRIMARY KEY,
+--     file_name VARCHAR(255) NOT NULL,
+--     url VARCHAR(500),
+--     issue_id BIGINT NOT NULL,
+--     FOREIGN KEY (issue_id) REFERENCES issues(id) ON DELETE CASCADE
+-- );
+--
+-- CREATE INDEX idx_attachments_issue_id ON attachments(issue_id);

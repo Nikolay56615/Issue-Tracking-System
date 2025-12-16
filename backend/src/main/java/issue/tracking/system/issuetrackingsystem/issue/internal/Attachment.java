@@ -1,29 +1,24 @@
 package issue.tracking.system.issuetrackingsystem.issue.internal;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
 @Table(name = "attachments")
-@Getter
-@Setter
+@Getter @Setter
+@NoArgsConstructor
 public class Attachment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String fileName;
-    private String url; // Или byte[] content, если храним в БД
-
-    @ManyToOne
-    @JoinColumn(name = "issue_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "issue_id", nullable = false)
     private Issue issue;
+
+    @Column(name = "file_name", nullable = false)
+    private String fileName; // хранится публичный URL или путь
 }

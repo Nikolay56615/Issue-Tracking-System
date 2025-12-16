@@ -12,7 +12,6 @@ class RoleTransitionRule implements TransitionRule {
     @Override
     public boolean check(IssueStatus from, IssueStatus to, String userRole, boolean isAssignee,
         boolean isAuthor) {
-        // Reviewer/Admin/Owner... can fully edit
         if (PRIVILEGED_ROLES.contains(userRole)) {
             return true;
         }
@@ -24,7 +23,6 @@ class RoleTransitionRule implements TransitionRule {
             return isAssignee && from == IssueStatus.IN_PROGRESS && to == IssueStatus.REVIEW;
         }
 
-        // Если роль неизвестна или null — запрет
         return false;
     }
 }

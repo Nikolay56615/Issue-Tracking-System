@@ -1,16 +1,6 @@
 package issue.tracking.system.issuetrackingsystem.issue.internal;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -36,7 +26,7 @@ public class Issue {
     @Column(nullable = false)
     private String name;
 
-    @Column(columnDefinition = "TEXT") // Rich text content
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Enumerated(EnumType.STRING)
@@ -51,7 +41,6 @@ public class Issue {
     @Column(nullable = false)
     private IssueStatus status;
 
-    // Связи (храним ID, чтобы не тянуть за собой весь граф объектов JPA других модулей)
     @Column(name = "project_id", nullable = false)
     private Long projectId;
 
@@ -61,18 +50,15 @@ public class Issue {
     @Column(name = "assignee_id")
     private Long assigneeId;
 
-    // Dates
     @Column(name = "start_date")
     private LocalDate startDate;
 
     @Column(name = "due_date")
     private LocalDate dueDate;
 
-    // Basket Logic (Soft Delete)
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // Optimistic Locking (Use Case 2: warning about concurrent changes)
     @Version
     private Long version;
 

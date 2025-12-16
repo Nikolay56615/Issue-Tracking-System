@@ -1,21 +1,22 @@
-version: "3.9"
+version: "3.8"
 services:
-  db:
+  postgres:
     image: postgres:16
     container_name: issue_pg
+    env_file: '.env'
     environment:
-      POSTGRES_DB: issue
-      POSTGRES_USER: issue
-      POSTGRES_PASSWORD: issue
+      - 'POSTGRES_DB=${POSTGRES_DB}'
+      - 'POSTGRES_USER=${POSTGRES_USER}'
+      - 'POSTGRES_PASSWORD=${POSTGRES_PASSWORD}'
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U issue -d issue"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
-  db_data:
+  postgres_data:

@@ -1,22 +1,23 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { Issue, IssueStatus } from './board.types.ts';
+import {createIssue} from "@/features/board/model/board.actions.ts";
 
-const initialState: { issues: Issue[] } = {
-  issues: [
-    { id: 1, title: 'Issue 1', status: 'backlog' },
-    { id: 2, title: 'Issue 2', status: 'inProgress' },
-    { id: 3, title: 'Issue 3', status: 'backlog' },
-    { id: 4, title: 'Issue 4', status: 'done' },
-  ],
+interface IssuesState {
+  issues: Issue[];
+  loading: 'idle' | 'pending' | 'succeeded' | 'failed';
+  error: string | null;
+}
+
+const initialState: IssuesState = {
+  issues: [],
+  loading: 'idle',
+  error: null,
 };
 
 const boardSlice = createSlice({
   name: 'board',
   initialState,
   reducers: {
-    createIssue: (state, action: PayloadAction<Issue>) => {
-      state.issues.push(action.payload);
-    },
     updateIssueStatus: (
       state,
       action: PayloadAction<{ id: number; status: IssueStatus }>
@@ -28,7 +29,22 @@ const boardSlice = createSlice({
       }
     },
   },
+  extraReducers: (builder) => {
+    builder
+      .addCase(createIssue.pending, (state) => {
+        state.loading = 'pending';
+        state.error = null;
+      })
+      .addCase(createIssue.fulfilled, (state, action: PayloadAction<Issue>) => {
+        state.loading = 'succeeded';
+        state.issues.push(action.payload);
+      })
+      .addCase(createIssue.rejected, (state, action) => {
+        state.loading = 'failed';
+        state.error = action.payload ?? 'Failed to create issue';
+      });
+  },
 });
 
-export const { createIssue, updateIssueStatus } = boardSlice.actions;
+export const { updateIssueStatus } = boardSlice.actions;
 export const boardReducer = boardSlice.reducer;

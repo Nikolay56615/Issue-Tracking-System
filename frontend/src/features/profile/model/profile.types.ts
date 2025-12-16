@@ -1,7 +1,11 @@
-import type { Project } from '@/features/project';
-
 export interface UserProfile {
-  id: string;
+  id: number;
+  email: string;
+  username: string;
+}
+
+export interface Project {
+  id: number;
   name: string;
-  projects: Project[];
+  ownerId: number;
 }

@@ -1,12 +1,12 @@
 import './App.css';
-import { BoardPage } from './features/board/board-page.tsx';
+import { BoardPage } from '@/features/board';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { Routes } from './shared/constants/routes.ts';
-import { AuthPage } from './features/auth/auth-page.tsx';
-import { ProfilePage } from './features/profile/profile-page.tsx';
+import { AuthPage } from '@/features/auth';
+import { ProfilePage } from '@/features/profile';
 import { Provider } from 'react-redux';
 import { store } from './store';
-import { ProjectPage } from './features/project/project-page.tsx';
+import { ProjectPage } from '@/features/project';
 
 const router = createBrowserRouter([
   {

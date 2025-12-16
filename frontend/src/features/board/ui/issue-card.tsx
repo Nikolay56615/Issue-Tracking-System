@@ -1,4 +1,4 @@
-import type { Issue } from '../types.ts';
+import type { Issue } from '../model/board.types.ts';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {

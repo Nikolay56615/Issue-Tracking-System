@@ -1,4 +1,4 @@
-import type { Issue, IssueStatus } from '../types.ts';
+import type { Issue, IssueStatus } from '../model';
 import { IssueCard } from './issue-card.tsx';
 import {
   DndContext,
@@ -11,7 +11,7 @@ import {
 } from '@dnd-kit/core';
 import { useState } from 'react';
 import { StatusColumn } from './status-column.tsx';
-import { updateIssueStatus } from '../store/board.reducer.ts';
+import { updateIssueStatus } from '../model';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '@/store/types.ts';
 import { IssueForm } from './issue-form.tsx';
@@ -129,7 +129,7 @@ export const Board = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="flex flex-row gap-16 rounded-lg px-8 py-4">
+      <Card className="flex flex-row gap-16 rounded-lg px-8 py-4 items-center">
         <IssueForm mode="add" />
         <div className="py-4">Current Role: {userRole}</div>
       </Card>

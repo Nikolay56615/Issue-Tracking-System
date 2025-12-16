@@ -1,5 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
-import type { UserProfile } from '../types.ts';
+import type { UserProfile } from './profile.types.ts';
 
 const initialState: UserProfile = {
   id: '1',

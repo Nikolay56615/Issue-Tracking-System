@@ -19,7 +19,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import type { RegisterResponse } from '@/features/auth/model/auth.types.ts';
-import { login, register } from '@/features/auth/api/api.auth.ts';
+import { AuthRequests } from '@/features/auth/api';
 import { useState } from 'react';
 
 const authFormSchema = z.object({
@@ -64,13 +64,13 @@ export const AuthForm = () => {
 
   function onSubmit(data: z.infer<typeof authFormSchema>) {
     if (mode === 'register') {
-      toast.promise<RegisterResponse>(() => register(data), {
+      toast.promise<RegisterResponse>(() => AuthRequests.register(data), {
         loading: 'Loading...',
         success: (data) => `User with ${data.id} has been created`,
         error: 'Error creating user',
       });
     } else {
-      toast.promise<string>(() => login(data), {
+      toast.promise<string>(() => AuthRequests.login(data), {
         loading: 'Loading...',
         success: (data) => `Logged in with token ${data}`,
         error: 'Login error',

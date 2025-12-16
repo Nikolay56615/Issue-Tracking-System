@@ -1,4 +1,4 @@
-import { Board } from './components/board.tsx';
+import { Board } from './ui/board';
 
 export const BoardPage = () => {
   return (

@@ -1,6 +1,6 @@
 import {ProfileRequests} from "@/features/profile/api";
 import {createAsyncThunk} from "@reduxjs/toolkit";
-import type {Project} from "@/features/profile/model/profile.types.ts";
+import type {Project, UserProfile} from "@/features/profile/model/profile.types.ts";
 
 export const fetchProjects = createAsyncThunk<
   Project[],
@@ -16,3 +16,14 @@ export const fetchProjects = createAsyncThunk<
     }
   }
 );
+
+export const getCurrentUser = createAsyncThunk<UserProfile, void, { rejectValue: string }>(
+  'currentUser',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await ProfileRequests.getCurrentUser();
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+)

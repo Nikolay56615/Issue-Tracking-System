@@ -10,12 +10,14 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusColumn } from './status-column.tsx';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import type { RootState } from '@/store/types.ts';
 import { IssueForm } from './issue-form.tsx';
 import { Card } from '@/components/ui/card.tsx';
+import { getBoard } from '@/features/board/model/board.actions.ts';
+import { useAppDispatch } from '@/store';
 
 const statusName: Record<IssueStatus, string> = {
   backlog: 'Backlog',
@@ -69,11 +71,15 @@ const isTransitionAllowed = (
   );
 };
 
-export const Board = () => {
-  const dispatch = useDispatch();
+export const Board = ({ projectId }: { projectId: number }) => {
+  const dispatch = useAppDispatch();
   const { issues, boardLoading, boardError } = useSelector(
     (state: RootState) => state.boardReducer
   );
+
+  useEffect(() => {
+    dispatch(getBoard({ projectId }));
+  }, [dispatch, projectId]);
 
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
 
@@ -163,7 +169,6 @@ export const Board = () => {
         </DndContext>
       )}
       {boardLoading === 'pending' && !boardError && <div>Loading...</div>}
-      {boardError && <div>Error: {boardError}</div>}
     </div>
   );
 };

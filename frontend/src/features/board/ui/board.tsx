@@ -20,13 +20,13 @@ import { getBoard } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch } from '@/store';
 
 const statusName: Record<IssueStatus, string> = {
-  backlog: 'Backlog',
-  inProgress: 'In Progress',
-  review: 'Review',
-  done: 'Done',
+  'BACKLOG': 'Backlog',
+  'IN_PROGRESS': 'In Progress',
+  'REVIEW': 'Review',
+  'DONE': 'Done',
 };
 
-const statusOrder: IssueStatus[] = ['backlog', 'inProgress', 'review', 'done'];
+const statusOrder: IssueStatus[] = ['BACKLOG', 'IN_PROGRESS', 'REVIEW', 'DONE'];
 
 type UserRole = 'owner' | 'reviewer' | 'admin' | 'user';
 
@@ -45,13 +45,13 @@ const userRole: UserRole = 'user';
 const lifecycle: Lifecycle = {
   transitions: [
     {
-      from: 'backlog',
-      to: 'inProgress',
+      from: 'BACKLOG',
+      to: 'IN_PROGRESS',
       role: 'user',
     },
     {
-      from: 'inProgress',
-      to: 'backlog',
+      from: 'IN_PROGRESS',
+      to: 'BACKLOG',
       role: 'user',
     },
   ],

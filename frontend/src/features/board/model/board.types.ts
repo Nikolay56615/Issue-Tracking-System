@@ -8,7 +8,8 @@ export interface Issue {
   description: string;
 }
 
-export type IssueStatus = 'backlog' | 'inProgress' | 'review' | 'done';
+export type IssueStatus = 'BACKLOG' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+
 export type IssueType = 'TASK' | 'BUG' | 'FEATURE' | 'SEARCH';
 export type IssuePriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
 

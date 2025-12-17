@@ -1,4 +1,4 @@
-import { Profile } from './ui/profile.tsx';
+import { CreateProjectForm, Profile } from './ui';
 import type { RootState } from '@/store/types.ts';
 import { useSelector } from 'react-redux';
 import { useAppDispatch } from '@/store';
@@ -17,6 +17,8 @@ export const ProfilePage = () => {
     projects,
     projectsLoading,
     projectsError,
+    createProjectLoading,
+    createProjectError,
   } = useSelector((state: RootState) => state.profileReducer);
 
   useEffect(() => {
@@ -30,5 +32,12 @@ export const ProfilePage = () => {
     return <div>Error: {profileError || projectsError}</div>;
   }
 
-  return <Profile profile={profile} projects={projects} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <Profile profile={profile} projects={projects} />
+      {!profileLoading && <CreateProjectForm />}
+      {createProjectLoading && <div>Loading...</div>}
+      {createProjectError && <div>Error: {createProjectError}</div>}
+    </div>
+  );
 };

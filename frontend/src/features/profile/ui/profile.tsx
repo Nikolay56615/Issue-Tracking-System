@@ -8,7 +8,7 @@ interface ProfileProps {
 
 export const Profile = ({ profile, projects }: ProfileProps) => {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 max-h-2/3">
       <h1 className="text-4xl">{profile.username}</h1>
       <span className="text-3xl">{profile.email}</span>
       {projects.map((project) => (

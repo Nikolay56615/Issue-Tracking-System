@@ -9,3 +9,7 @@ export interface Project {
   name: string;
   ownerId: number;
 }
+
+export interface CreateProjectRequest {
+  name: string;
+}

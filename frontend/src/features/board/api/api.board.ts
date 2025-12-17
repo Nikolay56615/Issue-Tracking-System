@@ -8,7 +8,7 @@ export const createIssue = async ({
   priority,
   description,
 }: CreateIssueRequest) => {
-  const { data } = await axiosInstance.post<number>('/api/issues', {
+  const { data } = await axiosInstance.post<number>('/issues', {
     projectId,
     name,
     type,

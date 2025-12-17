@@ -1,23 +1,34 @@
 import { createSlice } from '@reduxjs/toolkit';
-import type { Project, UserProfile } from '@/features/profile/model/profile.types';
-import { fetchProjects, getCurrentUser } from './profile.actions';
+import type {
+  Project,
+  UserProfile,
+} from '@/features/profile/model/profile.types';
+import {
+  createProject,
+  fetchProjects,
+  getCurrentUser,
+} from './profile.actions';
 
 interface ProfileState {
   profile: UserProfile;
   projects: Project[];
   profileLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   projectsLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
+  createProjectLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   profileError: string | null;
   projectsError: string | null;
+  createProjectError: string | null;
 }
 
 const initialState: ProfileState = {
-  profile: {id: -1, username: 'No User', email: ''},
+  profile: { id: -1, username: 'No User', email: '' },
   projects: [],
   profileLoading: 'idle',
   projectsLoading: 'idle',
+  createProjectLoading: 'idle',
   profileError: null,
   projectsError: null,
+  createProjectError: null,
 };
 
 const profileSlice = createSlice({
@@ -48,6 +59,17 @@ const profileSlice = createSlice({
       })
       .addCase(getCurrentUser.rejected, (state, action) => {
         state.profileLoading = 'failed';
+        state.profileError = action.payload ?? 'Failed to fetch current user';
+      })
+      .addCase(createProject.pending, (state) => {
+        state.createProjectLoading = 'pending';
+        state.createProjectError = null;
+      })
+      .addCase(createProject.fulfilled, (state) => {
+        state.createProjectLoading = 'succeeded';
+      })
+      .addCase(createProject.rejected, (state, action) => {
+        state.createProjectLoading = 'failed';
         state.profileError = action.payload ?? 'Failed to fetch current user';
       });
   },

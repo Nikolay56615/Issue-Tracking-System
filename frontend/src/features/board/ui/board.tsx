@@ -1,4 +1,5 @@
 import type { Issue, IssueStatus } from '../model';
+import { updateIssueStatus } from '../model';
 import { IssueCard } from './issue-card.tsx';
 import {
   DndContext,
@@ -9,13 +10,14 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusColumn } from './status-column.tsx';
-import { updateIssueStatus } from '../model';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import type { RootState } from '@/store/types.ts';
 import { IssueForm } from './issue-form.tsx';
 import { Card } from '@/components/ui/card.tsx';
+import { getBoard } from '@/features/board/model/board.actions.ts';
+import { useAppDispatch } from '@/store';
 
 const statusName: Record<IssueStatus, string> = {
   backlog: 'Backlog',
@@ -69,9 +71,15 @@ const isTransitionAllowed = (
   );
 };
 
-export const Board = () => {
-  const dispatch = useDispatch();
-  const issues = useSelector((state: RootState) => state.boardReducer.issues);
+export const Board = ({ projectId }: { projectId: number }) => {
+  const dispatch = useAppDispatch();
+  const { issues, boardLoading, boardError } = useSelector(
+    (state: RootState) => state.boardReducer
+  );
+
+  useEffect(() => {
+    dispatch(getBoard({ projectId }));
+  }, [dispatch, projectId]);
 
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
 
@@ -129,36 +137,38 @@ export const Board = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="flex flex-row gap-16 rounded-lg px-8 py-4 items-center">
+      <Card className="flex flex-row items-center gap-16 rounded-lg px-8 py-4">
         <IssueForm mode="add" />
-        <div className="py-4">Current Role: {userRole}</div>
       </Card>
-      <DndContext
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <Card className="flex h-180 flex-row gap-4 rounded-lg p-8">
-          {statusOrder.map((status) => {
-            const statusIssues = grouped.get(status) || [];
-            return (
-              <StatusColumn
-                key={status}
-                status={status}
-                title={statusName[status]}
-                issues={statusIssues}
-                canDrag={canDrag}
-              />
-            );
-          })}
-        </Card>
-        <DragOverlay>
-          {activeIssue ? (
-            <IssueCard issue={activeIssue} canDrag={false} isDragging />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      {boardLoading !== 'pending' && (
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <Card className="flex h-180 flex-row gap-4 rounded-lg p-8">
+            {statusOrder.map((status) => {
+              const statusIssues = grouped.get(status) || [];
+              return (
+                <StatusColumn
+                  key={status}
+                  status={status}
+                  title={statusName[status]}
+                  issues={statusIssues}
+                  canDrag={canDrag}
+                />
+              );
+            })}
+          </Card>
+          <DragOverlay>
+            {activeIssue ? (
+              <IssueCard issue={activeIssue} canDrag={false} isDragging />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
+      {boardLoading === 'pending' && !boardError && <div>Loading...</div>}
     </div>
   );
 };

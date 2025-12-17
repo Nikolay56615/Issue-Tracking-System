@@ -11,3 +11,8 @@ export interface Issue {
 export type IssueStatus = 'backlog' | 'inProgress' | 'review' | 'done';
 export type IssueType = 'TASK' | 'BUG' | 'FEATURE' | 'SEARCH';
 export type IssuePriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface GetBoardRequest {
+  projectId: number;
+  //filter?: IssueFilter TODO: implement filters
+}

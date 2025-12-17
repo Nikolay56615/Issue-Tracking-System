@@ -35,8 +35,8 @@ export const ProfilePage = () => {
   return (
     <div className="flex flex-col gap-4">
       <Profile profile={profile} projects={projects} />
-      {!profileLoading && <CreateProjectForm />}
-      {createProjectLoading && <div>Loading...</div>}
+      {createProjectLoading !== 'pending' && <CreateProjectForm />}
+      {createProjectLoading === 'pending' && <div>Loading...</div>}
       {createProjectError && <div>Error: {createProjectError}</div>}
     </div>
   );

@@ -1,17 +1,21 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { Issue, IssueStatus } from './board.types.ts';
-import {createIssue} from "@/features/board/model/board.actions.ts";
+import { createIssue, getBoard } from '@/features/board/model/board.actions.ts';
 
 interface IssuesState {
   issues: Issue[];
   loading: 'idle' | 'pending' | 'succeeded' | 'failed';
   error: string | null;
+  boardLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
+  boardError: string | null;
 }
 
 const initialState: IssuesState = {
   issues: [],
   loading: 'idle',
   error: null,
+  boardLoading: 'idle',
+  boardError: null,
 };
 
 const boardSlice = createSlice({
@@ -42,6 +46,18 @@ const boardSlice = createSlice({
       .addCase(createIssue.rejected, (state, action) => {
         state.loading = 'failed';
         state.error = action.payload ?? 'Failed to create issue';
+      })
+      .addCase(getBoard.pending, (state) => {
+        state.boardLoading = 'pending';
+        state.boardError = null;
+      })
+      .addCase(getBoard.fulfilled, (state, action: PayloadAction<Issue[]>) => {
+        state.boardLoading = 'succeeded';
+        state.issues = action.payload;
+      })
+      .addCase(getBoard.rejected, (state, action) => {
+        state.boardLoading = 'failed';
+        state.boardError = action.payload ?? 'Failed to load board';
       });
   },
 });

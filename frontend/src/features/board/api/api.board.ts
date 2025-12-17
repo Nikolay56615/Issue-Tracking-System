@@ -1,5 +1,6 @@
 import type { CreateIssueRequest } from '@/features/board/api/api.const.ts';
 import { axiosInstance } from '@/api/instance.ts';
+import type { GetBoardRequest } from '@/features/board/model/board.types.ts';
 
 export const createIssue = async ({
   projectId,
@@ -14,6 +15,14 @@ export const createIssue = async ({
     type,
     priority,
     description,
+  });
+
+  return data;
+};
+
+export const getBoard = async ({ projectId }: GetBoardRequest) => {
+  const { data } = await axiosInstance.get('issues/board', {
+    params: { projectId },
   });
 
   return data;

@@ -25,11 +25,15 @@ export const login = async ({
   username,
   password,
 }: LoginRequest): Promise<string> => {
+  const token = btoa(`${email}:${password}`)
+
   const { data } = await axiosInstance.post<string>(LOGIN, {
     email,
     username,
     password,
   });
+
+  localStorage.setItem('authToken', token);
 
   return data;
 };

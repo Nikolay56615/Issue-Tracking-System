@@ -1,26 +1,14 @@
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card.tsx';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, } from '@/components/ui/card.tsx';
 import { Button } from '@/components/ui/button.tsx';
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from '@/components/ui/field.tsx';
+import { Field, FieldError, FieldGroup, FieldLabel, FieldSet, } from '@/components/ui/field.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import type { RegisterResponse } from '@/features/auth/model/auth.types.ts';
-import { AuthRequests } from '@/features/auth/api';
 import { useState } from 'react';
+import { useAppDispatch } from '@/store';
+import { login, register } from '@/features/auth/model/auth.actions.ts';
 
 const authFormSchema = z.object({
   email: z.email(),
@@ -51,6 +39,8 @@ const modeMapping: Record<
 };
 
 export const AuthForm = () => {
+  const dispatch = useAppDispatch();
+
   const [mode, setMode] = useState<Mode>('register');
 
   const form = useForm<z.infer<typeof authFormSchema>>({
@@ -62,18 +52,22 @@ export const AuthForm = () => {
     },
   });
 
-  function onSubmit(data: z.infer<typeof authFormSchema>) {
+  const onSubmit = async (data: z.infer<typeof authFormSchema>) => {
     if (mode === 'register') {
-      toast.promise<RegisterResponse>(() => AuthRequests.register(data), {
+      const promise = dispatch(register(data)).unwrap();
+
+      toast.promise(promise, {
         loading: 'Loading...',
-        success: (data) => `User with ${data.id} has been created`,
-        error: 'Error creating user',
+        success: (response) => `User with ${response.id} has been created`,
+        error: (err) => err || 'Error creating user',
       });
     } else {
-      toast.promise<string>(() => AuthRequests.login(data), {
+      const promise = dispatch(login(data)).unwrap();
+
+      toast.promise(promise, {
         loading: 'Loading...',
-        success: (data) => `Logged in with token ${data}`,
-        error: 'Login error',
+        success: (token) => `Logged in with token ${token}`,
+        error: (err) => err || 'Login error',
       });
     }
   }

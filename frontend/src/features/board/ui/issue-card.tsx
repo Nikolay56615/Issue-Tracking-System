@@ -46,9 +46,9 @@ export const IssueCard = ({
       className={`w-64 cursor-grab active:cursor-grabbing
         ${isDragging ? 'shadow-lg' : ''}`}
     >
-      <CardHeader>{issue.title}</CardHeader>
-      <CardContent>Short Description</CardContent>
-      <CardFooter>Issue Type, Issue Status</CardFooter>
+      <CardHeader>{issue.name}</CardHeader>
+      <CardContent>{issue.description}</CardContent>
+      <CardFooter>{issue.type} {issue.priority}</CardFooter>
     </Card>
   );
 };

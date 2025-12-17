@@ -17,6 +17,7 @@ public class IssueMapper {
 
         return new IssueDto(
             issue.getId(),
+            issue.getProjectId(),
             issue.getName(),
             issue.getDescription(),
             issue.getType(),

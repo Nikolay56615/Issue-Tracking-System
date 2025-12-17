@@ -7,6 +7,7 @@ import java.util.List;
 
 public record IssueDto(
     Long id,
+    Long projectId,
     String name,
     String description,
     IssueType type,

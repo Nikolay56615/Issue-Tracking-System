@@ -7,23 +7,29 @@ import { ProfilePage } from '@/features/profile';
 import { Provider } from 'react-redux';
 import { store } from './store';
 import { ProjectPage } from '@/features/project';
+import { ProtectedLayout } from '@/layouts/ProtectedLayout.tsx';
 
 const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <BoardPage />,
-  },
   {
     path: Routes.AUTH,
     element: <AuthPage />,
   },
   {
-    path: Routes.PROFILE,
-    element: <ProfilePage />,
-  },
-  {
-    path: Routes.PROJECT,
-    element: <ProjectPage />,
+    element: <ProtectedLayout />,
+    children: [
+      {
+        path: '/',
+        element: <BoardPage />,
+      },
+      {
+        path: Routes.PROFILE,
+        element: <ProfilePage />,
+      },
+      {
+        path: Routes.PROJECT,
+        element: <ProjectPage />,
+      },
+    ],
   },
 ]);
 

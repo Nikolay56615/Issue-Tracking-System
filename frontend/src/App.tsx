@@ -6,7 +6,6 @@ import { AuthPage } from '@/features/auth';
 import { ProfilePage } from '@/features/profile';
 import { Provider } from 'react-redux';
 import { store } from './store';
-import { ProjectPage } from '@/features/project';
 import { ProtectedLayout } from '@/layouts/ProtectedLayout.tsx';
 import { ProfileLayout } from '@/layouts/profile-layout.tsx';
 import { ProjectLayout } from '@/layouts/project-layout.tsx';
@@ -27,10 +26,6 @@ const router = createBrowserRouter([
             element: <ProfilePage />,
           },
         ],
-      },
-      {
-        path: Routes.PROJECT,
-        element: <ProjectPage />,
       },
       {
         element: <ProjectLayout />,

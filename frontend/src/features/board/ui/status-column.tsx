@@ -6,6 +6,8 @@ import {
 } from '@dnd-kit/sortable';
 import { IssueCard } from './issue-card.tsx';
 import { cn } from '@/lib/utils.ts';
+import { Card, CardContent, CardHeader } from '@/components/ui/card.tsx';
+import { Separator } from '@/components/ui/separator.tsx';
 
 interface StatusColumnProps {
   status: IssueStatus;
@@ -20,29 +22,32 @@ export const StatusColumn = ({
   issues,
   canDrag,
 }: StatusColumnProps) => {
-  const { setNodeRef, isOver } = useDroppable({
-    id: status,
-  });
+  const { setNodeRef, isOver } = useDroppable({ id: status });
 
   return (
-    <div
+    <Card
       ref={setNodeRef}
       className={cn(
-        'flex w-64 flex-col gap-4 transition-opacity',
+        'flex w-80 flex-col gap-0 py-4 transition-opacity',
         isOver && 'opacity-80'
       )}
     >
-      <h2 className="text-2xl">{title}</h2>
+      <CardHeader className="gap-0 px-4 pb-4">
+        <h2 className="font-medium">{title}</h2>
+      </CardHeader>
+      <Separator />
       <SortableContext
         items={issues.map((i) => i.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="flex min-h-[200px] flex-col gap-4">
+        <CardContent
+          className="flex h-full flex-col gap-4 overflow-y-auto px-4 pt-4"
+        >
           {issues.map((issue) => (
             <IssueCard key={issue.id} issue={issue} canDrag={canDrag(issue)} />
           ))}
-        </div>
+        </CardContent>
       </SortableContext>
-    </div>
+    </Card>
   );
 };

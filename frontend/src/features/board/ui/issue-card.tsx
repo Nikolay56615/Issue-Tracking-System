@@ -7,6 +7,9 @@ import {
   CardFooter,
   CardHeader,
 } from '@/components/ui/card.tsx';
+import { cn } from '@/lib/utils.ts';
+import { PriorityBadge } from '@/features/board/ui/priority-badge.tsx';
+import { TypeBadge } from '@/features/board/ui/type-badge.tsx';
 
 interface IssueCardProps {
   issue: Issue;
@@ -43,12 +46,21 @@ export const IssueCard = ({
       style={style}
       {...attributes}
       {...listeners}
-      className={`w-64 cursor-grab active:cursor-grabbing
-        ${isDragging ? 'shadow-lg' : ''}`}
+      className={cn(
+        'cursor-grab gap-2 text-start active:cursor-grabbing',
+        isDragging && 'shadow-lg'
+      )}
     >
-      <CardHeader>{issue.name}</CardHeader>
-      <CardContent>{issue.description}</CardContent>
-      <CardFooter>{issue.type} {issue.priority}</CardFooter>
+      <CardHeader className="items-center gap-0">
+        <span className="font-medium">{issue.name}</span>
+      </CardHeader>
+      <CardContent className="line-clamp-3 text-sm">
+        {issue.description}
+      </CardContent>
+      <CardFooter className="gap-2">
+        <TypeBadge type={issue.type} />
+        <PriorityBadge priority={issue.priority} />
+      </CardFooter>
     </Card>
   );
 };

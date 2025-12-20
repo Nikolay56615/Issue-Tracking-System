@@ -9,6 +9,7 @@ import { store } from './store';
 import { ProjectPage } from '@/features/project';
 import { ProtectedLayout } from '@/layouts/ProtectedLayout.tsx';
 import { ProfileLayout } from '@/layouts/profile-layout.tsx';
+import { ProjectLayout } from '@/layouts/project-layout.tsx';
 
 const router = createBrowserRouter([
   {
@@ -32,8 +33,17 @@ const router = createBrowserRouter([
         element: <ProjectPage />,
       },
       {
-        path: Routes.BOARD,
-        element: <BoardPage />,
+        element: <ProjectLayout />,
+        children: [
+          {
+            path: Routes.BOARD,
+            element: <BoardPage />,
+          },
+          {
+            path: Routes.USERS,
+            element: <div></div>,
+          },
+        ],
       },
     ],
   },

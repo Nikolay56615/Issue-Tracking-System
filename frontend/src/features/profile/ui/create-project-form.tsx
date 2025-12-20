@@ -25,7 +25,7 @@ export const CreateProjectForm = () => {
   };
 
   return (
-    <div className="flex gap-12 rounded-lg border p-4">
+    <div className="flex gap-4 rounded-lg border p-4">
       <Label>New Project</Label>
       <Input
         value={projectName}

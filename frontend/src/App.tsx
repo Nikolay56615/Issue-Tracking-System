@@ -8,6 +8,7 @@ import { Provider } from 'react-redux';
 import { store } from './store';
 import { ProjectPage } from '@/features/project';
 import { ProtectedLayout } from '@/layouts/ProtectedLayout.tsx';
+import { ProfileLayout } from '@/layouts/profile-layout.tsx';
 
 const router = createBrowserRouter([
   {
@@ -18,16 +19,21 @@ const router = createBrowserRouter([
     element: <ProtectedLayout />,
     children: [
       {
-        path: Routes.BOARD,
-        element: <BoardPage />,
-      },
-      {
-        path: Routes.PROFILE,
-        element: <ProfilePage />,
+        element: <ProfileLayout />,
+        children: [
+          {
+            path: Routes.PROFILE,
+            element: <ProfilePage />,
+          },
+        ],
       },
       {
         path: Routes.PROJECT,
         element: <ProjectPage />,
+      },
+      {
+        path: Routes.BOARD,
+        element: <BoardPage />,
       },
     ],
   },

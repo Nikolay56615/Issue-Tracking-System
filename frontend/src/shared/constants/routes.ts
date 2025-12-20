@@ -1,6 +1,7 @@
 export const Routes = {
   AUTH: '/auth',
-  PROFILE: '/profile',
+  PROFILE: '/',
   PROJECT: '/project',
   BOARD: '/:projectId/board',
+  LOGOUT: '/logout',
 };

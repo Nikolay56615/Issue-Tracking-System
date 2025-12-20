@@ -7,7 +7,7 @@ export const ProjectLayout = () => {
   const { projectId } = useParams();
 
   return (
-    <div className="h-screen">
+    <>
       <header
         className="flex h-15 w-screen items-center gap-4 border-b px-40 py-2"
       >
@@ -43,6 +43,6 @@ export const ProjectLayout = () => {
         </Link>
       </header>
       <Outlet />
-    </div>
+    </>
   );
 };

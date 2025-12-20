@@ -4,7 +4,7 @@ import { Routes } from '@/shared/constants/routes.ts';
 
 export const ProfileLayout = () => {
   return (
-    <div className="h-screen">
+    <>
       <header
         className="flex h-15 w-screen items-center gap-4 border-b px-40 py-2"
       >
@@ -20,6 +20,6 @@ export const ProfileLayout = () => {
         </Link>
       </header>
       <Outlet />
-    </div>
+    </>
   );
 };

@@ -46,9 +46,10 @@ import type { IssuePriority, IssueType } from '@/features/board/model';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
+  projectId: number;
 }
 
-export const IssueForm = ({ mode }: IssueFormProps) => {
+export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
   const dispatch = useAppDispatch();
   const [name, setName] = useState('');
   const [type, setType] = useState<IssueType>('TASK');
@@ -75,7 +76,7 @@ export const IssueForm = ({ mode }: IssueFormProps) => {
 
     dispatch(
       createIssue({
-        projectId: 1,
+        projectId: projectId,
         name: name,
         type: type,
         priority: priority,

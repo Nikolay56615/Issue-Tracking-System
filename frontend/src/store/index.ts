@@ -5,8 +5,8 @@ import {
   useDispatch,
   useSelector,
 } from 'react-redux';
-import { boardReducer } from '@/features/board';
-import { profileReducer } from '@/features/profile';
+import { boardReducer } from '@/features/board/model/board.reducer.ts';
+import { profileReducer } from '@/features/profile/model/profile.reducer.ts';
 import { authReducer } from '@/features/auth/model/auth.reducer.ts';
 
 export const store = configureStore({

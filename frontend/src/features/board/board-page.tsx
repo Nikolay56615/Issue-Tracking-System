@@ -13,7 +13,7 @@ export const BoardPage = () => {
       <div className="flex flex-row items-center gap-4 px-8 pt-4">
         <Input placeholder="Search issues..." />
         <Button variant="secondary">Filter</Button>
-        <IssueForm mode="add" />
+        <IssueForm mode="add" projectId={projectId} />
       </div>
       <Board projectId={projectId} />
     </div>

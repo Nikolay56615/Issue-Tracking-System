@@ -1,24 +1,24 @@
 services:
-#  backend:
-#    restart: always
-#    privileged: true
-#    container_name: IssueTrackingSystem-backend
-#    build:
-#      dockerfile: Dockerfile
-#    ports:
-#      - '8080:8080'
-#    volumes:
-#      - /var/run/docker.sock:/var/run/docker.sock
-#    depends_on:
-#      postgres:
-#        condition: service_healthy
-#    environment:
-#      - SPRING_DATASOURCE_URL=${POSTGRES_URL}
-#      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
-#      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
-#      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILE}
-#      - DOCKER_HOST=unix:///var/run/docker.sock
-#    env_file: '.env'
+  backend:
+    restart: always
+    privileged: true
+    container_name: IssueTrackingSystem-backend
+    build:
+      dockerfile: Dockerfile
+    ports:
+      - '8080:8080'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=${POSTGRES_URL}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILE}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    env_file: '.env'
 
   postgres:
     image: postgres:16

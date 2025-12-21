@@ -23,7 +23,7 @@ public class IssueMapper {
             issue.getType(),
             issue.getPriority(),
             issue.getStatus(),
-            issue.getAssigneeId(),
+            issue.getAssigneeIds(),
             issue.getAuthorId(),
             issue.getStartDate(),
             issue.getDueDate(),

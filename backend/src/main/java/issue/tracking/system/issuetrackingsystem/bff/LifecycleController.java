@@ -23,7 +23,6 @@ public class LifecycleController {
     @PostMapping("/can-transition")
     public ResponseEntity<Boolean> canTransition(@RequestBody StatusTransitionRequest request) {
         Long userId = currentUserProvider.getCurrentUserId();
-
         IssueDto issue = issueQueryApi.getById(request.issueId());
         if (issue == null) {
             return ResponseEntity.badRequest().body(false);
@@ -33,10 +32,16 @@ public class LifecycleController {
             .getUserRole(userId, issue.projectId())
             .orElse(null);
 
-        boolean isAssignee = issue.assigneeId() != null && issue.assigneeId().equals(userId);
+        boolean isAssignee = issue.assigneeIds() != null && issue.assigneeIds().contains(userId);
+        boolean isAuthor = issue.authorId() != null && issue.authorId().equals(userId);
 
-        boolean allowed = lifecycleEngine.canTransition(request.from(), request.to(), userRole, isAssignee);
-
+        boolean allowed = lifecycleEngine.canTransition(
+            request.from(),
+            request.to(),
+            userRole,
+            isAssignee,
+            isAuthor
+        );
         return ResponseEntity.ok(allowed);
     }
 }

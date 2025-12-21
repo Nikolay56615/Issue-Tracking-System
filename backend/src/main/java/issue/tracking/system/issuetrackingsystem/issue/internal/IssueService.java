@@ -4,6 +4,9 @@ import issue.tracking.system.issuetrackingsystem.issue.api.*;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.LifecycleEngine;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -22,6 +25,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     private final IssueRepository issueRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ProjectAccessApi projectAccess;
+    private final ProjectQueryApi projectQueryApi;
     private final LifecycleEngine lifecycle;
     private final IssueMapper mapper;
 
@@ -30,9 +34,20 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Override
     @Transactional
     public Long createIssue(Long userId, Long projectId, String name, IssueType type,
-        IssuePriority priority, String description) {
-        if (!projectAccess.hasAccess(userId, projectId)) {
+                            IssuePriority priority, String description,
+                            List<Long> assigneeIds, List<String> attachmentFileNames) {
+        if (projectAccess.hasAccess(userId, projectId)) {
             throw new SecurityException("User is not a member of the project");
+        }
+
+        // Проверяем, что назначенные исполнители — члены проекта
+        List<Long> memberIds = projectQueryApi.getProjectMemberIds(projectId);
+        Set<Long> memberIdSet = new HashSet<>(memberIds);
+        List<Long> selectedAssigneeIds = (assigneeIds == null || assigneeIds.isEmpty())
+            ? List.of(userId) // По умолчанию — автор
+            : assigneeIds;
+        if (!memberIdSet.containsAll(selectedAssigneeIds)) {
+            throw new SecurityException("Assignees must be project members");
         }
 
         Issue issue = new Issue();
@@ -42,9 +57,11 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         issue.setDescription(description);
         issue.setType(type);
         issue.setPriority(priority);
-        issue.setAssigneeId(userId); // Assignee auto-filled by creator
-        issue.setStatus(IssueStatus.BACKLOG); // Default status
+        issue.setAssigneeIds(selectedAssigneeIds);
+        issue.setStatus(IssueStatus.BACKLOG);
         issue.setStartDate(LocalDate.now());
+
+        check_attachements(attachmentFileNames, issue);
 
         Issue saved = issueRepository.save(issue);
 
@@ -58,18 +75,25 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Override
     @Transactional
     public void updateIssue(Long issueId, Long userId, String name, String description,
-        IssuePriority priority, IssueType type) {
+                            IssuePriority priority, IssueType type,
+                            IssueStatus status,
+                            List<Long> assigneeIds,
+                            List<String> attachmentFileNames) {
         Issue issue = issueRepository.findById(issueId)
             .orElseThrow(() -> new IllegalArgumentException("Issue not found"));
 
-        if (!projectAccess.hasAccess(userId, issue.getProjectId())) {
+        if (projectAccess.hasAccess(userId, issue.getProjectId())) {
             throw new SecurityException("User is not a member of the project");
         }
 
         String role = projectAccess.getUserRole(userId, issue.getProjectId())
             .orElseThrow(() -> new SecurityException("User has no role"));
 
-        if (!isReviewerOrHigher(role) && !userId.equals(issue.getAuthorId()) && !userId.equals(issue.getAssigneeId())) {
+        boolean isAssignee = issue.getAssigneeIds() != null
+            && issue.getAssigneeIds().contains(userId);
+        boolean isAuthor = issue.getAuthorId() != null && issue.getAuthorId().equals(userId);
+
+        if (isReviewerOrHigher(role) && !userId.equals(issue.getAuthorId()) && !isAssignee) {
             throw new SecurityException("Access denied");
         }
 
@@ -78,11 +102,47 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         issue.setPriority(priority);
         issue.setType(type);
 
+        // Валидация assigneeIds
+        if (assigneeIds != null) {
+            List<Long> memberIds = projectQueryApi.getProjectMemberIds(issue.getProjectId());
+            if (!new HashSet<>(memberIds).containsAll(assigneeIds)) {
+                throw new SecurityException("Assignees must be project members");
+            }
+            issue.setAssigneeIds(assigneeIds);
+        }
+
+        check_attachements(attachmentFileNames, issue);
+
+        // Смена статуса, если передан
+        if (status != null && status != issue.getStatus()) {
+            if (!lifecycle.canTransition(issue.getStatus(), status, role, isAssignee, isAuthor)) {
+                throw new SecurityException("Transition denied by lifecycle rules");
+            }
+            issue.setStatus(status);
+            if (status == IssueStatus.DONE) {
+                issue.setDueDate(LocalDate.now());
+            }
+        }
+
         issueRepository.save(issue);
 
         eventPublisher.publishEvent(new IssueUpdatedEvent(
             issue.getId(), issue.getProjectId(), userId, "Issue updated"
         ));
+    }
+
+    private void check_attachements(List<String> attachmentFileNames, Issue issue) {
+        if (attachmentFileNames != null) {
+            List<Attachment> attachments = attachmentFileNames.stream()
+                .map(filename -> {
+                    Attachment att = new Attachment();
+                    att.setFileName(filename);
+                    att.setIssue(issue);
+                    return att;
+                })
+                .toList();
+            issue.setAttachments(attachments);
+        }
     }
 
     @Override
@@ -94,13 +154,16 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         String role = projectAccess.getUserRole(userId, issue.getProjectId())
             .orElseThrow(() -> new SecurityException("User has no role"));
 
-        boolean isAssignee = userId.equals(issue.getAssigneeId());
+        boolean isAssignee = issue.getAssigneeIds() != null
+            && issue.getAssigneeIds().contains(userId);
+        boolean isAuthor = issue.getAuthorId() != null && issue.getAuthorId().equals(userId);
 
-        if (!lifecycle.canTransition(issue.getStatus(), newStatus, role, isAssignee)) {
+        if (!lifecycle.canTransition(issue.getStatus(), newStatus, role, isAssignee, isAuthor)) {
             throw new SecurityException("Transition denied by lifecycle rules");
         }
 
         issue.setStatus(newStatus);
+
         if (newStatus == IssueStatus.DONE) {
             issue.setDueDate(LocalDate.now());
         }
@@ -118,7 +181,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         Issue issue = issueRepository.findById(issueId).orElseThrow();
         String role = projectAccess.getUserRole(userId, issue.getProjectId()).orElse("");
 
-        if (!isReviewerOrHigher(role)) {
+        if (isReviewerOrHigher(role)) {
             throw new SecurityException("Only Reviewer/Admin/Owner can delete issues");
         }
 
@@ -132,7 +195,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         Issue issue = issueRepository.findById(issueId).orElseThrow();
         String role = projectAccess.getUserRole(userId, issue.getProjectId()).orElse("");
 
-        if (!isReviewerOrHigher(role)) {
+        if (isReviewerOrHigher(role)) {
             throw new SecurityException("Access denied");
         }
 
@@ -141,7 +204,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     }
 
     private boolean isReviewerOrHigher(String role) {
-        return "REVIEWER".equals(role) || "ADMIN".equals(role) || "OWNER".equals(role);
+        return !"REVIEWER".equals(role) && !"ADMIN".equals(role) && !"OWNER".equals(role);
     }
 
     // --- QUERY API IMPL ---
@@ -168,7 +231,9 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
                 stream = stream.filter(i -> filter.priorities().contains(i.getPriority()));
             }
             if (filter.assigneeId() != null) {
-                stream = stream.filter(i -> filter.assigneeId().equals(i.getAssigneeId()));
+                stream = stream.filter(i ->
+                    i.getAssigneeIds() != null && i.getAssigneeIds().contains(filter.assigneeId())
+                );
             }
             if (filter.nameQuery() != null && !filter.nameQuery().isBlank()) {
                 String q = filter.nameQuery().toLowerCase();

@@ -89,8 +89,4 @@ public class UserService implements AuthApi, UserQueryApi, UserProvider {
             .limit(10)
             .toList();
     }
-
-    public List<UserDto> searchUsers(String query) {
-        return searchUsersGlobal(query);
-    }
 }

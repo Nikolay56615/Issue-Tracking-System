@@ -7,7 +7,6 @@ import lombok.Setter;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssuePriority;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueType;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -47,8 +46,10 @@ public class Issue {
     @Column(name = "author_id", nullable = false)
     private Long authorId;
 
+    @ElementCollection
+    @CollectionTable(name = "issue_assignees", joinColumns = @JoinColumn(name = "issue_id"))
     @Column(name = "assignee_id")
-    private Long assigneeId;
+    private List<Long> assigneeIds = new ArrayList<>();
 
     @Column(name = "start_date")
     private LocalDate startDate;

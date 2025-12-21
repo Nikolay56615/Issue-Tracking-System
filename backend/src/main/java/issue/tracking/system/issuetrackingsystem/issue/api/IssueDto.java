@@ -13,7 +13,7 @@ public record IssueDto(
     IssueType type,
     IssuePriority priority,
     IssueStatus status,
-    Long assigneeId,
+    List<Long> assigneeIds,
     Long authorId,
     LocalDate startDate,
     LocalDate dueDate,

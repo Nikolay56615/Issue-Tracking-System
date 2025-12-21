@@ -22,7 +22,7 @@ public class AssigneeCompletionRule implements TransitionRule {
         // Если ты Автор (Author) - например, автор может закрыть задачу, если она в Review
         // Допустим, автор может отменить задачу (вернуть в Backlog).
         if (isAuthor) {
-            if (from == IssueStatus.IN_PROGRESS && to == IssueStatus.BACKLOG) return true;
+            return from == IssueStatus.IN_PROGRESS && to == IssueStatus.BACKLOG;
         }
 
         return false;

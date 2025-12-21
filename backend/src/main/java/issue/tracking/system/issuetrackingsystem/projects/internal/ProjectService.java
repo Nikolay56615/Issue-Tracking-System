@@ -5,7 +5,9 @@ import issue.tracking.system.issuetrackingsystem.projects.api.ProjectCommandApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
 import issue.tracking.system.issuetrackingsystem.users.api.UserDto;
-import issue.tracking.system.issuetrackingsystem.users.api.UserProvider;
+import issue.tracking.system.issuetrackingsystem.users.api.UserQueryApi;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +20,7 @@ import java.util.Optional;
 public class ProjectService implements ProjectAccessApi, ProjectCommandApi, ProjectQueryApi {
 
     private final ProjectRepository projectRepository;
-    private final UserProvider userProvider;
+    private final UserQueryApi userQueryApi;
 
     @Override
     @Transactional
@@ -77,8 +79,18 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     public List<Long> getProjectMemberIds(Long projectId) {
         return projectRepository.findById(projectId)
             .map(project -> project.getMembers().stream()
-                .map(ProjectMember::getUserId) // Просто достаем Long
+                .map(ProjectMember::getUserId)
                 .toList())
             .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserDto> findUsersNotInProject(Long projectId, String query) {
+        List<Long> memberIds = getProjectMemberIds(projectId);
+        Set<Long> memberIdSet = new HashSet<>(memberIds);
+        return userQueryApi.searchUsersGlobal(query).stream()
+            .filter(u -> !memberIdSet.contains(u.id()))
+            .toList();
     }
 }

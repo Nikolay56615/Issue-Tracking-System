@@ -44,6 +44,14 @@ public class ProjectController {
         return userProvider.findUsersByIds(memberIds);
     }
 
+    @GetMapping("/{id}/invite-candidates")
+    public List<UserDto> getInviteCandidates(
+        @PathVariable Long id,
+        @RequestParam String query
+    ) {
+        return queryApi.findUsersNotInProject(id, query);
+    }
+
     // --- COMMAND ---
 
     @PostMapping
@@ -56,4 +64,6 @@ public class ProjectController {
     public void invite(@PathVariable Long id, @Valid @RequestBody InviteUserRequest request) {
         commandApi.inviteUser(id, request.userId(), request.role());
     }
+
+
 }

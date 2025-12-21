@@ -1,8 +1,8 @@
-import type { Issue, IssueStatus } from '../model';
-import { updateIssueStatus } from '../model';
+import type { Issue, IssueStatus } from '@/features/board/model/board.types.ts';
 import { IssueCard } from './issue-card.tsx';
 import {
   DndContext,
+  type DragEndEvent,
   type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
@@ -14,7 +14,10 @@ import { useEffect, useState } from 'react';
 import { StatusColumn } from './status-column.tsx';
 import { useSelector } from 'react-redux';
 import type { RootState } from '@/store/types.ts';
-import { getBoard } from '@/features/board/model/board.actions.ts';
+import {
+  changeIssueStatus,
+  getBoard,
+} from '@/features/board/model/board.actions.ts';
 import { useAppDispatch } from '@/store';
 
 const statusName: Record<IssueStatus, string> = {
@@ -71,7 +74,7 @@ const isTransitionAllowed = (
 
 export const Board = ({ projectId }: { projectId: number }) => {
   const dispatch = useAppDispatch();
-  const { issues, boardLoading, boardError } = useSelector(
+  const { issues, boardLoading, boardError, statusChangeLoading } = useSelector(
     (state: RootState) => state.boardReducer
   );
 
@@ -91,34 +94,41 @@ export const Board = ({ projectId }: { projectId: number }) => {
     setActiveIssue(issue);
   };
 
-  const handleDragOver = (event: DragOverEvent) => {
+  const handleDragOver = (event: DragOverEvent) => {};
+
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveIssue(null);
+
     if (!over) return;
 
-    const activeIssue = issues.find((i) => i.id === active.id);
-    if (!activeIssue) return;
+    const draggedIssue = issues.find((i) => i.id === active.id);
+    if (!draggedIssue) return;
+
+    if (statusChangeLoading[draggedIssue.id]) return;
 
     const overStatus = over.id as IssueStatus;
+
     if (statusOrder.includes(overStatus)) {
-      if (activeIssue.status !== overStatus) {
+      if (draggedIssue.status !== overStatus) {
         if (
           isTransitionAllowed(
-            activeIssue.status,
+            draggedIssue.status,
             overStatus,
             userRole,
             lifecycle
           )
         ) {
           dispatch(
-            updateIssueStatus({ id: activeIssue.id, status: overStatus })
+            changeIssueStatus({
+              id: draggedIssue.id,
+              newStatus: overStatus,
+              previousStatus: draggedIssue.status,
+            })
           );
         }
       }
     }
-  };
-
-  const handleDragEnd = () => {
-    setActiveIssue(null);
   };
 
   const grouped = issues.reduce((map, issue) => {

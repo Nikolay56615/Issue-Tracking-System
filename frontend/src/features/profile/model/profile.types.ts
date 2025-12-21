@@ -13,3 +13,11 @@ export interface Project {
 export interface CreateProjectRequest {
   name: string;
 }
+
+export interface InviteUserRequest {
+  projectId: number;
+  userId: number;
+  role: UserRole;
+}
+
+export type UserRole = 'WORKER' | 'REVIEWER' | 'ADMIN' | 'OWNER';

@@ -9,6 +9,7 @@ import {
 import { useEffect } from 'react';
 import { Card } from '@/components/ui/card.tsx';
 import { Link } from 'react-router';
+import { InviteUserPopover } from '@/features/profile/ui/invite-user-popover.tsx';
 
 export const ProfilePage = () => {
   const dispatch = useAppDispatch();
@@ -38,14 +39,19 @@ export const ProfilePage = () => {
       <div className="flex flex-col gap-4">
         <CreateProjectForm />
         {projects.map((project) => (
-          <Link to={`/${project.id}/board`} key={project.id}>
-            <Card
-              className="flex w-120 flex-col gap-1 rounded-lg bg-white p-4
-                text-xl text-black"
-            >
+          <Card
+            key={project.id}
+            className="flex w-120 flex-row justify-between gap-1 rounded-lg
+              bg-white p-4 text-xl text-black"
+          >
+            <Link to={`/${project.id}/board`}>
               <span>{project.name}</span>
-            </Card>
-          </Link>
+            </Link>
+
+            {project.ownerId === profile.id && (
+              <InviteUserPopover projectId={project.id} />
+            )}
+          </Card>
         ))}
       </div>
     </div>

@@ -1,5 +1,10 @@
 import { axiosInstance } from '@/api/instance.ts';
-import type { CreateProjectRequest, Project, UserProfile, } from '@/features/profile/model/profile.types.ts';
+import type {
+  CreateProjectRequest,
+  InviteUserRequest,
+  Project,
+  UserProfile,
+} from '@/features/profile/model/profile.types.ts';
 
 export const fetchProjects = async () => {
   const { data } = await axiosInstance.get<Project[]>('/projects');
@@ -14,7 +19,30 @@ export const getCurrentUser = async () => {
 };
 
 export const createProject = async ({ name }: CreateProjectRequest) => {
-  const { data } = await axiosInstance.post<Project>('/projects', { name: name });
+  const { data } = await axiosInstance.post<Project>('/projects', {
+    name: name,
+  });
 
-  return data
-}
+  return data;
+};
+
+export const inviteUser = async ({
+  projectId,
+  userId,
+  role,
+}: InviteUserRequest) => {
+  const { data } = await axiosInstance.post(`/projects/${projectId}/invite`, {
+    userId,
+    role,
+  });
+
+  return data;
+};
+
+export const searchUsers = async (query: string) => {
+  const { data } = await axiosInstance.get<UserProfile[]>(
+    `/users/search?query=${query}`
+  );
+
+  return data;
+};

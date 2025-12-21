@@ -1,11 +1,12 @@
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog.tsx';
-import { DialogClose, DialogTitle } from '@radix-ui/react-dialog';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
@@ -28,11 +29,20 @@ import {
   H3Element,
 } from '@/components/ui/heading-node.tsx';
 import { BlockquoteElement } from '@/components/ui/blockquote-node.tsx';
-import {ToolbarButton} from "@/components/ui/toolbar.tsx";
+import { ToolbarButton } from '@/components/ui/toolbar.tsx';
 import { MarkdownPlugin } from '@platejs/markdown';
-import {useAppDispatch} from "@/store";
-import {createIssue} from "@/features/board/model/board.actions.ts";
-import {useState} from "react";
+import { useAppDispatch } from '@/store';
+import { createIssue } from '@/features/board/model/board.actions.ts';
+import { useState } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select.tsx';
+import { capitalize } from '@/lib/utils.ts';
+import type { IssuePriority, IssueType } from '@/features/board/model';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
@@ -40,7 +50,10 @@ interface IssueFormProps {
 
 export const IssueForm = ({ mode }: IssueFormProps) => {
   const dispatch = useAppDispatch();
-  const [name, setName] = useState('')
+  const [name, setName] = useState('');
+  const [type, setType] = useState<IssueType>('TASK');
+  const [priority, setPriority] = useState<IssuePriority>('HIGH');
+  const [open, setOpen] = useState(false);
 
   const editor = usePlateEditor({
     plugins: [
@@ -51,7 +64,7 @@ export const IssueForm = ({ mode }: IssueFormProps) => {
       H2Plugin.withComponent(H2Element),
       H3Plugin.withComponent(H3Element),
       BlockquotePlugin.withComponent(BlockquoteElement),
-      MarkdownPlugin
+      MarkdownPlugin,
     ],
   });
 
@@ -60,11 +73,32 @@ export const IssueForm = ({ mode }: IssueFormProps) => {
   const onSubmit = () => {
     const markdownContent = editor.api.markdown.serialize();
 
-    dispatch(createIssue({projectId: 1, name: 'name', type: 'FEATURE', priority: 'HIGH', description: markdownContent}))
-  }
+    dispatch(
+      createIssue({
+        projectId: 1,
+        name: name,
+        type: type,
+        priority: priority,
+        description: markdownContent,
+      })
+    );
+
+    setOpen(false);
+  };
 
   return (
-    <Dialog>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (isOpen) {
+          setName('');
+          setType('TASK');
+          setPriority('HIGH');
+          editor.tf.reset();
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="default">{title}</Button>
       </DialogTrigger>
@@ -75,7 +109,46 @@ export const IssueForm = ({ mode }: IssueFormProps) => {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3">
             <Label>Issue Name</Label>
-            <Input value={name} onChange={(event) => setName(event.target.value)}/>
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </div>
+          <div className="flex gap-4">
+            <div className="flex flex-1 flex-col gap-3">
+              <span className="text-sm font-medium">Type</span>
+              <Select
+                value={type}
+                onValueChange={(value) => setType(value as IssueType)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['TASK', 'BUG', 'FEATURE', 'SEARCH'].map((type) => (
+                    <SelectItem value={type}>{capitalize(type)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-1 flex-col gap-3">
+              <span className="text-sm font-medium">Priority</span>
+              <Select
+                value={priority}
+                onValueChange={(value) => setPriority(value as IssuePriority)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['URGENT', 'HIGH', 'MEDIUM', 'LOW'].map((priority) => (
+                    <SelectItem value={priority}>
+                      {capitalize(priority)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex w-115 flex-col gap-3">
             <Label>Issue Description</Label>
@@ -115,7 +188,9 @@ export const IssueForm = ({ mode }: IssueFormProps) => {
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
-          <Button type="submit" onClick={onSubmit}>Create</Button>
+          <Button type="submit" onClick={onSubmit}>
+            {mode === 'add' ? 'Create' : 'Save'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

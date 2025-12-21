@@ -1,5 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import type { CreateIssueRequest } from '@/features/board/api/api.const.ts';
+import type { CreateIssueRequest } from './board.types.ts';
 import type {
   GetBoardRequest,
   Issue,
@@ -14,7 +14,7 @@ export const createIssue = createAsyncThunk<
 >('issues/create', async (issueData, { rejectWithValue }) => {
   try {
     const issueId = await BoardRequests.createIssue(issueData);
-    return { id: issueId, status: 'backlog', ...issueData };
+    return { id: issueId, status: 'BACKLOG', ...issueData };
   } catch (e) {
     if (e instanceof AxiosError) {
       return rejectWithValue(e.response?.data?.message || 'Error happened');

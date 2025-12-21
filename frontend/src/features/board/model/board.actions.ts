@@ -1,5 +1,9 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import type { CreateIssueRequest } from './board.types.ts';
+import type {
+  ChangeIssueStatusRequest,
+  CreateIssueRequest,
+  IssueStatus,
+} from './board.types.ts';
 import type {
   GetBoardRequest,
   Issue,
@@ -37,5 +41,26 @@ export const getBoard = createAsyncThunk<
     }
 
     return rejectWithValue('Error happened');
+  }
+});
+
+export const changeIssueStatus = createAsyncThunk<
+  void,
+  ChangeIssueStatusRequest & { previousStatus: IssueStatus },
+  { rejectValue: { message: string; previousStatus: IssueStatus } }
+>('issue/change-status', async (request, { rejectWithValue }) => {
+  try {
+    await BoardRequests.changeIssueStatus(request);
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue({
+        message: e.response?.data?.message || 'Error happened',
+        previousStatus: request.previousStatus,
+      });
+    }
+    return rejectWithValue({
+      message: 'Error happened',
+      previousStatus: request.previousStatus,
+    });
   }
 });

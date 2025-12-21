@@ -25,3 +25,8 @@ export interface CreateIssueRequest {
   priority: IssuePriority;
   description: string;
 }
+
+export interface ChangeIssueStatusRequest {
+  id: number;
+  newStatus: IssueStatus;
+}

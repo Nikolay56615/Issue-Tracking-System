@@ -1,6 +1,10 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { Issue, IssueStatus } from './board.types.ts';
-import { createIssue, getBoard } from '@/features/board/model/board.actions.ts';
+import {
+  changeIssueStatus,
+  createIssue,
+  getBoard,
+} from '@/features/board/model/board.actions.ts';
 
 interface IssuesState {
   issues: Issue[];
@@ -8,6 +12,7 @@ interface IssuesState {
   error: string | null;
   boardLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   boardError: string | null;
+  statusChangeLoading: Record<number, boolean>;
 }
 
 const initialState: IssuesState = {
@@ -16,6 +21,7 @@ const initialState: IssuesState = {
   error: null,
   boardLoading: 'idle',
   boardError: null,
+  statusChangeLoading: {},
 };
 
 const boardSlice = createSlice({
@@ -58,6 +64,26 @@ const boardSlice = createSlice({
       .addCase(getBoard.rejected, (state, action) => {
         state.boardLoading = 'failed';
         state.boardError = action.payload ?? 'Failed to load board';
+      })
+      .addCase(changeIssueStatus.pending, (state, action) => {
+        const { id, newStatus } = action.meta.arg;
+        const issue = state.issues.find((i) => i.id === id);
+        if (issue) {
+          issue.status = newStatus;
+        }
+        state.statusChangeLoading[id] = true;
+      })
+      .addCase(changeIssueStatus.fulfilled, (state, action) => {
+        const { id } = action.meta.arg;
+        state.statusChangeLoading[id] = false;
+      })
+      .addCase(changeIssueStatus.rejected, (state, action) => {
+        const { id } = action.meta.arg;
+        const issue = state.issues.find((i) => i.id === id);
+        if (issue && action.payload?.previousStatus) {
+          issue.status = action.payload.previousStatus;
+        }
+        state.statusChangeLoading[id] = false;
       });
   },
 });

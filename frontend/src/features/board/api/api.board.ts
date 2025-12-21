@@ -1,6 +1,7 @@
 import type { CreateIssueRequest } from '../model';
 import { axiosInstance } from '@/api/instance.ts';
 import type {
+  ChangeIssueStatusRequest,
   GetBoardRequest,
   Issue,
 } from '@/features/board/model/board.types.ts';
@@ -29,4 +30,11 @@ export const getBoard = async ({ projectId }: GetBoardRequest) => {
   );
 
   return data;
+};
+
+export const changeIssueStatus = async ({
+  id,
+  newStatus,
+}: ChangeIssueStatusRequest) => {
+  await axiosInstance.put(`/issues/${id}/status`, { newStatus });
 };

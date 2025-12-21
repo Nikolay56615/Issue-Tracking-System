@@ -10,12 +10,14 @@ import org.springframework.security.core.userdetails.UserDetails;
 class UserDetailsImpl implements UserDetails {
     private final Long id;
     private final String username;
+    private final String email;
     private final String password;
-    private final Collection<? extends GrantedAuthority> authorities = List.of(); // ролей пока нет
+    private final Collection<? extends GrantedAuthority> authorities = List.of();
 
     public UserDetailsImpl(User user) {
         this.id = user.getId();
-        this.username = user.getEmail(); // логинимся по email
+        this.username = user.getUsername();
+        this.email = user.getEmail();
         this.password = user.getPasswordHash();
     }
 

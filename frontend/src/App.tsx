@@ -9,6 +9,7 @@ import { store } from './store';
 import { ProtectedLayout } from '@/layouts/ProtectedLayout.tsx';
 import { ProfileLayout } from '@/layouts/profile-layout.tsx';
 import { ProjectLayout } from '@/layouts/project-layout.tsx';
+import { UsersPage } from '@/features/users/users-page.tsx';
 
 const router = createBrowserRouter([
   {
@@ -36,7 +37,7 @@ const router = createBrowserRouter([
           },
           {
             path: Routes.USERS,
-            element: <div></div>,
+            element: <UsersPage />,
           },
         ],
       },

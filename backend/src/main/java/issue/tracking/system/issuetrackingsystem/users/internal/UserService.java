@@ -24,7 +24,7 @@ public class UserService implements AuthApi, UserQueryApi, UserProvider {
     private final UserMapper mapper;
     private final PasswordEncoder passwordEncoder;
     private final ApplicationEventPublisher eventPublisher;
-    private final AuthenticationManager authenticationManager; // добавили
+    private final AuthenticationManager authenticationManager;
 
     // --- AUTH API ---
 
@@ -60,7 +60,6 @@ public class UserService implements AuthApi, UserQueryApi, UserProvider {
         } catch (AuthenticationException ex) {
             throw new SecurityException("Invalid credentials");
         }
-        // Basic Auth — токен не генерируем
     }
 
     // --- USER QUERY API & PROVIDER ---
@@ -79,7 +78,7 @@ public class UserService implements AuthApi, UserQueryApi, UserProvider {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserDto> searchUsersGlobal(String query) { // реализация под новый метод
+    public List<UserDto> searchUsersGlobal(String query) {
         if (query == null || query.isBlank()) return List.of();
 
         String q = query.toLowerCase();

@@ -2,6 +2,7 @@ package issue.tracking.system.issuetrackingsystem.bff;
 
 import issue.tracking.system.issuetrackingsystem.bff.dto.StatusTransitionRequest;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.LifecycleEngine;
+import issue.tracking.system.issuetrackingsystem.lifecycle.api.LifecycleGraphDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueQueryApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
@@ -43,5 +44,10 @@ public class LifecycleController {
             isAuthor
         );
         return ResponseEntity.ok(allowed);
+    }
+
+    @GetMapping("/graph")
+    public LifecycleGraphDto getTransitionGraph() {
+        return lifecycleEngine.getTransitionGraph();
     }
 }

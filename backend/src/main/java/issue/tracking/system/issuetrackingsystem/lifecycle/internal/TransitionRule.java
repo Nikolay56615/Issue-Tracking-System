@@ -1,6 +1,8 @@
 package issue.tracking.system.issuetrackingsystem.lifecycle.internal;
 
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
+import issue.tracking.system.issuetrackingsystem.lifecycle.api.TransitionDto;
+import java.util.List;
 
 interface TransitionRule {
 
@@ -11,4 +13,6 @@ interface TransitionRule {
      */
     boolean check(IssueStatus from, IssueStatus to, String role, boolean isAssignee,
         boolean isAuthor);
+
+    List<TransitionDto> describeTransitions();
 }

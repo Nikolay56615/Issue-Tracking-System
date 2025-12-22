@@ -19,5 +19,13 @@ public class AttachmentController {
         return ResponseEntity.ok(new UploadResponse(url));
     }
 
+    @GetMapping("/download")
+    public ResponseEntity<byte[]> download(@RequestParam("filename") String filename) {
+        byte[] data = fileStorage.getFile(filename);
+        return ResponseEntity.ok()
+            .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+            .body(data);
+    }
+
     public record UploadResponse(String url) {}
 }

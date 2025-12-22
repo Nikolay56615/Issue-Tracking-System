@@ -19,6 +19,9 @@ public class Attachment {
     @JoinColumn(name = "issue_id", nullable = false)
     private Issue issue;
 
-    @Column(name = "file_name", nullable = false)
-    private String fileName; // хранится публичный URL или путь
+    @Column(name = "original_file_name", nullable = false)
+    private String originalFileName;
+
+    @Column(name = "file_url", nullable = false)
+    private String fileUrl;
 }

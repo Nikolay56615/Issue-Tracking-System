@@ -1,5 +1,6 @@
 package issue.tracking.system.issuetrackingsystem.issue.internal;
 
+import issue.tracking.system.issuetrackingsystem.issue.api.AttachmentDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueDto;
 import org.springframework.stereotype.Component;
 
@@ -11,8 +12,8 @@ public class IssueMapper {
     public IssueDto toDto(Issue issue) {
         if (issue == null) return null;
 
-        List<String> attachments = issue.getAttachments().stream()
-            .map(Attachment::getFileName)
+        List<AttachmentDto> attachments = issue.getAttachments().stream()
+            .map(att -> new AttachmentDto(att.getOriginalFileName(), att.getFileUrl()))
             .toList();
 
         return new IssueDto(

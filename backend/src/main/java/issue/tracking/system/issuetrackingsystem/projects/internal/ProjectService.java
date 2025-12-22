@@ -50,7 +50,7 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     @Override
     @Transactional(readOnly = true)
     public List<ProjectDto> getMyProjects(Long userId) {
-        return projectRepository.findAllByOwnerId(userId).stream()
+        return projectRepository.findAllByMemberUserId(userId).stream()
             .map(p -> new ProjectDto(p.getId(), p.getName(), p.getOwnerId()))
             .toList();
     }

@@ -1,6 +1,18 @@
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, } from '@/components/ui/card.tsx';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card.tsx';
 import { Button } from '@/components/ui/button.tsx';
-import { Field, FieldError, FieldGroup, FieldLabel, FieldSet, } from '@/components/ui/field.tsx';
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
+} from '@/components/ui/field.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
@@ -9,6 +21,8 @@ import { toast } from 'sonner';
 import { useState } from 'react';
 import { useAppDispatch } from '@/store';
 import { login, register } from '@/features/auth/model/auth.actions.ts';
+import { useNavigate } from 'react-router';
+import { Routes } from '@/shared/constants/routes.ts';
 
 const authFormSchema = z.object({
   email: z.email(),
@@ -40,6 +54,7 @@ const modeMapping: Record<
 
 export const AuthForm = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
   const [mode, setMode] = useState<Mode>('register');
 
@@ -58,7 +73,11 @@ export const AuthForm = () => {
 
       toast.promise(promise, {
         loading: 'Loading...',
-        success: (response) => `User with ${response.id} has been created`,
+        success: (response) => {
+          setMode('login');
+          form.reset();
+          return `User with ${response.id} has been created`;
+        },
         error: (err) => err || 'Error creating user',
       });
     } else {
@@ -66,11 +85,14 @@ export const AuthForm = () => {
 
       toast.promise(promise, {
         loading: 'Loading...',
-        success: (token) => `Logged in with token ${token}`,
+        success: (token) => {
+          navigate(Routes.PROFILE);
+          return `Logged in with token ${token}`;
+        },
         error: (err) => err || 'Login error',
       });
     }
-  }
+  };
 
   return (
     <Card className="w-md">

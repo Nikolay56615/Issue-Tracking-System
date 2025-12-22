@@ -24,9 +24,10 @@ export const createIssue = async ({
   return data;
 };
 
-export const getBoard = async ({ projectId }: GetBoardRequest) => {
+export const getBoard = async ({ projectId, filters }: GetBoardRequest) => {
   const { data } = await axiosInstance.post<Issue[]>(
-    'issues/board?projectId=' + projectId
+    'issues/board?projectId=' + projectId,
+    { filters: filters }
   );
 
   return data;

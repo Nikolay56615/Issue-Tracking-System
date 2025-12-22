@@ -1,6 +1,6 @@
 import { Link, Outlet } from 'react-router';
-import { Button } from '@/components/ui/button.tsx';
 import { Routes } from '@/shared/constants/routes.ts';
+import { LogoutButton } from '@/components/logout-button.tsx';
 
 export const ProfileLayout = () => {
   return (
@@ -14,9 +14,7 @@ export const ProfileLayout = () => {
           </span>
         </Link>
         <Link to={Routes.LOGOUT} className="ml-auto h-full">
-          <Button className="h-full cursor-pointer" variant="ghost">
-            Logout
-          </Button>
+          <LogoutButton />
         </Link>
       </header>
       <Outlet />

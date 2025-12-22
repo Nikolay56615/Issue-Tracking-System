@@ -2,6 +2,7 @@ import { generatePath, Link, NavLink, Outlet, useParams } from 'react-router';
 import { Routes } from '@/shared/constants/routes.ts';
 import { Button } from '@/components/ui/button.tsx';
 import { cn } from '@/lib/utils.ts';
+import { LogoutButton } from '@/components/logout-button.tsx';
 
 export const ProjectLayout = () => {
   const { projectId } = useParams();
@@ -37,9 +38,7 @@ export const ProjectLayout = () => {
           </Button>
         </NavLink>
         <Link to={Routes.LOGOUT} className="ml-auto h-full">
-          <Button className="h-full cursor-pointer" variant="ghost">
-            Logout
-          </Button>
+          <LogoutButton />
         </Link>
       </header>
       <Outlet />

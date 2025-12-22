@@ -36,7 +36,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     public Long createIssue(Long userId, Long projectId, String name, IssueType type,
                             IssuePriority priority, String description,
                             List<Long> assigneeIds, List<String> attachmentFileNames) {
-        if (projectAccess.hasAccess(userId, projectId)) {
+        if (!projectAccess.hasAccess(userId, projectId)) {
             throw new SecurityException("User is not a member of the project");
         }
 
@@ -82,7 +82,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         Issue issue = issueRepository.findById(issueId)
             .orElseThrow(() -> new IllegalArgumentException("Issue not found"));
 
-        if (projectAccess.hasAccess(userId, issue.getProjectId())) {
+        if (!projectAccess.hasAccess(userId, issue.getProjectId())) {
             throw new SecurityException("User is not a member of the project");
         }
 
@@ -134,9 +134,10 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     private void check_attachements(List<String> attachmentFileNames, Issue issue) {
         if (attachmentFileNames != null) {
             List<Attachment> attachments = attachmentFileNames.stream()
-                .map(filename -> {
+                .map(fileName -> {
                     Attachment att = new Attachment();
-                    att.setFileName(filename);
+                    att.setOriginalFileName(fileName);
+                    att.setFileUrl(fileName);
                     att.setIssue(issue);
                     return att;
                 })

@@ -17,5 +17,5 @@ public record IssueDto(
     Long authorId,
     LocalDate startDate,
     LocalDate dueDate,
-    List<String> attachmentFileNames
+    List<AttachmentDto> attachments
 ) {}

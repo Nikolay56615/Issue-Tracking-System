@@ -4,6 +4,7 @@ import issue.tracking.system.issuetrackingsystem.bff.dto.CreateProjectRequest;
 import issue.tracking.system.issuetrackingsystem.bff.dto.InviteUserRequest;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectCommandApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectDto;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectMemberWithRoleDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
 import issue.tracking.system.issuetrackingsystem.users.api.CurrentUserProvider;
 import issue.tracking.system.issuetrackingsystem.users.api.UserDto;
@@ -39,9 +40,8 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}/members")
-    public List<UserDto> getMembers(@PathVariable Long id) {
-        List<Long> memberIds = queryApi.getProjectMemberIds(id);
-        return userProvider.findUsersByIds(memberIds);
+    public List<ProjectMemberWithRoleDto> getMembers(@PathVariable Long id) {
+        return queryApi.getProjectMembersWithRoles(id);
     }
 
     @GetMapping("/{id}/invite-candidates")

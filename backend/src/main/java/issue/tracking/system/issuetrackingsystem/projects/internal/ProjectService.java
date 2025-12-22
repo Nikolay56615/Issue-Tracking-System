@@ -3,6 +3,7 @@ package issue.tracking.system.issuetrackingsystem.projects.internal;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectCommandApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectDto;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectMemberWithRoleDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
 import issue.tracking.system.issuetrackingsystem.users.api.UserDto;
 import issue.tracking.system.issuetrackingsystem.users.api.UserQueryApi;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -76,10 +78,18 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
 
     @Override
     @Transactional(readOnly = true)
-    public List<Long> getProjectMemberIds(Long projectId) {
+    public List<ProjectMemberWithRoleDto> getProjectMembersWithRoles(Long projectId) {
         return projectRepository.findById(projectId)
             .map(project -> project.getMembers().stream()
-                .map(ProjectMember::getUserId)
+                .map(member -> {
+                    var user = userQueryApi.findUserById(member.getUserId());
+                    return new ProjectMemberWithRoleDto(
+                        member.getUserId(),
+                        user.map(u -> u.username()).orElse("") ,
+                        user.map(u -> u.email()).orElse("") ,
+                        member.getRole().name()
+                    );
+                })
                 .toList())
             .orElseThrow(() -> new IllegalArgumentException("Project not found"));
     }
@@ -87,10 +97,23 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     @Override
     @Transactional(readOnly = true)
     public List<UserDto> findUsersNotInProject(Long projectId, String query) {
-        List<Long> memberIds = getProjectMemberIds(projectId);
+        List<Long> memberIds = projectRepository.findById(projectId)
+            .map(project -> project.getMembers().stream()
+                .map(ProjectMember::getUserId)
+                .toList())
+            .orElseThrow(() -> new IllegalArgumentException("Project not found"));
         Set<Long> memberIdSet = new HashSet<>(memberIds);
         return userQueryApi.searchUsersGlobal(query).stream()
             .filter(u -> !memberIdSet.contains(u.id()))
             .toList();
+    }
+
+    @Override
+    public List<Long> getProjectMemberIds(Long projectId) {
+        return projectRepository.findById(projectId)
+                .map(project -> project.getMembers().stream()
+                        .map(member -> member.getUserId())
+                        .collect(Collectors.toList()))
+                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
     }
 }

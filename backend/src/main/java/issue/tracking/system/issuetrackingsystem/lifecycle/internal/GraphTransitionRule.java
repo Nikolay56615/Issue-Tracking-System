@@ -3,7 +3,10 @@ package issue.tracking.system.issuetrackingsystem.lifecycle.internal;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
+import issue.tracking.system.issuetrackingsystem.lifecycle.api.TransitionDto;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -23,5 +26,22 @@ public class GraphTransitionRule implements TransitionRule {
         if (from == to) return true;
         Set<IssueStatus> targets = ALLOWED_TRANSITIONS.getOrDefault(from, Set.of());
         return targets.contains(to);
+    }
+
+    @Override
+    public List<TransitionDto> describeTransitions() {
+        List<TransitionDto> result = new ArrayList<>();
+        for (var entry : ALLOWED_TRANSITIONS.entrySet()) {
+            for (var to : entry.getValue()) {
+                result.add(new TransitionDto(
+                    entry.getKey(),
+                    to,
+                    List.of(),
+                    false,
+                    false
+                ));
+            }
+        }
+        return result;
     }
 }

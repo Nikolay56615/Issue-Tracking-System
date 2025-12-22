@@ -240,6 +240,12 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
                 String q = filter.nameQuery().toLowerCase();
                 stream = stream.filter(i -> i.getName().toLowerCase().contains(q));
             }
+            if (filter.dateFrom() != null) {
+                stream = stream.filter(i -> i.getStartDate() != null && !i.getStartDate().isBefore(filter.dateFrom()));
+            }
+            if (filter.dateTo() != null) {
+                stream = stream.filter(i -> i.getStartDate() != null && !i.getStartDate().isAfter(filter.dateTo()));
+            }
         }
 
         return stream

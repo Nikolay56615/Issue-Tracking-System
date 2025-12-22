@@ -3,6 +3,10 @@ package issue.tracking.system.issuetrackingsystem.lifecycle.internal;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
+import issue.tracking.system.issuetrackingsystem.lifecycle.api.TransitionDto;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Component
 @Order(2)
@@ -26,5 +30,32 @@ public class AssigneeCompletionRule implements TransitionRule {
         }
 
         return false;
+    }
+
+    @Override
+    public List<TransitionDto> describeTransitions() {
+        List<TransitionDto> result = new ArrayList<>();
+        result.add(new TransitionDto(
+            IssueStatus.BACKLOG,
+            IssueStatus.IN_PROGRESS,
+            List.of(),
+            false,
+            true
+        ));
+        result.add(new TransitionDto(
+            IssueStatus.IN_PROGRESS,
+            IssueStatus.REVIEW,
+            List.of(),
+            false,
+            true
+        ));
+        result.add(new TransitionDto(
+            IssueStatus.IN_PROGRESS,
+            IssueStatus.BACKLOG,
+            List.of(),
+            true,
+            false
+        ));
+        return result;
     }
 }

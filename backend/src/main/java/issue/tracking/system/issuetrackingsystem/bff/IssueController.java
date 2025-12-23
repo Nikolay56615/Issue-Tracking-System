@@ -30,9 +30,13 @@ public class IssueController {
     public IssueDto create(@Valid @RequestBody CreateIssueRequest request) {
         Long userId = userProvider.getCurrentUserId();
         List<AttachmentDto> attachments = request.attachments();
-        if (attachments == null && request.attachmentFileNames() != null) {
+        if ((attachments == null || attachments.stream().anyMatch(a -> a.originalFileName() == null)) && request.attachmentFileNames() != null) {
             attachments = request.attachmentFileNames().stream()
                 .map(url -> new AttachmentDto(extractFileName(url), url))
+                .toList();
+        } else if (attachments != null) {
+            attachments = attachments.stream()
+                .map(a -> a.originalFileName() == null ? new AttachmentDto(extractFileName(a.url()), a.url()) : a)
                 .toList();
         }
         return commandApi.createIssue(

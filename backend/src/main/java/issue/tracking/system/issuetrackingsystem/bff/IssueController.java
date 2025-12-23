@@ -4,6 +4,7 @@ import issue.tracking.system.issuetrackingsystem.bff.dto.ChangeStatusRequest;
 import issue.tracking.system.issuetrackingsystem.bff.dto.CreateIssueRequest;
 import issue.tracking.system.issuetrackingsystem.bff.dto.UpdateIssueRequest;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueCommandApi;
+import issue.tracking.system.issuetrackingsystem.issue.api.AttachmentDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueFilterDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueQueryApi;
@@ -28,6 +29,12 @@ public class IssueController {
     @PostMapping
     public IssueDto create(@Valid @RequestBody CreateIssueRequest request) {
         Long userId = userProvider.getCurrentUserId();
+        List<AttachmentDto> attachments = request.attachments();
+        if (attachments == null && request.attachmentFileNames() != null) {
+            attachments = request.attachmentFileNames().stream()
+                .map(url -> new AttachmentDto(extractFileName(url), url))
+                .toList();
+        }
         return commandApi.createIssue(
             userId,
             request.projectId(),
@@ -36,9 +43,15 @@ public class IssueController {
             request.priority(),
             request.description(),
             request.assigneeIds(),
-            request.attachments(),
+            attachments,
             request.dueDate()
         );
+    }
+
+    private String extractFileName(String url) {
+        if (url == null) return null;
+        int idx = url.lastIndexOf("/");
+        return idx >= 0 ? url.substring(idx + 1) : url;
     }
 
     @PutMapping("/{id}")

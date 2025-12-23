@@ -15,5 +15,6 @@ public record CreateIssueRequest(
     String description,
     List<Long> assigneeIds,
     List<AttachmentDto> attachments,
+    List<String> attachmentFileNames,
     java.time.LocalDate dueDate
 ) {}

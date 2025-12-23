@@ -49,8 +49,13 @@ public class UserService implements AuthApi, UserQueryApi, UserProvider {
 
     @Override
     public void login(String email, String username, String rawPassword) {
-        String principal = (email != null && !email.isBlank()) ? email : username;
-        if (principal == null || principal.isBlank()) {
+        String principal = null;
+        if (email != null && !email.isBlank()) {
+            principal = email;
+        } else if (username != null && !username.isBlank()) {
+            principal = username;
+        }
+        if (principal == null) {
             throw new IllegalArgumentException("Email or username is required");
         }
         try {
@@ -58,6 +63,15 @@ public class UserService implements AuthApi, UserQueryApi, UserProvider {
                 new UsernamePasswordAuthenticationToken(principal, rawPassword)
             );
         } catch (AuthenticationException ex) {
+            // Если оба поля указаны, пробуем второй вариант
+            if (email != null && !email.isBlank() && username != null && !username.isBlank() && !email.equals(username)) {
+                try {
+                    authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(username, rawPassword)
+                    );
+                    return;
+                } catch (AuthenticationException ignored) {}
+            }
             throw new SecurityException("Invalid credentials");
         }
     }

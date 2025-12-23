@@ -35,7 +35,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Transactional
     public IssueDto createIssue(Long userId, Long projectId, String name, IssueType type,
                             IssuePriority priority, String description,
-                            List<Long> assigneeIds, List<String> attachmentFileNames,
+                            List<Long> assigneeIds, List<AttachmentDto> attachments,
                             java.time.LocalDate dueDate) {
         if (!projectAccess.hasAccess(userId, projectId)) {
             throw new SecurityException("User is not a member of the project");
@@ -69,7 +69,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             issue.setDueDate(dueDate);
         }
 
-        check_attachements(attachmentFileNames, issue);
+        check_attachements(attachments, issue);
 
         Issue saved = issueRepository.save(issue);
 
@@ -86,7 +86,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
                             IssuePriority priority, IssueType type,
                             IssueStatus status,
                             List<Long> assigneeIds,
-                            List<String> attachmentFileNames) {
+                            List<AttachmentDto> attachments) {
         Issue issue = issueRepository.findById(issueId)
             .orElseThrow(() -> new IllegalArgumentException("Issue not found"));
 
@@ -123,7 +123,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             issue.setAssigneeIds(assigneeIds);
         }
 
-        check_attachements(attachmentFileNames, issue);
+        check_attachements(attachments, issue);
 
         if (status != null && status != issue.getStatus()) {
             if (!lifecycle.canTransition(issue.getStatus(), status, role, isAssignee, isAuthor)) {
@@ -142,18 +142,18 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         ));
     }
 
-    private void check_attachements(List<String> attachmentFileNames, Issue issue) {
-        if (attachmentFileNames != null) {
-            List<Attachment> attachments = attachmentFileNames.stream()
-                .map(fileName -> {
+    private void check_attachements(List<AttachmentDto> attachments, Issue issue) {
+        if (attachments != null) {
+            List<Attachment> attachmentEntities = attachments.stream()
+                .map(dto -> {
                     Attachment att = new Attachment();
-                    att.setOriginalFileName(fileName);
-                    att.setFileUrl(fileName);
+                    att.setOriginalFileName(dto.originalFileName());
+                    att.setFileUrl(dto.url());
                     att.setIssue(issue);
                     return att;
                 })
                 .toList();
-            issue.setAttachments(attachments);
+            issue.setAttachments(attachmentEntities);
         }
     }
 

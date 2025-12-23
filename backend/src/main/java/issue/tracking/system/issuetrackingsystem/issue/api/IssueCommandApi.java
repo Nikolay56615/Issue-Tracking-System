@@ -6,7 +6,7 @@ import java.util.List;
 public interface IssueCommandApi {
     IssueDto createIssue(Long userId, Long projectId, String name, IssueType type,
         IssuePriority priority, String description,
-        List<Long> assigneeIds, List<String> attachmentFileNames,
+        List<Long> assigneeIds, List<AttachmentDto> attachments,
         java.time.LocalDate dueDate);
     void changeStatus(Long issueId, Long userId, IssueStatus newStatus);
     void moveToTrash(Long issueId, Long userId);
@@ -15,6 +15,6 @@ public interface IssueCommandApi {
         IssuePriority priority, IssueType type,
         IssueStatus status,
         List<Long> assigneeIds,
-        List<String> attachmentFileNames);
+        List<AttachmentDto> attachments);
     void removeUserFromProject(Long projectId, Long userId);
 }

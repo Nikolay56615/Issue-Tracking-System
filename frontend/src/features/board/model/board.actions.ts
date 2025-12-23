@@ -113,3 +113,49 @@ export const getLifecycleGraph = createAsyncThunk<
     return rejectWithValue('Error happened');
   }
 });
+
+export const downloadAttachment = createAsyncThunk<
+  { filename: string; blob: Blob },
+  string,
+  { rejectValue: string }
+>('attachments/download', async (filename, { rejectWithValue }) => {
+  try {
+    const res = await BoardRequests.downloadAttachment(filename);
+    const blob = res.data as Blob;
+
+    const header = res.headers['content-disposition'] as string | undefined;
+    let realName = filename;
+    if (header) {
+      const idx = header.toLowerCase().indexOf('filename=');
+      if (idx !== -1) {
+        realName = header
+          .substring(idx + 'filename='.length)
+          .trim()
+          .replace(/"/g, '');
+      }
+    }
+
+    return { filename: realName, blob };
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+    return rejectWithValue('Error happened');
+  }
+});
+
+export const deleteAttachment = createAsyncThunk<
+  string,
+  string,
+  { rejectValue: string }
+>('attachments/deleteAttachment', async (filename, { rejectWithValue }) => {
+  try {
+    await BoardRequests.deleteAttachment(filename);
+    return filename;
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+    return rejectWithValue('Error happened');
+  }
+});

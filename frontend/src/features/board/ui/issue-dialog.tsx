@@ -13,13 +13,23 @@ import { Button } from '@/components/ui/button.tsx';
 import { Trash } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { deleteIssue } from '@/features/board/model/board.actions.ts';
+import { AttachmentRow } from '@/features/board/ui/attachment-row.tsx';
 
 interface IssueDialogProps {
   issue: Issue;
 }
 
 export const IssueDialog = ({ issue }: IssueDialogProps) => {
-  const { id, projectId, name, type, priority, status, description } = issue;
+  const {
+    id,
+    projectId,
+    name,
+    type,
+    priority,
+    status,
+    description,
+    attachments,
+  } = issue;
 
   const dispatch = useAppDispatch();
   const { deleteIssueStatus } = useAppSelector((state) => state.boardReducer);
@@ -45,6 +55,9 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
           <span>Status: {capitalize(status)}</span>
           <span>Description</span>
           <p>{description}</p>
+          {attachments.map((attachment) => (
+            <AttachmentRow filename={attachment.url} />
+          ))}
           <Button
             variant="destructive"
             className="cursor-pointer"

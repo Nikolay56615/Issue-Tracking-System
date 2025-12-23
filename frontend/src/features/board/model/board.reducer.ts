@@ -8,7 +8,9 @@ import type {
 import {
   changeIssueStatus,
   createIssue,
+  deleteAttachment,
   deleteIssue,
+  downloadAttachment,
   getBoard,
   getLifecycleGraph,
 } from '@/features/board/model/board.actions.ts';
@@ -30,6 +32,10 @@ interface IssuesState {
     error: string | null;
   };
   filters: IssueFilters;
+  downloading: Record<string, boolean>;
+  downloadingError: Record<string, string | null>;
+  deleting: Record<string, boolean>;
+  deletingError: Record<string, string | null>;
 }
 
 const initialState: IssuesState = {
@@ -56,6 +62,10 @@ const initialState: IssuesState = {
     dateFrom: undefined,
     dateTo: undefined,
   },
+  downloading: {},
+  downloadingError: {},
+  deleting: {},
+  deletingError: {},
 };
 
 const boardSlice = createSlice({
@@ -162,6 +172,41 @@ const boardSlice = createSlice({
         state.lifecycleGraphStatus.loading = false;
         state.lifecycleGraphStatus.error =
           action.payload || action.error.message || 'Error happened';
+      })
+      .addCase(downloadAttachment.pending, (state, action) => {
+        const filename = action.meta.arg;
+        state.downloading[filename] = true;
+        state.downloadingError[filename] = null;
+      })
+      .addCase(downloadAttachment.fulfilled, (state, action) => {
+        const filename = action.meta.arg;
+        state.downloading[filename] = false;
+      })
+      .addCase(downloadAttachment.rejected, (state, action) => {
+        const filename = action.meta.arg;
+        state.downloading[filename] = false;
+        state.downloadingError[filename] =
+          (action.payload as string) ||
+          action.error.message ||
+          'Error happened';
+      })
+      .addCase(deleteAttachment.pending, (state, action) => {
+        const filename = action.meta.arg;
+        state.deleting[filename] = true;
+        state.deletingError[filename] = null;
+      })
+      .addCase(deleteAttachment.fulfilled, (state, action) => {
+        const filename = action.payload;
+        state.deleting[filename] = false;
+        delete state.deletingError[filename];
+      })
+      .addCase(deleteAttachment.rejected, (state, action) => {
+        const filename = action.meta.arg;
+        state.deleting[filename] = false;
+        state.deletingError[filename] =
+          (action.payload as string) ||
+          action.error.message ||
+          'Error happened';
       });
   },
 });

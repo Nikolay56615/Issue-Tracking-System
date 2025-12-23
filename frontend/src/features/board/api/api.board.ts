@@ -56,3 +56,16 @@ export const getLifecycleGraph = async () => {
 
   return data;
 };
+
+export const downloadAttachment = async (filename: string) => {
+  return await axiosInstance.get(`/attachments/download`, {
+    params: { filename },
+    responseType: 'blob',
+  });
+};
+
+export const deleteAttachment = async (filename: string) => {
+  await axiosInstance.delete(`/api/attachments/delete`, {
+    params: { filename },
+  });
+};

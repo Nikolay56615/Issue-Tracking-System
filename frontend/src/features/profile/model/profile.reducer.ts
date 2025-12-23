@@ -75,8 +75,9 @@ const profileSlice = createSlice({
         state.createProjectLoading = 'pending';
         state.createProjectError = null;
       })
-      .addCase(createProject.fulfilled, (state) => {
+      .addCase(createProject.fulfilled, (state, action) => {
         state.createProjectLoading = 'succeeded';
+        state.projects.push(action.payload);
       })
       .addCase(createProject.rejected, (state, action) => {
         state.createProjectLoading = 'failed';

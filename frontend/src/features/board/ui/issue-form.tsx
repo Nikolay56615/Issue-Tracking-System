@@ -36,7 +36,7 @@ import {
   createIssue,
   uploadAttachment,
 } from '@/features/board/model/board.actions.ts';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -44,8 +44,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select.tsx';
-import { capitalize } from '@/lib/utils.ts';
+import { capitalize, cn } from '@/lib/utils.ts';
 import type { IssuePriority, IssueType } from '@/features/board/model';
+import type { UserProfile } from '@/features/profile';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command.tsx';
+import { Loader2, User } from 'lucide-react';
+import { ProfileRequests } from '@/features/profile/api';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
@@ -61,6 +71,54 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
   const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [userOptions, setUserOptions] = useState<UserProfile[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const debounceTimeout = useRef<number | null>(null);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!searchQuery.trim()) {
+        setUserOptions([]);
+        return;
+      }
+
+      setUsersLoading(true);
+      setError(null);
+
+      try {
+        const response = await ProfileRequests.searchUsers(searchQuery);
+        setUserOptions(response);
+      } catch (err) {
+        setError('Failed to fetch users');
+        console.error('Error fetching users:', err);
+        setUserOptions([]);
+      } finally {
+        setUsersLoading(false);
+      }
+    };
+
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+
+    debounceTimeout.current = setTimeout(fetchUsers, 300);
+
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+    };
+  }, [searchQuery]);
+
+  const showEmpty =
+    open &&
+    !usersLoading &&
+    searchQuery.trim().length > 0 &&
+    userOptions.length === 0;
 
   const isCreatingIssue = useAppSelector((state) => state.boardReducer.loading);
 
@@ -93,6 +151,8 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
 
       const markdownContent = editor.api.markdown.serialize();
 
+      const assigneeIds = selectedUser ? [selectedUser.id] : [];
+
       await dispatch(
         createIssue({
           projectId: projectId,
@@ -100,7 +160,7 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
           type: type,
           priority: priority,
           description: markdownContent,
-          assigneeIds: [],
+          assigneeIds: assigneeIds,
           attachmentFileNames: attachmentFileNames,
         })
       ).unwrap();
@@ -212,6 +272,56 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
               </Plate>
             </div>
           </div>
+        </div>
+        <div>
+          <label className="mb-2 block text-sm font-medium">
+            Select Assignee
+          </label>
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search by name or email..."
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+            />
+
+            {usersLoading && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-muted-foreground ml-2 text-sm">
+                  Searching...
+                </span>
+              </div>
+            )}
+
+            {error && (
+              <div className="text-destructive p-3 text-sm">{error}</div>
+            )}
+
+            {showEmpty && <CommandEmpty>No users found.</CommandEmpty>}
+
+            {!usersLoading && !error && userOptions.length > 0 && (
+              <CommandGroup className="max-h-60 overflow-auto">
+                {userOptions.map((user) => (
+                  <CommandItem
+                    key={user.id}
+                    onSelect={() => setSelectedUser(user)}
+                    className={cn(
+                      'flex items-center gap-2',
+                      selectedUser?.id === user.id && 'bg-accent'
+                    )}
+                  >
+                    <User className="h-4 w-4" />
+                    <div className="flex flex-col">
+                      <span>{user.username}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {user.email}
+                      </span>
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </Command>
         </div>
         <div className="grid w-full max-w-sm items-center gap-3">
           <Label htmlFor="picture">Picture</Label>

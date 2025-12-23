@@ -9,4 +9,8 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     List<Project> findAllByOwnerId(Long ownerId);
     @Query("SELECT p FROM Project p JOIN p.members m WHERE m.userId = :userId")
     List<Project> findAllByMemberUserId(Long userId);
+    @Query("SELECT p FROM Project p JOIN p.members m WHERE m.userId = :userId AND p.archived = false")
+    List<Project> findAllActiveByMemberUserId(Long userId);
+    @Query("SELECT p FROM Project p WHERE p.ownerId = :ownerId")
+    List<Project> findAllByOwnerIdAllProjects(Long ownerId);
 }

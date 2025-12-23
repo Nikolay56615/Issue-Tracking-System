@@ -27,5 +27,11 @@ public class AttachmentController {
             .body(data);
     }
 
+    @DeleteMapping("/delete")
+    public ResponseEntity<Void> delete(@RequestParam("filename") String filename) {
+        fileStorage.deleteFile(filename);
+        return ResponseEntity.noContent().build();
+    }
+
     public record UploadResponse(String url) {}
 }

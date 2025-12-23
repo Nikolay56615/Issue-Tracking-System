@@ -8,7 +8,7 @@ import issue.tracking.system.issuetrackingsystem.projects.api.ProjectMemberWithR
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
 import issue.tracking.system.issuetrackingsystem.users.api.CurrentUserProvider;
 import issue.tracking.system.issuetrackingsystem.users.api.UserDto;
-import issue.tracking.system.issuetrackingsystem.users.api.UserProvider;
+import issue.tracking.system.issuetrackingsystem.issue.api.IssueCommandApi;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -23,7 +23,7 @@ public class ProjectController {
     private final ProjectCommandApi commandApi;
     private final ProjectQueryApi queryApi;
     private final CurrentUserProvider currentUserProvider;
-    private final UserProvider userProvider;
+    private final IssueCommandApi issueCommandApi;
 
     // --- QUERY ---
 
@@ -63,6 +63,25 @@ public class ProjectController {
     @PostMapping("/{id}/invite")
     public void invite(@PathVariable Long id, @Valid @RequestBody InviteUserRequest request) {
         commandApi.inviteUser(id, request.userId(), request.role());
+    }
+
+    @PostMapping("/{id}/archive")
+    public void archive(@PathVariable Long id) {
+        Long userId = currentUserProvider.getCurrentUserId();
+        commandApi.archiveProject(id, userId);
+    }
+
+    @PostMapping("/{id}/restore")
+    public void restore(@PathVariable Long id) {
+        Long userId = currentUserProvider.getCurrentUserId();
+        commandApi.restoreProject(id, userId);
+    }
+
+    @PostMapping("/{id}/remove-member/{userId}")
+    public void removeMember(@PathVariable Long id, @PathVariable Long userId) {
+        Long ownerId = currentUserProvider.getCurrentUserId();
+        commandApi.removeUser(id, ownerId, userId);
+        issueCommandApi.removeUserFromProject(id, userId);
     }
 
 

@@ -40,11 +40,15 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             throw new SecurityException("User is not a member of the project");
         }
 
-        // Проверяем, что назначенные исполнители — члены проекта
+        var projectOpt = projectQueryApi.getProjectById(projectId);
+        if (projectOpt.isPresent() && projectOpt.get().archived()) {
+            throw new SecurityException("Cannot create issue in archived project");
+        }
+
         List<Long> memberIds = projectQueryApi.getProjectMemberIds(projectId);
         Set<Long> memberIdSet = new HashSet<>(memberIds);
         List<Long> selectedAssigneeIds = (assigneeIds == null || assigneeIds.isEmpty())
-            ? List.of(userId) // По умолчанию — автор
+            ? List.of(userId)
             : assigneeIds;
         if (!memberIdSet.containsAll(selectedAssigneeIds)) {
             throw new SecurityException("Assignees must be project members");
@@ -86,6 +90,11 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             throw new SecurityException("User is not a member of the project");
         }
 
+        var projectOpt = projectQueryApi.getProjectById(issue.getProjectId());
+        if (projectOpt.isPresent() && projectOpt.get().archived()) {
+            throw new SecurityException("Cannot update issue in archived project");
+        }
+
         String role = projectAccess.getUserRole(userId, issue.getProjectId())
             .orElseThrow(() -> new SecurityException("User has no role"));
 
@@ -102,7 +111,6 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         issue.setPriority(priority);
         issue.setType(type);
 
-        // Валидация assigneeIds
         if (assigneeIds != null) {
             List<Long> memberIds = projectQueryApi.getProjectMemberIds(issue.getProjectId());
             if (!new HashSet<>(memberIds).containsAll(assigneeIds)) {
@@ -113,7 +121,6 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
 
         check_attachements(attachmentFileNames, issue);
 
-        // Смена статуса, если передан
         if (status != null && status != issue.getStatus()) {
             if (!lifecycle.canTransition(issue.getStatus(), status, role, isAssignee, isAuthor)) {
                 throw new SecurityException("Transition denied by lifecycle rules");
@@ -202,6 +209,23 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
 
         issue.setDeletedAt(null);
         issueRepository.save(issue);
+    }
+
+    @Override
+    @Transactional
+    public void removeUserFromProject(Long projectId, Long userId) {
+        List<Issue> assigned = issueRepository.findByProjectIdAndAssigneeIdsContaining(projectId, userId);
+        for (Issue issue : assigned) {
+            List<Long> assignees = issue.getAssigneeIds();
+            if (assignees != null && assignees.contains(userId)) {
+                assignees = assignees.stream().filter(id -> !id.equals(userId)).toList();
+                issue.setAssigneeIds(assignees);
+                if (assignees.isEmpty()) {
+                    issue.setStatus(IssueStatus.BACKLOG);
+                }
+                issueRepository.save(issue);
+            }
+        }
     }
 
     private boolean isReviewerOrHigher(String role) {

@@ -37,6 +37,16 @@ export const ProjectLayout = () => {
             Users
           </Button>
         </NavLink>
+        <NavLink
+          to={generatePath(Routes.TRASH, { projectId })}
+          className={({ isActive }) =>
+            cn(isActive && 'bg-accent rounded-md', 'h-full')
+          }
+        >
+          <Button className="h-full cursor-pointer" variant="ghost">
+            Trash
+          </Button>
+        </NavLink>
         <Link to={Routes.LOGOUT} className="ml-auto h-full">
           <LogoutButton />
         </Link>

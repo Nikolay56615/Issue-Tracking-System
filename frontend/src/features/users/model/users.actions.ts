@@ -1,10 +1,10 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import type { UserProfile } from '@/features/profile/model/profile.types.ts';
+import type { UserProfileWithRole } from '@/features/profile/model/profile.types.ts';
 import { AxiosError } from 'axios';
 import { UsersRequests } from '@/features/users/api';
 
 export const getProjectUsers = createAsyncThunk<
-  UserProfile[],
+  UserProfileWithRole[],
   number,
   { rejectValue: string }
 >('getProjectUsers', async (projectId, { rejectWithValue }) => {

@@ -4,6 +4,13 @@ export interface UserProfile {
   username: string;
 }
 
+export interface UserProfileWithRole {
+  id: number;
+  email: string;
+  name: string;
+  role: UserRole;
+}
+
 export interface Project {
   id: number;
   name: string;

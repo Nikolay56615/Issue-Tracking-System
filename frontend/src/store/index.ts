@@ -9,9 +9,16 @@ import { boardReducer } from '@/features/board/model/board.reducer.ts';
 import { profileReducer } from '@/features/profile/model/profile.reducer.ts';
 import { authReducer } from '@/features/auth/model/auth.reducer.ts';
 import { usersReducer } from '@/features/users/model/users.reducer.ts';
+import { trashReducer } from '@/features/trash/model/trash.reducer.ts';
 
 export const store = configureStore({
-  reducer: { boardReducer, profileReducer, authReducer, usersReducer },
+  reducer: {
+    boardReducer,
+    profileReducer,
+    authReducer,
+    usersReducer,
+    trashReducer,
+  },
 });
 
 export const useAppDispatch: () => AppDispatch = useDispatch;

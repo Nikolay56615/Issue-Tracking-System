@@ -4,9 +4,11 @@ import type {
   UserProfile,
 } from '@/features/profile/model/profile.types';
 import {
+  archiveProject,
   createProject,
   fetchProjects,
   getCurrentUser,
+  restoreProject,
 } from './profile.actions';
 
 interface ProfileState {
@@ -15,9 +17,13 @@ interface ProfileState {
   profileLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   projectsLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   createProjectLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
+  archiveProjectLoadingIds: number[];
+  restoreProjectLoadingIds: number[];
   profileError: string | null;
   projectsError: string | null;
   createProjectError: string | null;
+  archiveProjectError: string | null;
+  restoreProjectError: string | null;
 }
 
 const initialState: ProfileState = {
@@ -26,9 +32,13 @@ const initialState: ProfileState = {
   profileLoading: 'idle',
   projectsLoading: 'idle',
   createProjectLoading: 'idle',
+  archiveProjectLoadingIds: [],
+  restoreProjectLoadingIds: [],
   profileError: null,
   projectsError: null,
   createProjectError: null,
+  archiveProjectError: null,
+  restoreProjectError: null,
 };
 
 const profileSlice = createSlice({
@@ -71,6 +81,56 @@ const profileSlice = createSlice({
       .addCase(createProject.rejected, (state, action) => {
         state.createProjectLoading = 'failed';
         state.profileError = action.payload ?? 'Failed to fetch current user';
+      })
+      .addCase(archiveProject.pending, (state, action) => {
+        const id = action.meta.arg;
+        if (!state.archiveProjectLoadingIds.includes(id)) {
+          state.archiveProjectLoadingIds.push(id);
+        }
+        state.archiveProjectError = null;
+      })
+      .addCase(archiveProject.fulfilled, (state, action) => {
+        const archivedId = action.payload;
+        state.archiveProjectLoadingIds = state.archiveProjectLoadingIds.filter(
+          (id) => id !== archivedId
+        );
+        const project = state.projects.find((p) => p.id === archivedId);
+        if (project) {
+          project.archived = true;
+        }
+      })
+      .addCase(archiveProject.rejected, (state, action) => {
+        const id = action.meta.arg;
+        state.archiveProjectLoadingIds = state.archiveProjectLoadingIds.filter(
+          (loadingId) => loadingId !== id
+        );
+        state.archiveProjectError =
+          action.payload || action.error.message || 'Error happened';
+      })
+      .addCase(restoreProject.pending, (state, action) => {
+        const id = action.meta.arg;
+        if (!state.restoreProjectLoadingIds.includes(id)) {
+          state.restoreProjectLoadingIds.push(id);
+        }
+        state.restoreProjectError = null;
+      })
+      .addCase(restoreProject.fulfilled, (state, action) => {
+        const restoredId = action.payload;
+        state.restoreProjectLoadingIds = state.restoreProjectLoadingIds.filter(
+          (id) => id !== restoredId
+        );
+        const project = state.projects.find((p) => p.id === restoredId);
+        if (project) {
+          project.archived = false;
+        }
+      })
+      .addCase(restoreProject.rejected, (state, action) => {
+        const id = action.meta.arg;
+        state.restoreProjectLoadingIds = state.restoreProjectLoadingIds.filter(
+          (loadingId) => loadingId !== id
+        );
+        state.restoreProjectError =
+          action.payload || action.error.message || 'Error happened';
       });
   },
 });

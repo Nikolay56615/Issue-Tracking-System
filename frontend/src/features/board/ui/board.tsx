@@ -1,9 +1,12 @@
-import type { Issue, IssueStatus } from '@/features/board/model/board.types.ts';
+import type {
+  Issue,
+  IssueStatus,
+  LifecycleGraph,
+} from '@/features/board/model/board.types.ts';
 import { IssueCard } from './issue-card.tsx';
 import {
   DndContext,
   type DragEndEvent,
-  type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
   PointerSensor,
@@ -17,8 +20,10 @@ import type { RootState } from '@/store/types.ts';
 import {
   changeIssueStatus,
   getBoard,
+  getLifecycleGraph,
 } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch } from '@/store';
+import type { UserRole } from '@/features/profile/model/profile.types.ts';
 
 const statusName: Record<IssueStatus, string> = {
   BACKLOG: 'Backlog',
@@ -29,57 +34,40 @@ const statusName: Record<IssueStatus, string> = {
 
 const statusOrder: IssueStatus[] = ['BACKLOG', 'IN_PROGRESS', 'REVIEW', 'DONE'];
 
-type UserRole = 'owner' | 'reviewer' | 'admin' | 'user';
-
-interface LifecycleTransition {
-  from: IssueStatus;
-  to: IssueStatus;
-  role: UserRole;
-}
-
-interface Lifecycle {
-  transitions: LifecycleTransition[];
-}
-
-const userRole: UserRole = 'user';
-
-const lifecycle: Lifecycle = {
-  transitions: [
-    {
-      from: 'BACKLOG',
-      to: 'IN_PROGRESS',
-      role: 'user',
-    },
-    {
-      from: 'IN_PROGRESS',
-      to: 'BACKLOG',
-      role: 'user',
-    },
-  ],
-};
-
 const isTransitionAllowed = (
   from: IssueStatus,
   to: IssueStatus,
   userRole: UserRole,
-  lifecycle: Lifecycle
+  isAuthor: boolean,
+  isAssignee: boolean,
+  lifecycleGraph: LifecycleGraph
 ): boolean => {
-  return lifecycle.transitions.some(
-    (transition) =>
-      transition.from === from &&
-      transition.to === to &&
-      transition.role === userRole
-  );
+  return lifecycleGraph.transitions.some((transition) => {
+    if (transition.from !== from || transition.to !== to) {
+      return false;
+    }
+    const roleAllowed = transition.allowedRoles.includes(userRole);
+    const authorAllowed = transition.authorAllowed && isAuthor;
+    const assigneeAllowed = transition.assigneeAllowed && isAssignee;
+    return roleAllowed || authorAllowed || assigneeAllowed;
+  });
 };
 
 export const Board = ({ projectId }: { projectId: number }) => {
+  const role: UserRole = 'OWNER'; //TODO: get from api
+
   const dispatch = useAppDispatch();
-  const { issues, boardLoading, boardError, statusChangeLoading } = useSelector(
-    (state: RootState) => state.boardReducer
-  );
+  const {
+    issues,
+    boardLoading,
+    boardError,
+    statusChangeLoading,
+    lifecycleGraph,
+  } = useSelector((state: RootState) => state.boardReducer);
 
   useEffect(() => {
     dispatch(getBoard({ projectId }));
+    dispatch(getLifecycleGraph());
   }, [dispatch, projectId]);
 
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
@@ -93,8 +81,6 @@ export const Board = ({ projectId }: { projectId: number }) => {
     const issue = issues.find((i) => i.id === active.id) ?? null;
     setActiveIssue(issue);
   };
-
-  const handleDragOver = (event: DragOverEvent) => {};
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -111,12 +97,15 @@ export const Board = ({ projectId }: { projectId: number }) => {
 
     if (statusOrder.includes(overStatus)) {
       if (draggedIssue.status !== overStatus) {
+        if (lifecycleGraph == null) return;
         if (
           isTransitionAllowed(
             draggedIssue.status,
             overStatus,
-            userRole,
-            lifecycle
+            role,
+            false,
+            false,
+            lifecycleGraph
           )
         ) {
           dispatch(
@@ -138,8 +127,9 @@ export const Board = ({ projectId }: { projectId: number }) => {
   }, new Map<IssueStatus, Issue[]>());
 
   const canDrag = (issue: Issue): boolean => {
-    return lifecycle.transitions.some(
-      (t) => t.from === issue.status && t.role === userRole
+    if (lifecycleGraph === null) return false;
+    return lifecycleGraph.transitions.some(
+      (t) => t.from === issue.status && t.allowedRoles.includes(role)
     );
   };
 
@@ -155,7 +145,6 @@ export const Board = ({ projectId }: { projectId: number }) => {
     <DndContext
       sensors={sensors}
       onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       <div className="flex h-full min-h-0 flex-row gap-4 rounded-lg px-8 py-4">

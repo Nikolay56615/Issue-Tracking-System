@@ -46,3 +46,11 @@ export const searchUsers = async (query: string) => {
 
   return data;
 };
+
+export const archiveProject = async (id: number) => {
+  await axiosInstance.post(`/projects/${id}/archive`);
+};
+
+export const restoreProject = async (id: number) => {
+  await axiosInstance.post(`/projects/${id}/restore`);
+};

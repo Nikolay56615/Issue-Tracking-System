@@ -1,8 +1,9 @@
-import type { UserProfile } from '@/features/profile';
 import { Card } from '@/components/ui/card.tsx';
+import type { UserProfileWithRole } from '@/features/profile/model/profile.types.ts';
+import { capitalize } from '@/lib/utils.ts';
 
 interface UserCardProps {
-  user: UserProfile;
+  user: UserProfileWithRole;
 }
 
 export const UserCard = ({ user }: UserCardProps) => {
@@ -13,14 +14,17 @@ export const UserCard = ({ user }: UserCardProps) => {
           bg-purple-100"
       >
         <span className="text-2xl font-bold text-purple-900">
-          {user.username[0].toUpperCase() ?? '?'}
+          {user.name[0].toUpperCase() ?? '?'}
         </span>
       </div>
       <div className="flex flex-col text-start">
         <h1 className="mb-1 text-2xl font-bold text-gray-900 dark:text-white">
-          {user.username}
+          {user.name}
         </h1>
         <span className="text-gray-600 dark:text-gray-300">{user.email}</span>
+        <span className="text-gray-600 dark:text-gray-300">
+          {capitalize(user.role)}
+        </span>
       </div>
     </Card>
   );

@@ -3,6 +3,7 @@ import type {
   ChangeIssueStatusRequest,
   CreateIssueRequest,
   IssueStatus,
+  LifecycleGraph,
 } from './board.types.ts';
 import type {
   GetBoardRequest,
@@ -17,8 +18,7 @@ export const createIssue = createAsyncThunk<
   { rejectValue: string }
 >('issues/create', async (issueData, { rejectWithValue }) => {
   try {
-    const issueId = await BoardRequests.createIssue(issueData);
-    return { id: issueId, status: 'BACKLOG', ...issueData };
+    return await BoardRequests.createIssue(issueData);
   } catch (e) {
     if (e instanceof AxiosError) {
       return rejectWithValue(e.response?.data?.message || 'Error happened');
@@ -62,5 +62,54 @@ export const changeIssueStatus = createAsyncThunk<
       message: 'Error happened',
       previousStatus: request.previousStatus,
     });
+  }
+});
+
+export const uploadAttachment = createAsyncThunk<
+  string,
+  File,
+  { rejectValue: string }
+>('attachments/upload', async (file, { rejectWithValue }) => {
+  try {
+    const { url } = await BoardRequests.uploadAttachment(file);
+
+    return url;
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+
+    return rejectWithValue('Error happened');
+  }
+});
+
+export const deleteIssue = createAsyncThunk<
+  void,
+  number,
+  { rejectValue: string }
+>('issues/delete', async (id, { rejectWithValue }) => {
+  try {
+    await BoardRequests.deleteIssue(id);
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+
+    return rejectWithValue('Error happened');
+  }
+});
+
+export const getLifecycleGraph = createAsyncThunk<
+  LifecycleGraph,
+  void,
+  { rejectValue: string }
+>('board/lifecycle', async (_, { rejectWithValue }) => {
+  try {
+    return await BoardRequests.getLifecycleGraph();
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+    return rejectWithValue('Error happened');
   }
 });

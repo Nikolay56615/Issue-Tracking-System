@@ -31,8 +31,11 @@ import {
 import { BlockquoteElement } from '@/components/ui/blockquote-node.tsx';
 import { ToolbarButton } from '@/components/ui/toolbar.tsx';
 import { MarkdownPlugin } from '@platejs/markdown';
-import { useAppDispatch } from '@/store';
-import { createIssue } from '@/features/board/model/board.actions.ts';
+import { useAppDispatch, useAppSelector } from '@/store';
+import {
+  createIssue,
+  uploadAttachment,
+} from '@/features/board/model/board.actions.ts';
 import { useState } from 'react';
 import {
   Select,
@@ -54,7 +57,12 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
   const [name, setName] = useState('');
   const [type, setType] = useState<IssueType>('TASK');
   const [priority, setPriority] = useState<IssuePriority>('HIGH');
+  const [file, setFile] = useState<File | null>(null);
   const [open, setOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const isCreatingIssue = useAppSelector((state) => state.boardReducer.loading);
 
   const editor = usePlateEditor({
     plugins: [
@@ -71,20 +79,38 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
 
   const title = mode === 'add' ? 'Add Issue' : 'Edit Issue';
 
-  const onSubmit = () => {
-    const markdownContent = editor.api.markdown.serialize();
+  const onSubmit = async () => {
+    try {
+      setIsUploading(true);
+      setUploadError(null);
 
-    dispatch(
-      createIssue({
-        projectId: projectId,
-        name: name,
-        type: type,
-        priority: priority,
-        description: markdownContent,
-      })
-    );
+      let attachmentFileNames: string[] = [];
 
-    setOpen(false);
+      if (file) {
+        const fileName = await dispatch(uploadAttachment(file)).unwrap();
+        attachmentFileNames = [fileName];
+      }
+
+      const markdownContent = editor.api.markdown.serialize();
+
+      await dispatch(
+        createIssue({
+          projectId: projectId,
+          name: name,
+          type: type,
+          priority: priority,
+          description: markdownContent,
+          assigneeIds: [],
+          attachmentFileNames: attachmentFileNames,
+        })
+      ).unwrap();
+
+      setOpen(false);
+    } catch (error: any) {
+      setUploadError(error.message || 'Upload failed');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -96,6 +122,8 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
           setName('');
           setType('TASK');
           setPriority('HIGH');
+          setFile(null);
+          setUploadError(null);
           editor.tf.reset();
         }
       }}
@@ -185,12 +213,32 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
             </div>
           </div>
         </div>
+        <div className="grid w-full max-w-sm items-center gap-3">
+          <Label htmlFor="picture">Picture</Label>
+          <Input
+            id="picture"
+            type="file"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            disabled={isUploading || isCreatingIssue === 'pending'}
+          />
+          {uploadError && <p className="text-sm text-red-500">{uploadError}</p>}
+        </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
-          <Button type="submit" onClick={onSubmit}>
-            {mode === 'add' ? 'Create' : 'Save'}
+          <Button
+            type="submit"
+            onClick={onSubmit}
+            disabled={isUploading || isCreatingIssue === 'pending' || !name}
+          >
+            {isUploading
+              ? 'Uploading...'
+              : isCreatingIssue === 'pending'
+                ? 'Creating...'
+                : mode === 'add'
+                  ? 'Create'
+                  : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>

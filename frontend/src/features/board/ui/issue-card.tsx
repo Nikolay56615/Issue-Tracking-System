@@ -10,6 +10,7 @@ import {
 import { cn } from '@/lib/utils.ts';
 import { PriorityBadge } from '@/features/board/ui/priority-badge.tsx';
 import { TypeBadge } from '@/features/board/ui/type-badge.tsx';
+import { IssueDialog } from '@/features/board/ui/issue-dialog.tsx';
 
 interface IssueCardProps {
   issue: Issue;
@@ -52,7 +53,7 @@ export const IssueCard = ({
       )}
     >
       <CardHeader className="items-center gap-0">
-        <span className="font-medium">{issue.name}</span>
+        <IssueDialog issue={issue} />
       </CardHeader>
       <CardContent className="line-clamp-3 text-sm">
         {issue.description}

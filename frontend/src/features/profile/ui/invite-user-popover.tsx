@@ -129,7 +129,7 @@ export function InviteUserPopover({ projectId }: InviteUserPopoverProps) {
   return (
     <Popover open={open} onOpenChange={handlePopoverOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" className="ml-auto">
           Invite User
         </Button>
       </PopoverTrigger>

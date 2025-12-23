@@ -46,3 +46,35 @@ export const createProject = createAsyncThunk<
     return rejectWithValue('Error happened');
   }
 });
+
+export const archiveProject = createAsyncThunk<
+  number,
+  number,
+  { rejectValue: string }
+>('profile/archiveProject', async (id, { rejectWithValue }) => {
+  try {
+    await ProfileRequests.archiveProject(id);
+    return id;
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+    return rejectWithValue('Error happened');
+  }
+});
+
+export const restoreProject = createAsyncThunk<
+  number,
+  number,
+  { rejectValue: string }
+>('profile/restoreProject', async (id, { rejectWithValue }) => {
+  try {
+    await ProfileRequests.restoreProject(id);
+    return id;
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+    return rejectWithValue('Error happened');
+  }
+});

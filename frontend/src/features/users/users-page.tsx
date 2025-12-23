@@ -30,7 +30,7 @@ export const UsersPage = () => {
   return (
     <div className="mx-auto my-0 grid max-w-320 grid-cols-3 gap-4 pt-4">
       {users.map((user) => (
-        <UserCard user={user} />
+        <UserCard key={user.id} user={user} />
       ))}
     </div>
   );

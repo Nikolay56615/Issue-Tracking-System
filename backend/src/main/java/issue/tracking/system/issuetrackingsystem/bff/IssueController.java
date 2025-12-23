@@ -36,7 +36,7 @@ public class IssueController {
             request.priority(),
             request.description(),
             request.assigneeIds(),
-            request.attachmentFileNames(),
+            request.attachments(),
             request.dueDate()
         );
     }
@@ -53,7 +53,7 @@ public class IssueController {
             request.type(),
             request.status(),
             request.assigneeIds(),
-            request.attachmentFileNames()
+            request.attachments()
         );
     }
 

@@ -1,5 +1,6 @@
 package issue.tracking.system.issuetrackingsystem.bff.dto;
 
+import issue.tracking.system.issuetrackingsystem.issue.api.AttachmentDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssuePriority;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueType;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
@@ -14,5 +15,5 @@ public record UpdateIssueRequest(
     @NotNull IssueType type,
     IssueStatus status,
     List<Long> assigneeIds,
-    List<String> attachmentFileNames
+    List<AttachmentDto> attachments
 ) {}

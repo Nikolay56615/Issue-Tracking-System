@@ -1,5 +1,6 @@
 package issue.tracking.system.issuetrackingsystem.bff.dto;
 
+import issue.tracking.system.issuetrackingsystem.issue.api.AttachmentDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssuePriority;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueType;
 import jakarta.validation.constraints.NotBlank;
@@ -13,6 +14,6 @@ public record CreateIssueRequest(
     @NotNull IssuePriority priority,
     String description,
     List<Long> assigneeIds,
-    List<String> attachmentFileNames,
+    List<AttachmentDto> attachments,
     java.time.LocalDate dueDate
 ) {}

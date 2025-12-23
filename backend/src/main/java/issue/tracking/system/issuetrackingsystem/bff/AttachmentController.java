@@ -51,21 +51,5 @@ public class AttachmentController {
         }
     }
 
-    @DeleteMapping("/delete")
-    public ResponseEntity<Void> delete(@RequestParam("filename") String filename) {
-        String storedFileName = extractStoredFileName(filename);
-
-        try {
-            boolean deleted = fileStorage.deleteFile(storedFileName);
-            if (deleted) {
-                return ResponseEntity.noContent().build();
-            } else {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found on server");
-            }
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to delete file", e);
-        }
-    }
-
     public record UploadResponse(String url) {}
 }

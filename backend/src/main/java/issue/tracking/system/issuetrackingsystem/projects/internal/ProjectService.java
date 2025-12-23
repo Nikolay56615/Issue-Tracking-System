@@ -160,4 +160,15 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
             projectRepository.save(project);
         }
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getUserRoleInProject(Long projectId, Long userId) {
+        return projectRepository.findById(projectId)
+            .flatMap(p -> p.getMembers().stream()
+                .filter(m -> m.getUserId().equals(userId))
+                .findFirst())
+            .map(member -> member.getRole().name())
+            .orElse(null);
+    }
 }

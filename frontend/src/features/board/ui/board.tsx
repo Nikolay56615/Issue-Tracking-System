@@ -24,6 +24,7 @@ import {
 } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch } from '@/store';
 import type { UserRole } from '@/features/profile/model/profile.types.ts';
+import { toast } from 'sonner';
 
 const statusName: Record<IssueStatus, string> = {
   BACKLOG: 'Backlog',
@@ -82,7 +83,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
     setActiveIssue(issue);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveIssue(null);
 
@@ -98,8 +99,9 @@ export const Board = ({ projectId }: { projectId: number }) => {
     if (statusOrder.includes(overStatus)) {
       if (draggedIssue.status !== overStatus) {
         if (lifecycleGraph == null) return;
+
         if (
-          isTransitionAllowed(
+          !isTransitionAllowed(
             draggedIssue.status,
             overStatus,
             role,
@@ -108,13 +110,29 @@ export const Board = ({ projectId }: { projectId: number }) => {
             lifecycleGraph
           )
         ) {
-          dispatch(
+          toast.error('Transition not allowed', {
+            description: `Cannot move from ${draggedIssue.status} to ${overStatus}`,
+          });
+          return;
+        }
+
+        try {
+          await dispatch(
             changeIssueStatus({
               id: draggedIssue.id,
               newStatus: overStatus,
               previousStatus: draggedIssue.status,
             })
-          );
+          ).unwrap();
+
+          toast.success(`Status changed to ${overStatus}`);
+        } catch (err: any) {
+          const errorMessage =
+            typeof err === 'string'
+              ? err
+              : err?.message || 'Failed to change status: ';
+
+          toast.error(errorMessage);
         }
       }
     }

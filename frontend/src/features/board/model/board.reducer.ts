@@ -23,6 +23,7 @@ interface IssuesState {
   boardLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   boardError: string | null;
   statusChangeLoading: Record<number, boolean>;
+  statusChangeError: Record<number, string | null>;
   deleteIssueStatus: {
     loading: boolean;
     error: string | null;
@@ -46,6 +47,7 @@ const initialState: IssuesState = {
   boardLoading: 'idle',
   boardError: null,
   statusChangeLoading: {},
+  statusChangeError: {},
   deleteIssueStatus: {
     loading: false,
     error: null,
@@ -148,10 +150,12 @@ const boardSlice = createSlice({
           issue.status = newStatus;
         }
         state.statusChangeLoading[id] = true;
+        state.statusChangeError[id] = null;
       })
       .addCase(changeIssueStatus.fulfilled, (state, action) => {
         const { id } = action.meta.arg;
         state.statusChangeLoading[id] = false;
+        state.statusChangeError[id] = null;
       })
       .addCase(changeIssueStatus.rejected, (state, action) => {
         const { id } = action.meta.arg;
@@ -160,6 +164,8 @@ const boardSlice = createSlice({
           issue.status = action.payload.previousStatus;
         }
         state.statusChangeLoading[id] = false;
+        state.statusChangeError[id] =
+          action.payload?.message || 'Failed to change status';
       })
       .addCase(getLifecycleGraph.pending, (state) => {
         state.lifecycleGraphStatus.loading = true;

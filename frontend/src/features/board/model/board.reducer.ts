@@ -1,10 +1,11 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { Issue, IssueStatus } from './board.types.ts';
+import type { Issue, IssueStatus, LifecycleGraph } from './board.types.ts';
 import {
   changeIssueStatus,
   createIssue,
   deleteIssue,
   getBoard,
+  getLifecycleGraph,
 } from '@/features/board/model/board.actions.ts';
 
 interface IssuesState {
@@ -18,6 +19,11 @@ interface IssuesState {
     loading: boolean;
     error: string | null;
   };
+  lifecycleGraph: LifecycleGraph | null;
+  lifecycleGraphStatus: {
+    loading: boolean;
+    error: string | null;
+  };
 }
 
 const initialState: IssuesState = {
@@ -28,6 +34,11 @@ const initialState: IssuesState = {
   boardError: null,
   statusChangeLoading: {},
   deleteIssueStatus: {
+    loading: false,
+    error: null,
+  },
+  lifecycleGraph: null,
+  lifecycleGraphStatus: {
     loading: false,
     error: null,
   },
@@ -108,6 +119,19 @@ const boardSlice = createSlice({
           issue.status = action.payload.previousStatus;
         }
         state.statusChangeLoading[id] = false;
+      })
+      .addCase(getLifecycleGraph.pending, (state) => {
+        state.lifecycleGraphStatus.loading = true;
+        state.lifecycleGraphStatus.error = null;
+      })
+      .addCase(getLifecycleGraph.fulfilled, (state, action) => {
+        state.lifecycleGraphStatus.loading = false;
+        state.lifecycleGraph = action.payload;
+      })
+      .addCase(getLifecycleGraph.rejected, (state, action) => {
+        state.lifecycleGraphStatus.loading = false;
+        state.lifecycleGraphStatus.error =
+          action.payload || action.error.message || 'Error happened';
       });
   },
 });

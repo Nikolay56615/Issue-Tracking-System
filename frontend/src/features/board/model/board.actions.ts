@@ -3,6 +3,7 @@ import type {
   ChangeIssueStatusRequest,
   CreateIssueRequest,
   IssueStatus,
+  LifecycleGraph,
 } from './board.types.ts';
 import type {
   GetBoardRequest,
@@ -94,6 +95,21 @@ export const deleteIssue = createAsyncThunk<
       return rejectWithValue(e.response?.data?.message || 'Error happened');
     }
 
+    return rejectWithValue('Error happened');
+  }
+});
+
+export const getLifecycleGraph = createAsyncThunk<
+  LifecycleGraph,
+  void,
+  { rejectValue: string }
+>('board/lifecycle', async (_, { rejectWithValue }) => {
+  try {
+    return await BoardRequests.getLifecycleGraph();
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
     return rejectWithValue('Error happened');
   }
 });

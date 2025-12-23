@@ -1,3 +1,5 @@
+import type { UserRole } from '@/features/profile/model/profile.types.ts';
+
 export interface Issue {
   id: number;
   projectId: number;
@@ -54,4 +56,17 @@ export interface CreateIssueRequest {
 export interface ChangeIssueStatusRequest {
   id: number;
   newStatus: IssueStatus;
+}
+
+export interface LifecycleGraph {
+  statuses: IssueStatus[];
+  transitions: LifecycleTransition[];
+}
+
+export interface LifecycleTransition {
+  from: IssueStatus;
+  to: IssueStatus;
+  allowedRoles: UserRole[];
+  authorAllowed: boolean;
+  assigneeAllowed: boolean;
 }

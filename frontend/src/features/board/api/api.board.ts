@@ -4,6 +4,7 @@ import type {
   ChangeIssueStatusRequest,
   GetBoardRequest,
   Issue,
+  LifecycleGraph,
   UploadResponse,
 } from '@/features/board/model/board.types.ts';
 
@@ -48,4 +49,10 @@ export const uploadAttachment = async (file: File) => {
 
 export const deleteIssue = async (id: number) => {
   await axiosInstance.delete(`/issues/${id}`);
+};
+
+export const getLifecycleGraph = async () => {
+  const { data } = await axiosInstance.get<LifecycleGraph>(`/lifecycle/graph`);
+
+  return data;
 };

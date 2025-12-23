@@ -52,6 +52,12 @@ public class ProjectController {
         return queryApi.findUsersNotInProject(id, query);
     }
 
+    @GetMapping("/{id}/my-role")
+    public String getMyRole(@PathVariable Long id) {
+        Long userId = currentUserProvider.getCurrentUserId();
+        return queryApi.getUserRoleInProject(id, userId);
+    }
+
     // --- COMMAND ---
 
     @PostMapping

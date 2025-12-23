@@ -10,4 +10,5 @@ public interface ProjectQueryApi {
     List<UserDto> findUsersNotInProject(Long projectId, String query);
     List<ProjectMemberWithRoleDto> getProjectMembersWithRoles(Long projectId);
     List<Long> getProjectMemberIds(Long projectId);
+    String getUserRoleInProject(Long projectId, Long userId);
 }

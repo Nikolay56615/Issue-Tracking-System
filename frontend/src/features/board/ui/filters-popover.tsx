@@ -1,5 +1,4 @@
 import { Filter, Loader2, User } from 'lucide-react';
-
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -20,29 +19,37 @@ import {
   CommandItem,
 } from '@/components/ui/command.tsx';
 import { Input } from '@/components/ui/input.tsx';
-import { useAppDispatch } from '@/store';
+import { useAppDispatch, useAppSelector } from '@/store';
 import { getBoard } from '@/features/board/model/board.actions.ts';
+import {
+  setFilters,
+  resetFilters,
+} from '@/features/board/model/board.reducer.ts';
 
 const TYPES = ['TASK', 'BUG', 'FEATURE', 'SEARCH'] as const;
 const PRIORITIES = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'] as const;
 
-interface FiltersPopover {
+interface FiltersPopoverProps {
   projectId: number;
 }
 
-export const FiltersPopover = ({ projectId }: FiltersPopover) => {
+export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
   const dispatch = useAppDispatch();
+  const filters = useAppSelector((state) => state.boardReducer.filters);
 
   const [open, setOpen] = useState(false);
-
-  const [types, setTypes] = useState<IssueType[]>([]);
-  const [priorities, setPriorities] = useState<IssuePriority[]>([]);
-  const [dateRange, setDateRange] = useState<{
+  const [localTypes, setLocalTypes] = useState<IssueType[]>(
+    filters.types ?? []
+  );
+  const [localPriorities, setLocalPriorities] = useState<IssuePriority[]>(
+    filters.priorities ?? []
+  );
+  const [localDateRange, setLocalDateRange] = useState<{
     from?: Date;
     to?: Date;
   }>({
-    from: undefined,
-    to: undefined,
+    from: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
+    to: filters.dateTo ? new Date(filters.dateTo) : undefined,
   });
 
   const [userOptions, setUserOptions] = useState<UserProfile[]>([]);
@@ -94,12 +101,33 @@ export const FiltersPopover = ({ projectId }: FiltersPopover) => {
     searchQuery.trim().length > 0 &&
     userOptions.length === 0;
 
-  const resetAll = () => {
-    setTypes([]);
-    setPriorities([]);
+  const handleReset = () => {
+    setLocalTypes([]);
+    setLocalPriorities([]);
     setSelectedUser(null);
     setSearchQuery('');
-    setDateRange({});
+    setLocalDateRange({});
+    dispatch(resetFilters());
+  };
+
+  const handleSave = () => {
+    const newFilters = {
+      types: localTypes,
+      priorities: localPriorities,
+      assigneeId: selectedUser?.id,
+      nameQuery: filters.nameQuery,
+      dateFrom: localDateRange.from?.toISOString().split('T')[0],
+      dateTo: localDateRange.to?.toISOString().split('T')[0],
+    };
+
+    dispatch(setFilters(newFilters));
+    dispatch(
+      getBoard({
+        projectId,
+        filters: newFilters,
+      })
+    );
+    setOpen(false);
   };
 
   return (
@@ -115,12 +143,12 @@ export const FiltersPopover = ({ projectId }: FiltersPopover) => {
           <label className="mb-2 block text-sm font-medium">Type</label>
           <div className="flex flex-wrap gap-2">
             {TYPES.map((type) => {
-              const checked = types.includes(type);
+              const checked = localTypes.includes(type);
               return (
                 <BadgeButton
                   key={type}
                   onClick={() => {
-                    setTypes((prev) =>
+                    setLocalTypes((prev) =>
                       prev.includes(type)
                         ? prev.filter((x) => x !== type)
                         : [...prev, type]
@@ -138,12 +166,12 @@ export const FiltersPopover = ({ projectId }: FiltersPopover) => {
           <label className="mb-2 block text-sm font-medium">Priority</label>
           <div className="flex flex-wrap gap-2">
             {PRIORITIES.map((priority) => {
-              const checked = priorities.includes(priority);
+              const checked = localPriorities.includes(priority);
               return (
                 <BadgeButton
                   key={priority}
                   onClick={() => {
-                    setPriorities((prev) =>
+                    setLocalPriorities((prev) =>
                       prev.includes(priority)
                         ? prev.filter((x) => x !== priority)
                         : [...prev, priority]
@@ -212,10 +240,12 @@ export const FiltersPopover = ({ projectId }: FiltersPopover) => {
               type="date"
               className="h-8 text-xs"
               value={
-                dateRange.from ? dateRange.from.toISOString().split('T')[0] : ''
+                localDateRange.from
+                  ? localDateRange.from.toISOString().split('T')[0]
+                  : ''
               }
               onChange={(e) => {
-                setDateRange((prev) => ({
+                setLocalDateRange((prev) => ({
                   ...prev,
                   from: e.target.value ? new Date(e.target.value) : undefined,
                 }));
@@ -226,10 +256,12 @@ export const FiltersPopover = ({ projectId }: FiltersPopover) => {
               type="date"
               className="h-8 text-xs"
               value={
-                dateRange.to ? dateRange.to.toISOString().split('T')[0] : ''
+                localDateRange.to
+                  ? localDateRange.to.toISOString().split('T')[0]
+                  : ''
               }
               onChange={(e) => {
-                setDateRange((prev) => ({
+                setLocalDateRange((prev) => ({
                   ...prev,
                   to: e.target.value ? new Date(e.target.value) : undefined,
                 }));
@@ -238,26 +270,10 @@ export const FiltersPopover = ({ projectId }: FiltersPopover) => {
           </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={resetAll}>
+          <Button variant="outline" size="sm" onClick={handleReset}>
             Reset
           </Button>
-          <Button
-            size="sm"
-            onClick={() =>
-              dispatch(
-                getBoard({
-                  projectId: projectId,
-                  filters: {
-                    types: types,
-                    priorities: priorities,
-                    assigneeId: selectedUser?.id,
-                    dateFrom: dateRange.from?.toISOString(),
-                    dateTo: dateRange.to?.toISOString(),
-                  },
-                })
-              )
-            }
-          >
+          <Button size="sm" onClick={handleSave}>
             Save
           </Button>
         </div>

@@ -1,5 +1,10 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { Issue, IssueStatus, LifecycleGraph } from './board.types.ts';
+import type {
+  Issue,
+  IssueFilters,
+  IssueStatus,
+  LifecycleGraph,
+} from './board.types.ts';
 import {
   changeIssueStatus,
   createIssue,
@@ -24,6 +29,7 @@ interface IssuesState {
     loading: boolean;
     error: string | null;
   };
+  filters: IssueFilters;
 }
 
 const initialState: IssuesState = {
@@ -42,6 +48,14 @@ const initialState: IssuesState = {
     loading: false,
     error: null,
   },
+  filters: {
+    types: [],
+    priorities: [],
+    assigneeId: undefined,
+    nameQuery: '',
+    dateFrom: undefined,
+    dateTo: undefined,
+  },
 };
 
 const boardSlice = createSlice({
@@ -57,6 +71,22 @@ const boardSlice = createSlice({
       if (issue) {
         issue.status = status;
       }
+    },
+    setFilters(state, action: PayloadAction<IssueFilters>) {
+      state.filters = action.payload;
+    },
+    resetFilters(state) {
+      state.filters = {
+        types: [],
+        priorities: [],
+        assigneeId: undefined,
+        nameQuery: '',
+        dateFrom: undefined,
+        dateTo: undefined,
+      };
+    },
+    setNameQuery(state, action: PayloadAction<string>) {
+      state.filters.nameQuery = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -136,5 +166,6 @@ const boardSlice = createSlice({
   },
 });
 
-export const { updateIssueStatus } = boardSlice.actions;
+export const { updateIssueStatus, setFilters, resetFilters, setNameQuery } =
+  boardSlice.actions;
 export const boardReducer = boardSlice.reducer;

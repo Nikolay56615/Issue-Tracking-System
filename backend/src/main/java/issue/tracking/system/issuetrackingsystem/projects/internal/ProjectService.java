@@ -30,7 +30,7 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
         Project project = new Project(name, ownerUserId);
         project.addMember(ownerUserId, ProjectRole.OWNER);
         Project saved = projectRepository.save(project);
-        return new ProjectDto(saved.getId(), saved.getName(), saved.getOwnerId());
+        return new ProjectDto(saved.getId(), saved.getName(), saved.getOwnerId(), saved.isArchived());
     }
 
     @Override
@@ -46,14 +46,17 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     @Transactional(readOnly = true)
     public Optional<ProjectDto> getProjectById(Long id) {
         return projectRepository.findById(id)
-            .map(p -> new ProjectDto(p.getId(), p.getName(), p.getOwnerId()));
+            .map(p -> new ProjectDto(p.getId(), p.getName(), p.getOwnerId(), p.isArchived()));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ProjectDto> getMyProjects(Long userId) {
-        return projectRepository.findAllByMemberUserId(userId).stream()
-            .map(p -> new ProjectDto(p.getId(), p.getName(), p.getOwnerId()))
+        List<Project> owned = projectRepository.findAllByOwnerIdAllProjects(userId);
+        List<Project> active = projectRepository.findAllActiveByMemberUserId(userId);
+        return java.util.stream.Stream.concat(owned.stream(), active.stream())
+            .distinct()
+            .map(p -> new ProjectDto(p.getId(), p.getName(), p.getOwnerId(), p.isArchived()))
             .toList();
     }
 
@@ -85,8 +88,8 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
                     var user = userQueryApi.findUserById(member.getUserId());
                     return new ProjectMemberWithRoleDto(
                         member.getUserId(),
-                        user.map(u -> u.username()).orElse("") ,
-                        user.map(u -> u.email()).orElse("") ,
+                        user.map(UserDto::username).orElse("") ,
+                        user.map(UserDto::email).orElse("") ,
                         member.getRole().name()
                     );
                 })
@@ -112,8 +115,49 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     public List<Long> getProjectMemberIds(Long projectId) {
         return projectRepository.findById(projectId)
                 .map(project -> project.getMembers().stream()
-                        .map(member -> member.getUserId())
+                        .map(ProjectMember::getUserId)
                         .collect(Collectors.toList()))
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+    }
+
+    @Override
+    @Transactional
+    public void archiveProject(Long projectId, Long userId) {
+        Project project = projectRepository.findById(projectId)
+            .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+        if (!project.getOwnerId().equals(userId)) {
+            throw new SecurityException("Only owner can archive project");
+        }
+        project.setArchived(true);
+        projectRepository.save(project);
+    }
+
+    @Override
+    @Transactional
+    public void restoreProject(Long projectId, Long userId) {
+        Project project = projectRepository.findById(projectId)
+            .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+        if (!project.getOwnerId().equals(userId)) {
+            throw new SecurityException("Only owner can restore project");
+        }
+        project.setArchived(false);
+        projectRepository.save(project);
+    }
+
+    @Override
+    @Transactional
+    public void removeUser(Long projectId, Long ownerId, Long userId) {
+        Project project = projectRepository.findById(projectId)
+            .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+        if (!project.getOwnerId().equals(ownerId)) {
+            throw new SecurityException("Only owner can remove members");
+        }
+        if (ownerId.equals(userId)) {
+            throw new SecurityException("Owner cannot remove themselves");
+        }
+        boolean removed = project.getMembers().removeIf(m -> m.getUserId().equals(userId));
+        if (removed) {
+            projectRepository.save(project);
+        }
     }
 }

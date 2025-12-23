@@ -15,4 +15,5 @@ public interface IssueCommandApi {
         IssueStatus status,
         List<Long> assigneeIds,
         List<String> attachmentFileNames);
+    void removeUserFromProject(Long projectId, Long userId);
 }

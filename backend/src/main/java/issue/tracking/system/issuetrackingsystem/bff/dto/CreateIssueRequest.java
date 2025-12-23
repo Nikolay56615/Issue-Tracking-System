@@ -13,5 +13,6 @@ public record CreateIssueRequest(
     @NotNull IssuePriority priority,
     String description,
     List<Long> assigneeIds,
-    List<String> attachmentFileNames
+    List<String> attachmentFileNames,
+    java.time.LocalDate dueDate
 ) {}

@@ -26,7 +26,7 @@ public class IssueController {
     // --- COMMANDS ---
 
     @PostMapping
-    public Long create(@Valid @RequestBody CreateIssueRequest request) {
+    public IssueDto create(@Valid @RequestBody CreateIssueRequest request) {
         Long userId = userProvider.getCurrentUserId();
         return commandApi.createIssue(
             userId,
@@ -36,7 +36,8 @@ public class IssueController {
             request.priority(),
             request.description(),
             request.assigneeIds(),
-            request.attachmentFileNames()
+            request.attachmentFileNames(),
+            request.dueDate()
         );
     }
 

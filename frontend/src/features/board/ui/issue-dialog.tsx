@@ -15,6 +15,7 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { deleteIssue } from '@/features/board/model/board.actions.ts';
 import { AttachmentRow } from '@/features/board/ui/attachment-row.tsx';
 import { AttachmentImage } from '@/features/board/ui/attachment-image.tsx';
+import ReactMarkdown from 'react-markdown';
 
 interface IssueDialogProps {
   issue: Issue;
@@ -41,6 +42,8 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
 
   const dispatch = useAppDispatch();
   const { deleteIssueStatus } = useAppSelector((state) => state.boardReducer);
+
+  console.log(`${name} ` + JSON.stringify(attachments));
 
   return (
     <Dialog>
@@ -71,7 +74,7 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
 
           <div>
             <span className="mb-1 block text-sm font-medium">Description</span>
-            <p className="text-sm">{description}</p>
+            <ReactMarkdown>{description}</ReactMarkdown>
           </div>
 
           {attachments.map((attachment, index) =>

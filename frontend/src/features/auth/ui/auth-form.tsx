@@ -76,7 +76,7 @@ export const AuthForm = () => {
         success: (response) => {
           setMode('login');
           form.reset();
-          return `User with ${response.id} has been created`;
+          return `User ${response.username} has been created`;
         },
         error: (err) => err || 'Error creating user',
       });
@@ -121,24 +121,26 @@ export const AuthForm = () => {
                   </Field>
                 )}
               />
-              <Controller
-                name="username"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor="username">Username</FieldLabel>
-                    <Input
-                      {...field}
-                      id="username"
-                      type="text"
-                      placeholder="example"
-                    />
-                    {fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
-                  </Field>
-                )}
-              />
+              {mode === 'register' && (
+                <Controller
+                  name="username"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field>
+                      <FieldLabel htmlFor="username">Username</FieldLabel>
+                      <Input
+                        {...field}
+                        id="username"
+                        type="text"
+                        placeholder="example"
+                      />
+                      {fieldState.invalid && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
+              )}
               <Controller
                 name="password"
                 control={form.control}

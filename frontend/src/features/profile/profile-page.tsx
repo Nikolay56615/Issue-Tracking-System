@@ -19,7 +19,6 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs.tsx';
 import { Button } from '@/components/ui/button.tsx';
-import { cn } from '@/lib/utils.ts';
 import { Archive, ArchiveRestore, Ellipsis } from 'lucide-react';
 
 export const ProfilePage = () => {
@@ -79,20 +78,21 @@ export const ProfilePage = () => {
                     </span>
                   </Link>
                   {project.ownerId === profile.id && (
-                    <InviteUserPopover projectId={project.id} />
+                    <>
+                      <InviteUserPopover projectId={project.id} />
+                      <Button
+                        disabled={archiveProjectLoadingIds.includes(project.id)}
+                        size="sm"
+                        onClick={() => dispatch(archiveProject(project.id))}
+                      >
+                        {archiveProjectLoadingIds.includes(project.id) ? (
+                          <Ellipsis />
+                        ) : (
+                          <Archive />
+                        )}
+                      </Button>
+                    </>
                   )}
-                  <Button
-                    className={cn(project.ownerId !== profile.id && 'ml-auto')}
-                    disabled={archiveProjectLoadingIds.includes(project.id)}
-                    size="sm"
-                    onClick={() => dispatch(archiveProject(project.id))}
-                  >
-                    {archiveProjectLoadingIds.includes(project.id) ? (
-                      <Ellipsis />
-                    ) : (
-                      <Archive />
-                    )}
-                  </Button>
                 </Card>
               ))
             )}
@@ -111,16 +111,18 @@ export const ProfilePage = () => {
                   <Link to={`/${project.id}/board`}>
                     <span>{project.name}</span>
                   </Link>
-                  <Button
-                    size="sm"
-                    onClick={() => dispatch(restoreProject(project.id))}
-                  >
-                    {restoreProjectLoadingIds.includes(project.id) ? (
-                      <Ellipsis />
-                    ) : (
-                      <ArchiveRestore />
-                    )}
-                  </Button>
+                  {project.ownerId === profile.id && (
+                    <Button
+                      size="sm"
+                      onClick={() => dispatch(restoreProject(project.id))}
+                    >
+                      {restoreProjectLoadingIds.includes(project.id) ? (
+                        <Ellipsis />
+                      ) : (
+                        <ArchiveRestore />
+                      )}
+                    </Button>
+                  )}
                 </Card>
               ))
             )}

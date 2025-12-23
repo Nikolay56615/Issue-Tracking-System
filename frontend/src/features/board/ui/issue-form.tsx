@@ -71,7 +71,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
   const [priority, setPriority] = useState<IssuePriority>(
     issue?.priority || 'HIGH'
   );
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -153,18 +153,21 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
 
       let attachmentFileNames: string[] = [];
 
-      if (file) {
-        const fileName = await dispatch(uploadAttachment(file)).unwrap();
-        attachmentFileNames = [fileName];
+      // Загружаем все файлы параллельно
+      if (files.length > 0) {
+        const uploadPromises = files.map((file) =>
+          dispatch(uploadAttachment(file)).unwrap()
+        );
+        attachmentFileNames = await Promise.all(uploadPromises);
       }
 
+      // Для edit добавляем существующие
       if (mode === 'edit' && issue) {
         const existingFileNames = issue.attachments.map((a) => a.url);
         attachmentFileNames = [...existingFileNames, ...attachmentFileNames];
       }
 
       const markdownContent = editor.api.markdown.serialize();
-
       const assigneeIds = selectedUser ? [selectedUser.id] : [];
 
       if (mode === 'add') {
@@ -212,7 +215,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
           setName('');
           setType('TASK');
           setPriority('HIGH');
-          setFile(null);
+          setFiles([]); // <— очищаем массив файлов
           setUploadError(null);
           editor.tf.reset();
         }
@@ -364,9 +367,24 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
           <Input
             id="picture"
             type="file"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            multiple
+            onChange={(e) => {
+              const fileList = e.target.files;
+              if (fileList) {
+                setFiles(Array.from(fileList));
+              }
+            }}
             disabled={isUploading || isCreatingIssue === 'pending'}
           />
+          {files.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {files.map((f, idx) => (
+                <span key={idx} className="text-muted-foreground text-xs">
+                  {f.name}
+                </span>
+              ))}
+            </div>
+          )}
           {uploadError && <p className="text-sm text-red-500">{uploadError}</p>}
         </div>
         <DialogFooter>

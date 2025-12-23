@@ -13,6 +13,7 @@ import { TypeBadge } from '@/features/board/ui/type-badge.tsx';
 import { IssueDialog } from '@/features/board/ui/issue-dialog.tsx';
 import { IssueForm } from '@/features/board/ui/issue-form.tsx';
 import { useParams } from 'react-router';
+import ReactMarkdown from 'react-markdown';
 
 interface IssueCardProps {
   issue: Issue;
@@ -62,7 +63,7 @@ export const IssueCard = ({
         <IssueForm mode={'edit'} projectId={projectId} issue={issue} />
       </CardHeader>
       <CardContent className="line-clamp-3 text-sm">
-        {issue.description}
+        <ReactMarkdown>{issue.description}</ReactMarkdown>
       </CardContent>
       <CardFooter className="gap-2">
         <TypeBadge type={issue.type} />

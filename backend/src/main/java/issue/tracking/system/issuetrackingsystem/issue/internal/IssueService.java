@@ -33,9 +33,10 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
 
     @Override
     @Transactional
-    public Long createIssue(Long userId, Long projectId, String name, IssueType type,
+    public IssueDto createIssue(Long userId, Long projectId, String name, IssueType type,
                             IssuePriority priority, String description,
-                            List<Long> assigneeIds, List<String> attachmentFileNames) {
+                            List<Long> assigneeIds, List<String> attachmentFileNames,
+                            java.time.LocalDate dueDate) {
         if (!projectAccess.hasAccess(userId, projectId)) {
             throw new SecurityException("User is not a member of the project");
         }
@@ -64,6 +65,9 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         issue.setAssigneeIds(selectedAssigneeIds);
         issue.setStatus(IssueStatus.BACKLOG);
         issue.setStartDate(LocalDate.now());
+        if (dueDate != null) {
+            issue.setDueDate(dueDate);
+        }
 
         check_attachements(attachmentFileNames, issue);
 
@@ -73,7 +77,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             saved.getId(), saved.getProjectId(), saved.getAuthorId(), saved.getName()
         ));
 
-        return saved.getId();
+        return mapper.toDto(saved);
     }
 
     @Override

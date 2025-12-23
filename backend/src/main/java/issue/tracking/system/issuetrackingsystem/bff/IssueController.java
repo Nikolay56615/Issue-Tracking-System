@@ -57,7 +57,7 @@ public class IssueController {
     }
 
     @PutMapping("/{id}")
-    public void update(@PathVariable Long id, @Valid @RequestBody UpdateIssueRequest request) {
+    public IssueDto update(@PathVariable Long id, @Valid @RequestBody UpdateIssueRequest request) {
         Long userId = userProvider.getCurrentUserId();
 
         List<AttachmentDto> attachments = request.attachments();
@@ -80,6 +80,8 @@ public class IssueController {
             request.assigneeIds(),
             attachments
         );
+
+        return queryApi.getById(id);
     }
 
     @PutMapping("/{id}/status")

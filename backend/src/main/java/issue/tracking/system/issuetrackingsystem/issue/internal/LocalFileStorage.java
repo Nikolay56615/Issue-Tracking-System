@@ -11,7 +11,7 @@ import java.util.UUID;
 @Service
 public class LocalFileStorage implements FileStorageApi {
 
-    @Value("${app.upload.dir:uploads}")
+    @Value("${app.upload.dir:/app/uploads}")
     private String uploadDir;
 
     @Value("${app.upload.public-prefix:/files/}")
@@ -41,11 +41,13 @@ public class LocalFileStorage implements FileStorageApi {
     }
 
     @Override
-    public void deleteFile(String path) {
+    public boolean deleteFile(String path) {
         try {
-            Files.deleteIfExists(Path.of(uploadDir, path));
+            Path filePath = Path.of(uploadDir, path);
+            return Files.deleteIfExists(filePath);
         } catch (Exception e) {
-            throw new RuntimeException("Cannot delete file", e);
+            System.err.println("Error deleting file " + path + ": " + e.getMessage());
+            return false;
         }
     }
 }

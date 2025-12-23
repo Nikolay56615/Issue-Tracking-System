@@ -8,6 +8,7 @@ import type {
   UpdateIssueRequest,
   UploadResponse,
 } from '@/features/board/model/board.types.ts';
+import type { UserRole } from '@/features/profile/model/profile.types.ts';
 
 export const createIssue = async (request: CreateIssueRequest) => {
   const { data } = await axiosInstance.post<Issue>('/issues', request);
@@ -58,6 +59,12 @@ export const getLifecycleGraph = async () => {
   return data;
 };
 
+export const getMyRole = async (id: number) => {
+  const { data } = await axiosInstance.get<UserRole>(`/projects/${id}/my-role`);
+
+  return data;
+};
+
 export const downloadAttachment = async (filename: string) => {
   return await axiosInstance.get(`/attachments/download`, {
     params: { filename },
@@ -66,7 +73,7 @@ export const downloadAttachment = async (filename: string) => {
 };
 
 export const deleteAttachment = async (filename: string) => {
-  await axiosInstance.delete(`/api/attachments/delete`, {
+  await axiosInstance.delete(`/attachments/delete`, {
     params: { filename },
   });
 };

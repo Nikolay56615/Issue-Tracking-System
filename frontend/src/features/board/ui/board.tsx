@@ -23,8 +23,13 @@ import {
   getLifecycleGraph,
 } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch } from '@/store';
-import type { UserRole } from '@/features/profile/model/profile.types.ts';
+import type {
+  UserProfile,
+  UserRole,
+} from '@/features/profile/model/profile.types.ts';
 import { toast } from 'sonner';
+import { getMyRole } from '@/features/board/api/api.board.ts';
+import { getCurrentUser } from '@/features/profile/api/api.profile.ts';
 
 const statusName: Record<IssueStatus, string> = {
   BACKLOG: 'Backlog',
@@ -55,7 +60,59 @@ const isTransitionAllowed = (
 };
 
 export const Board = ({ projectId }: { projectId: number }) => {
-  const role: UserRole = 'OWNER'; //TODO: get from api
+  const [role, setRole] = useState<UserRole>('WORKER');
+
+  useEffect(() => {
+    if (!projectId || Number.isNaN(projectId)) return;
+
+    let cancelled = false;
+
+    const fetchRole = async () => {
+      try {
+        const response = await getMyRole(projectId);
+        if (!cancelled) {
+          setRole(response);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to fetch role:', error);
+          setRole('WORKER');
+        }
+      }
+    };
+
+    fetchRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!cancelled) {
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to fetch current user:', error);
+          setCurrentUser(null);
+        }
+      }
+    };
+
+    fetchCurrentUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const dispatch = useAppDispatch();
   const {
@@ -105,8 +162,8 @@ export const Board = ({ projectId }: { projectId: number }) => {
             draggedIssue.status,
             overStatus,
             role,
-            false,
-            false,
+            activeIssue?.authorId === currentUser?.id,
+            activeIssue?.assigneeIds.includes(currentUser?.id ?? -1) ?? false,
             lifecycleGraph
           )
         ) {

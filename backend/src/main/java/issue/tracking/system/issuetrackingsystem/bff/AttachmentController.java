@@ -19,17 +19,25 @@ public class AttachmentController {
         return ResponseEntity.ok(new UploadResponse(url));
     }
 
+    private String extractFileName(String input) {
+        if (input == null) return null;
+        int idx = input.lastIndexOf("/");
+        return idx >= 0 ? input.substring(idx + 1) : input;
+    }
+
     @GetMapping("/download")
     public ResponseEntity<byte[]> download(@RequestParam("filename") String filename) {
-        byte[] data = fileStorage.getFile(filename);
+        String realFileName = extractFileName(filename);
+        byte[] data = fileStorage.getFile(realFileName);
         return ResponseEntity.ok()
-            .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+            .header("Content-Disposition", "attachment; filename=\"" + realFileName + "\"")
             .body(data);
     }
 
     @DeleteMapping("/delete")
     public ResponseEntity<Void> delete(@RequestParam("filename") String filename) {
-        fileStorage.deleteFile(filename);
+        String realFileName = extractFileName(filename);
+        fileStorage.deleteFile(realFileName);
         return ResponseEntity.noContent().build();
     }
 

@@ -6,6 +6,10 @@ export const axiosInstance = axios.create({
 });
 
 axiosInstance.interceptors.request.use((config) => {
+  if (config.url?.includes('/auth/register') || config.url?.includes('/auth/login')) {
+    return config;
+  }
+
   const token = localStorage.getItem('authToken');
   if (token) {
     config.headers.Authorization = `Basic ${token}`;

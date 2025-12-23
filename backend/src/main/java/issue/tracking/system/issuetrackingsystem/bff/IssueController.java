@@ -29,16 +29,20 @@ public class IssueController {
     @PostMapping
     public IssueDto create(@Valid @RequestBody CreateIssueRequest request) {
         Long userId = userProvider.getCurrentUserId();
+
         List<AttachmentDto> attachments = request.attachments();
-        if ((attachments == null || attachments.stream().anyMatch(a -> a.originalFileName() == null)) && request.attachmentFileNames() != null) {
+        if ((attachments == null || attachments.isEmpty()) && request.attachmentFileNames() != null && !request.attachmentFileNames().isEmpty()) {
             attachments = request.attachmentFileNames().stream()
                 .map(url -> new AttachmentDto(extractFileName(url), url))
                 .toList();
         } else if (attachments != null) {
             attachments = attachments.stream()
-                .map(a -> a.originalFileName() == null ? new AttachmentDto(extractFileName(a.url()), a.url()) : a)
+                .map(a -> a.originalFileName() == null || a.originalFileName().isBlank()
+                    ? new AttachmentDto(extractFileName(a.url()), a.url())
+                    : a)
                 .toList();
         }
+
         return commandApi.createIssue(
             userId,
             request.projectId(),
@@ -52,15 +56,19 @@ public class IssueController {
         );
     }
 
-    private String extractFileName(String url) {
-        if (url == null) return null;
-        int idx = url.lastIndexOf("/");
-        return idx >= 0 ? url.substring(idx + 1) : url;
-    }
-
     @PutMapping("/{id}")
     public void update(@PathVariable Long id, @Valid @RequestBody UpdateIssueRequest request) {
         Long userId = userProvider.getCurrentUserId();
+
+        List<AttachmentDto> attachments = request.attachments();
+        if (attachments != null) {
+            attachments = attachments.stream()
+                .map(a -> a.originalFileName() == null || a.originalFileName().isBlank()
+                    ? new AttachmentDto(extractFileName(a.url()), a.url())
+                    : a)
+                .toList();
+        }
+
         commandApi.updateIssue(
             id,
             userId,
@@ -70,7 +78,7 @@ public class IssueController {
             request.type(),
             request.status(),
             request.assigneeIds(),
-            request.attachments()
+            attachments
         );
     }
 
@@ -108,5 +116,12 @@ public class IssueController {
     @GetMapping("/trash")
     public List<IssueDto> getTrash(@RequestParam Long projectId) {
         return queryApi.getTrashBin(projectId);
+    }
+
+    private String extractFileName(String url) {
+        if (url == null || !url.startsWith("/files/")) {
+            return "unknown.file";
+        }
+        return url.substring(url.lastIndexOf("/") + 1);
     }
 }

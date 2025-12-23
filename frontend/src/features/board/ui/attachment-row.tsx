@@ -9,12 +9,14 @@ import { cn } from '@/lib/utils.ts';
 
 interface AttachmentRowProps {
   filename: string;
+  issueId: number;
   originalFileName?: string;
   className?: string;
 }
 
 export const AttachmentRow = ({
   filename,
+  issueId,
   originalFileName,
   className,
 }: AttachmentRowProps) => {
@@ -44,7 +46,7 @@ export const AttachmentRow = ({
   };
 
   const handleDelete = () => {
-    dispatch(deleteAttachment(filename));
+    dispatch(deleteAttachment({ id: issueId, url: filename }));
   };
 
   const label = originalFileName || filename;

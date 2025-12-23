@@ -9,14 +9,16 @@ import { Button } from '@/components/ui/button';
 
 interface AttachmentImageProps {
   filename: string;
+  issueId: number;
   originalFileName?: string;
   className?: string;
-  onDelete?: (filename: string) => void;
+  onDelete?: (issueId: number, filename: string) => void;
 }
 
 export const AttachmentImage = ({
   filename,
   originalFileName,
+  issueId,
   className,
   onDelete,
 }: AttachmentImageProps) => {
@@ -54,9 +56,9 @@ export const AttachmentImage = ({
 
   const handleDelete = () => {
     if (onDelete) {
-      onDelete(filename);
+      onDelete(issueId, filename);
     } else {
-      dispatch(deleteAttachment(filename));
+      dispatch(deleteAttachment({ id: issueId, url: filename }));
     }
   };
 

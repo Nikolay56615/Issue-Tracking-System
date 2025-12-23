@@ -81,12 +81,14 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
             isImage(attachment.url) ? (
               <AttachmentImage
                 key={index}
+                issueId={id} // <— передай id issue
                 filename={attachment.url}
                 originalFileName={attachment.originalFileName}
               />
             ) : (
               <AttachmentRow
                 key={index}
+                issueId={id} // <— передай id issue
                 filename={attachment.url}
                 originalFileName={attachment.originalFileName}
               />

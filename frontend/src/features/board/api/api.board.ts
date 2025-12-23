@@ -72,9 +72,9 @@ export const downloadAttachment = async (filename: string) => {
   });
 };
 
-export const deleteAttachment = async (filename: string) => {
-  await axiosInstance.delete(`/attachments/delete`, {
-    params: { filename },
+export const deleteAttachment = async (id: number, filename: string) => {
+  await axiosInstance.delete(`issues/${id}/attachments`, {
+    params: { url: filename },
   });
 };
 

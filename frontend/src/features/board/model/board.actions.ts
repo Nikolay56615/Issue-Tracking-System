@@ -146,13 +146,13 @@ export const downloadAttachment = createAsyncThunk<
 });
 
 export const deleteAttachment = createAsyncThunk<
-  string,
-  string,
+  { id: number; url: string },
+  { id: number; url: string },
   { rejectValue: string }
->('attachments/deleteAttachment', async (filename, { rejectWithValue }) => {
+>('attachments/deleteAttachment', async (request, { rejectWithValue }) => {
   try {
-    await BoardRequests.deleteAttachment(filename);
-    return filename;
+    await BoardRequests.deleteAttachment(request.id, request.url);
+    return request;
   } catch (e) {
     if (e instanceof AxiosError) {
       return rejectWithValue(e.response?.data?.message || 'Error happened');

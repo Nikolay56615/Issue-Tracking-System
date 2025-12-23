@@ -198,19 +198,27 @@ const boardSlice = createSlice({
           'Error happened';
       })
       .addCase(deleteAttachment.pending, (state, action) => {
-        const filename = action.meta.arg;
-        state.deleting[filename] = true;
-        state.deletingError[filename] = null;
+        const { url } = action.meta.arg;
+        state.deleting[url] = true;
+        state.deletingError[url] = null;
       })
       .addCase(deleteAttachment.fulfilled, (state, action) => {
-        const filename = action.payload;
-        state.deleting[filename] = false;
-        delete state.deletingError[filename];
+        const { id, url } = action.payload;
+
+        // Удаляем из стейта загрузки
+        state.deleting[url] = false;
+        delete state.deletingError[url];
+
+        // Находим issue по id и удаляем attachment
+        const issue = state.issues.find((i) => i.id === id);
+        if (issue) {
+          issue.attachments = issue.attachments.filter((a) => a.url !== url);
+        }
       })
       .addCase(deleteAttachment.rejected, (state, action) => {
-        const filename = action.meta.arg;
-        state.deleting[filename] = false;
-        state.deletingError[filename] =
+        const { url } = action.meta.arg;
+        state.deleting[url] = false;
+        state.deletingError[url] =
           (action.payload as string) ||
           action.error.message ||
           'Error happened';

@@ -6,6 +6,11 @@ export interface Issue {
   priority: IssuePriority;
   status: IssueStatus;
   description: string;
+  assigneeIds: number[];
+  authorId: number;
+  startDate: string;
+  dueDate: string;
+  attachments: Attachment[];
 }
 
 export type IssueStatus = 'BACKLOG' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
@@ -14,6 +19,14 @@ export type IssueType = 'TASK' | 'BUG' | 'FEATURE' | 'SEARCH';
 
 export type IssuePriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
 
+export interface Attachment {
+  originalFileName: string;
+  url: string;
+}
+
+export interface UploadResponse {
+  url: string;
+}
 export interface GetBoardRequest {
   projectId: number;
   filters?: IssueFilters;
@@ -34,6 +47,8 @@ export interface CreateIssueRequest {
   type: IssueType;
   priority: IssuePriority;
   description: string;
+  assigneeIds: number[];
+  attachmentFileNames: string[];
 }
 
 export interface ChangeIssueStatusRequest {

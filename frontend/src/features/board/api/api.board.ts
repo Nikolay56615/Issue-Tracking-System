@@ -45,3 +45,7 @@ export const uploadAttachment = async (file: File) => {
 
   return data;
 };
+
+export const deleteIssue = async (id: number) => {
+  await axiosInstance.delete(`/issues/${id}`);
+};

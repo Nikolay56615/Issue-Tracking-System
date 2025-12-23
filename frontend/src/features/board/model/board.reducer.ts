@@ -3,6 +3,7 @@ import type { Issue, IssueStatus } from './board.types.ts';
 import {
   changeIssueStatus,
   createIssue,
+  deleteIssue,
   getBoard,
 } from '@/features/board/model/board.actions.ts';
 
@@ -13,6 +14,10 @@ interface IssuesState {
   boardLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   boardError: string | null;
   statusChangeLoading: Record<number, boolean>;
+  deleteIssueStatus: {
+    loading: boolean;
+    error: string | null;
+  };
 }
 
 const initialState: IssuesState = {
@@ -22,6 +27,10 @@ const initialState: IssuesState = {
   boardLoading: 'idle',
   boardError: null,
   statusChangeLoading: {},
+  deleteIssueStatus: {
+    loading: false,
+    error: null,
+  },
 };
 
 const boardSlice = createSlice({
@@ -52,6 +61,21 @@ const boardSlice = createSlice({
       .addCase(createIssue.rejected, (state, action) => {
         state.loading = 'failed';
         state.error = action.payload ?? 'Failed to create issue';
+      })
+      .addCase(deleteIssue.pending, (state) => {
+        state.deleteIssueStatus.loading = true;
+        state.deleteIssueStatus.error = null;
+      })
+      .addCase(deleteIssue.fulfilled, (state, action) => {
+        state.deleteIssueStatus.loading = false;
+
+        const deletedId = action.meta.arg;
+        state.issues = state.issues.filter((issue) => issue.id !== deletedId);
+      })
+      .addCase(deleteIssue.rejected, (state, action) => {
+        state.deleteIssueStatus.loading = false;
+        state.deleteIssueStatus.error =
+          action.payload || action.error.message || 'Error happened';
       })
       .addCase(getBoard.pending, (state) => {
         state.boardLoading = 'pending';

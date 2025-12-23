@@ -9,6 +9,10 @@ import type { Issue } from '@/features/board/model';
 import { capitalize } from '@/lib/utils.ts';
 import { TypeBadge } from '@/features/board/ui/type-badge.tsx';
 import { PriorityBadge } from '@/features/board/ui/priority-badge.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Trash } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/store';
+import { deleteIssue } from '@/features/board/model/board.actions.ts';
 
 interface IssueDialogProps {
   issue: Issue;
@@ -16,6 +20,9 @@ interface IssueDialogProps {
 
 export const IssueDialog = ({ issue }: IssueDialogProps) => {
   const { id, projectId, name, type, priority, status, description } = issue;
+
+  const dispatch = useAppDispatch();
+  const { deleteIssueStatus } = useAppSelector((state) => state.boardReducer);
 
   return (
     <Dialog>
@@ -38,6 +45,16 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
           <span>Status: {capitalize(status)}</span>
           <span>Description</span>
           <p>{description}</p>
+          <Button
+            variant="destructive"
+            className="cursor-pointer"
+            disabled={deleteIssueStatus.loading}
+            onClick={() => dispatch(deleteIssue(id))}
+          >
+            <Trash />
+            <span>{deleteIssueStatus.loading ? 'Deleting...' : 'Delete'}</span>
+          </Button>
+          {deleteIssueStatus.error && <span>{deleteIssueStatus.error}</span>}
         </div>
       </DialogContent>
     </Dialog>

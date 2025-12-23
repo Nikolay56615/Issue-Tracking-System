@@ -81,3 +81,19 @@ export const uploadAttachment = createAsyncThunk<
     return rejectWithValue('Error happened');
   }
 });
+
+export const deleteIssue = createAsyncThunk<
+  void,
+  number,
+  { rejectValue: string }
+>('issues/delete', async (id, { rejectWithValue }) => {
+  try {
+    await BoardRequests.deleteIssue(id);
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+
+    return rejectWithValue('Error happened');
+  }
+});

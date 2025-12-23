@@ -15,6 +15,7 @@ export interface Project {
   id: number;
   name: string;
   ownerId: number;
+  archived: boolean;
 }
 
 export interface CreateProjectRequest {

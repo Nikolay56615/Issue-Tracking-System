@@ -70,3 +70,13 @@ export interface LifecycleTransition {
   authorAllowed: boolean;
   assigneeAllowed: boolean;
 }
+
+export interface UpdateIssueRequest {
+  name: string;
+  description?: string;
+  priority: IssuePriority;
+  type: IssueType;
+  status?: IssueStatus;
+  assigneeIds?: number[];
+  attachmentFileNames?: string[];
+}

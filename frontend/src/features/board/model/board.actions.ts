@@ -4,6 +4,7 @@ import type {
   CreateIssueRequest,
   IssueStatus,
   LifecycleGraph,
+  UpdateIssueRequest,
 } from './board.types.ts';
 import type {
   GetBoardRequest,
@@ -152,6 +153,21 @@ export const deleteAttachment = createAsyncThunk<
   try {
     await BoardRequests.deleteAttachment(filename);
     return filename;
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+    return rejectWithValue('Error happened');
+  }
+});
+
+export const updateIssue = createAsyncThunk<
+  Issue,
+  { id: number; data: UpdateIssueRequest },
+  { rejectValue: string }
+>('issues/update', async ({ id, data }, { rejectWithValue }) => {
+  try {
+    return await BoardRequests.updateIssue(id, data);
   } catch (e) {
     if (e instanceof AxiosError) {
       return rejectWithValue(e.response?.data?.message || 'Error happened');

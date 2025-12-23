@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils.ts';
 import { PriorityBadge } from '@/features/board/ui/priority-badge.tsx';
 import { TypeBadge } from '@/features/board/ui/type-badge.tsx';
 import { IssueDialog } from '@/features/board/ui/issue-dialog.tsx';
+import { IssueForm } from '@/features/board/ui/issue-form.tsx';
+import { useParams } from 'react-router';
 
 interface IssueCardProps {
   issue: Issue;
@@ -23,6 +25,9 @@ export const IssueCard = ({
   canDrag,
   isDragging = false,
 }: IssueCardProps) => {
+  const params = useParams();
+  const projectId = Number(params.projectId); //TODO: remove this shit from here
+
   const {
     attributes,
     listeners,
@@ -52,8 +57,9 @@ export const IssueCard = ({
         isDragging && 'shadow-lg'
       )}
     >
-      <CardHeader className="items-center gap-0">
+      <CardHeader className="flex flex-row justify-center">
         <IssueDialog issue={issue} />
+        <IssueForm mode={'edit'} projectId={projectId} issue={issue} />
       </CardHeader>
       <CardContent className="line-clamp-3 text-sm">
         {issue.description}

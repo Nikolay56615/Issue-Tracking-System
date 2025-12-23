@@ -13,6 +13,7 @@ import {
   downloadAttachment,
   getBoard,
   getLifecycleGraph,
+  updateIssue,
 } from '@/features/board/model/board.actions.ts';
 
 interface IssuesState {
@@ -207,6 +208,21 @@ const boardSlice = createSlice({
           (action.payload as string) ||
           action.error.message ||
           'Error happened';
+      })
+      .addCase(updateIssue.pending, (state) => {
+        state.loading = 'pending';
+        state.error = null;
+      })
+      .addCase(updateIssue.fulfilled, (state, action) => {
+        state.loading = 'succeeded';
+        const index = state.issues.findIndex((i) => i.id === action.payload.id);
+        if (index !== -1) {
+          state.issues[index] = action.payload;
+        }
+      })
+      .addCase(updateIssue.rejected, (state, action) => {
+        state.loading = 'failed';
+        state.error = action.payload ?? 'Failed to update issue';
       });
   },
 });

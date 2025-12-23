@@ -5,6 +5,7 @@ import type {
   GetBoardRequest,
   Issue,
   LifecycleGraph,
+  UpdateIssueRequest,
   UploadResponse,
 } from '@/features/board/model/board.types.ts';
 
@@ -68,4 +69,12 @@ export const deleteAttachment = async (filename: string) => {
   await axiosInstance.delete(`/api/attachments/delete`, {
     params: { filename },
   });
+};
+
+export const updateIssue = async (id: number, data: UpdateIssueRequest) => {
+  const { data: responseData } = await axiosInstance.put<Issue>(
+    `/issues/${id}`,
+    data
+  );
+  return responseData;
 };

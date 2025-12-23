@@ -34,6 +34,7 @@ import { MarkdownPlugin } from '@platejs/markdown';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   createIssue,
+  updateIssue,
   uploadAttachment,
 } from '@/features/board/model/board.actions.ts';
 import { useEffect, useRef, useState } from 'react';
@@ -45,7 +46,7 @@ import {
   SelectValue,
 } from '@/components/ui/select.tsx';
 import { capitalize, cn } from '@/lib/utils.ts';
-import type { IssuePriority, IssueType } from '@/features/board/model';
+import type { Issue, IssuePriority, IssueType } from '@/features/board/model';
 import type { UserProfile } from '@/features/profile';
 import {
   Command,
@@ -54,23 +55,28 @@ import {
   CommandInput,
   CommandItem,
 } from '@/components/ui/command.tsx';
-import { Loader2, User } from 'lucide-react';
+import { Loader2, Pencil, User } from 'lucide-react';
 import { ProfileRequests } from '@/features/profile/api';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
   projectId: number;
+  issue?: Issue;
 }
 
-export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
+export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
   const dispatch = useAppDispatch();
-  const [name, setName] = useState('');
-  const [type, setType] = useState<IssueType>('TASK');
-  const [priority, setPriority] = useState<IssuePriority>('HIGH');
+  const [name, setName] = useState(issue?.name || '');
+  const [type, setType] = useState<IssueType>(issue?.type || 'TASK');
+  const [priority, setPriority] = useState<IssuePriority>(
+    issue?.priority || 'HIGH'
+  );
   const [file, setFile] = useState<File | null>(null);
   const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Предзаполняем assignee (берём первого, если есть)
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [userOptions, setUserOptions] = useState<UserProfile[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -133,6 +139,9 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
       BlockquotePlugin.withComponent(BlockquoteElement),
       MarkdownPlugin,
     ],
+    value: issue?.description
+      ? [{ type: 'p', children: [{ text: issue.description }] }]
+      : undefined,
   });
 
   const title = mode === 'add' ? 'Add Issue' : 'Edit Issue';
@@ -149,21 +158,42 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
         attachmentFileNames = [fileName];
       }
 
+      if (mode === 'edit' && issue) {
+        const existingFileNames = issue.attachments.map((a) => a.url);
+        attachmentFileNames = [...existingFileNames, ...attachmentFileNames];
+      }
+
       const markdownContent = editor.api.markdown.serialize();
 
       const assigneeIds = selectedUser ? [selectedUser.id] : [];
 
-      await dispatch(
-        createIssue({
-          projectId: projectId,
-          name: name,
-          type: type,
-          priority: priority,
-          description: markdownContent,
-          assigneeIds: assigneeIds,
-          attachmentFileNames: attachmentFileNames,
-        })
-      ).unwrap();
+      if (mode === 'add') {
+        await dispatch(
+          createIssue({
+            projectId,
+            name,
+            type,
+            priority,
+            description: markdownContent,
+            assigneeIds,
+            attachmentFileNames,
+          })
+        ).unwrap();
+      } else if (mode === 'edit' && issue) {
+        await dispatch(
+          updateIssue({
+            id: issue.id,
+            data: {
+              name,
+              type,
+              priority,
+              description: markdownContent,
+              assigneeIds,
+              attachmentFileNames,
+            },
+          })
+        ).unwrap();
+      }
 
       setOpen(false);
     } catch (error: any) {
@@ -178,7 +208,7 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
       open={open}
       onOpenChange={(isOpen) => {
         setOpen(isOpen);
-        if (isOpen) {
+        if (isOpen && mode === 'add') {
           setName('');
           setType('TASK');
           setPriority('HIGH');
@@ -189,7 +219,13 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="default">{title}</Button>
+        {mode === 'add' ? (
+          <Button variant="default">{title}</Button>
+        ) : (
+          <Button className="ml-auto" size="sm" variant="ghost">
+            <Pencil />
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

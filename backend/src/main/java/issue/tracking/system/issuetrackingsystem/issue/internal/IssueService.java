@@ -5,8 +5,10 @@ import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.LifecycleEngine;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     private final ApplicationEventPublisher eventPublisher;
     private final ProjectAccessApi projectAccess;
     private final ProjectQueryApi projectQueryApi;
+    private final FileStorageApi fileStorage;
     private final LifecycleEngine lifecycle;
     private final IssueMapper mapper;
 
@@ -83,31 +86,47 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Override
     @Transactional
     public void updateIssue(Long issueId, Long userId, String name, String description,
-                            IssuePriority priority, IssueType type,
-                            IssueStatus status,
-                            List<Long> assigneeIds,
-                            List<AttachmentDto> attachments) {
-        Issue issue = issueRepository.findById(issueId)
-            .orElseThrow(() -> new IllegalArgumentException("Issue not found"));
+        IssuePriority priority, IssueType type,
+        IssueStatus status,
+        List<Long> assigneeIds,
+        List<AttachmentDto> newAttachments) {
 
-        if (!projectAccess.hasAccess(userId, issue.getProjectId())) {
-            throw new SecurityException("User is not a member of the project");
-        }
+        Issue issue = getIssueIfAllowed(issueId, userId, false);
 
         var projectOpt = projectQueryApi.getProjectById(issue.getProjectId());
         if (projectOpt.isPresent() && projectOpt.get().archived()) {
             throw new SecurityException("Cannot update issue in archived project");
         }
 
-        String role = projectAccess.getUserRole(userId, issue.getProjectId())
-            .orElseThrow(() -> new SecurityException("User has no role"));
+        Set<String> newUrls = newAttachments == null ?
+            Set.of() :
+            newAttachments.stream().map(AttachmentDto::url).collect(Collectors.toSet());
 
-        boolean isAssignee = issue.getAssigneeIds() != null
-            && issue.getAssigneeIds().contains(userId);
-        boolean isAuthor = issue.getAuthorId() != null && issue.getAuthorId().equals(userId);
+        for (Attachment oldAtt : new ArrayList<>(issue.getAttachments())) {
+            if (!newUrls.contains(oldAtt.getFileUrl())) {
+                String storedName = extractStoredFileName(oldAtt.getFileUrl());
+                fileStorage.deleteFile(storedName);
+                issue.getAttachments().remove(oldAtt);
+            }
+        }
 
-        if (isReviewerOrHigher(role) && !userId.equals(issue.getAuthorId()) && !isAssignee) {
-            throw new SecurityException("Access denied");
+        if (newAttachments != null && !newAttachments.isEmpty()) {
+            List<Attachment> newEntities = newAttachments.stream()
+                .map(dto -> {
+                    Attachment att = new Attachment();
+                    String origName = dto.originalFileName();
+                    if (origName == null || origName.isBlank()) {
+                        origName = extractFileNameFromUrl(dto.url());
+                    }
+                    att.setOriginalFileName(origName);
+                    att.setFileUrl(dto.url());
+                    att.setIssue(issue);
+                    return att;
+                })
+                .toList();
+
+            issue.getAttachments().clear();
+            issue.getAttachments().addAll(newEntities);
         }
 
         issue.setName(name);
@@ -123,11 +142,13 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             issue.setAssigneeIds(assigneeIds);
         }
 
-        check_attachements(attachments, issue);
-
         if (status != null && status != issue.getStatus()) {
+            String role = projectAccess.getUserRole(userId, issue.getProjectId()).orElse("");
+            boolean isAssignee = issue.getAssigneeIds() != null && issue.getAssigneeIds().contains(userId);
+            boolean isAuthor = issue.getAuthorId().equals(userId);
+
             if (!lifecycle.canTransition(issue.getStatus(), status, role, isAssignee, isAuthor)) {
-                throw new SecurityException("Transition denied by lifecycle rules");
+                throw new SecurityException("Transition denied");
             }
             issue.setStatus(status);
             if (status == IssueStatus.DONE) {
@@ -137,9 +158,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
 
         issueRepository.save(issue);
 
-        eventPublisher.publishEvent(new IssueUpdatedEvent(
-            issue.getId(), issue.getProjectId(), userId, "Issue updated"
-        ));
+        eventPublisher.publishEvent(new IssueUpdatedEvent(issueId, issue.getProjectId(), userId, "Issue updated"));
     }
 
     private void check_attachements(List<AttachmentDto> attachments, Issue issue) {
@@ -147,7 +166,11 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             List<Attachment> attachmentEntities = attachments.stream()
                 .map(dto -> {
                     Attachment att = new Attachment();
-                    att.setOriginalFileName(dto.originalFileName());
+                    String originalFileName = dto.originalFileName();
+                    if (originalFileName == null || originalFileName.isBlank()) {
+                        originalFileName = extractFileNameFromUrl(dto.url());
+                    }
+                    att.setOriginalFileName(originalFileName);
                     att.setFileUrl(dto.url());
                     att.setIssue(issue);
                     return att;
@@ -155,6 +178,19 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
                 .toList();
             issue.setAttachments(attachmentEntities);
         }
+    }
+
+    private String extractFileNameFromUrl(String url) {
+        if (url == null) return null;
+        int idx = url.lastIndexOf("/");
+        return idx >= 0 ? url.substring(idx + 1) : url;
+    }
+
+    private String extractStoredFileName(String url) {
+        if (url == null || !url.startsWith("/files/")) {
+            throw new IllegalArgumentException("Invalid file URL");
+        }
+        return url.substring("/files/".length());
     }
 
     @Override
@@ -190,15 +226,19 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Override
     @Transactional
     public void moveToTrash(Long issueId, Long userId) {
-        Issue issue = issueRepository.findById(issueId).orElseThrow();
-        String role = projectAccess.getUserRole(userId, issue.getProjectId()).orElse("");
+        Issue issue = getIssueIfAllowed(issueId, userId, true);
 
-        if (isReviewerOrHigher(role)) {
-            throw new SecurityException("Only Reviewer/Admin/Owner can delete issues");
+        // Clean up attachments
+        for (Attachment att : new ArrayList<>(issue.getAttachments())) {  // Avoid concurrent modification
+            String storedFileName = extractStoredFileName(att.getFileUrl());
+            fileStorage.deleteFile(storedFileName);
+            issue.getAttachments().remove(att);
         }
 
         issue.setDeletedAt(LocalDateTime.now());
         issueRepository.save(issue);
+
+        eventPublisher.publishEvent(new IssueUpdatedEvent(issueId, issue.getProjectId(), userId, "Moved to trash"));
     }
 
     @Override
@@ -275,7 +315,6 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
                 stream = stream.filter(i -> i.getStartDate() != null && !i.getStartDate().isAfter(filter.dateTo()));
             }
         }
-
         return stream
             .sorted(Comparator.comparing(Issue::getPriority))
             .map(mapper::toDto)
@@ -289,4 +328,36 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             .map(mapper::toDto)
             .toList();
     }
+
+    @Override
+    @Transactional
+    public void removeAttachment(Long issueId, Long userId, String attachmentUrl) {
+        Issue issue = getIssueIfAllowed(issueId, userId, true);
+        Attachment toRemove = issue.getAttachments().stream()
+            .filter(att -> att.getFileUrl().equals(attachmentUrl))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Attachment not found"));
+        String storedFileName = extractStoredFileName(attachmentUrl);
+        fileStorage.deleteFile(storedFileName);
+        issue.getAttachments().remove(toRemove);
+        issueRepository.save(issue);
+    }
+
+    private Issue getIssueIfAllowed(Long issueId, Long userId, boolean checkAssignee) {
+        Issue issue = issueRepository.findById(issueId)
+            .orElseThrow(() -> new IllegalArgumentException("Issue not found"));
+        if (!projectAccess.hasAccess(userId, issue.getProjectId())) {
+            throw new SecurityException("User is not a member of the project");
+        }
+        if (checkAssignee) {
+            String role = projectAccess.getUserRole(userId, issue.getProjectId()).orElse("");
+            boolean isAssignee = issue.getAssigneeIds() != null && issue.getAssigneeIds().contains(userId);
+            boolean isAuthor = issue.getAuthorId() != null && issue.getAuthorId().equals(userId);
+            if (!isAssignee && !isAuthor && !"OWNER".equals(role) && !"ADMIN".equals(role)) {
+                throw new SecurityException("Access denied");
+            }
+        }
+        return issue;
+    }
 }
+

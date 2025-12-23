@@ -70,8 +70,7 @@ public class IssueController {
         }
 
         commandApi.updateIssue(
-            id,
-            userId,
+            id, userId,
             request.name(),
             request.description(),
             request.priority(),
@@ -118,6 +117,12 @@ public class IssueController {
     @GetMapping("/trash")
     public List<IssueDto> getTrash(@RequestParam Long projectId) {
         return queryApi.getTrashBin(projectId);
+    }
+
+    @DeleteMapping("/{id}/attachments")
+    public void removeAttachment(@PathVariable Long id, @RequestParam("url") String attachmentUrl) {
+        Long userId = userProvider.getCurrentUserId();
+        commandApi.removeAttachment(id, userId, attachmentUrl);
     }
 
     private String extractFileName(String url) {

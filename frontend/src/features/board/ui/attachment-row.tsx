@@ -3,8 +3,23 @@ import {
   downloadAttachment,
   deleteAttachment,
 } from '@/features/board/model/board.actions.ts';
+import { Button } from '@/components/ui/button.tsx';
+import { Download, Trash2, FileText } from 'lucide-react';
+import { cn } from '@/lib/utils.ts';
 
-export const AttachmentRow = ({ filename }: { filename: string }) => {
+interface AttachmentRowProps {
+  filename: string;
+  originalFileName?: string;
+  className?: string;
+}
+
+export const AttachmentRow = ({
+  filename,
+  originalFileName,
+  className,
+}: AttachmentRowProps) => {
+  console.log('fn ' + filename);
+  console.log('og ' + originalFileName);
   const dispatch = useAppDispatch();
   const { downloading, deleting, downloadingError, deletingError } =
     useAppSelector((s) => s.boardReducer);
@@ -13,19 +28,11 @@ export const AttachmentRow = ({ filename }: { filename: string }) => {
   const isDeleting = !!deleting[filename];
 
   const handleDownload = async () => {
-    const { payload } = await dispatch(downloadAttachment(filename));
-    if (
-      downloadAttachment.fulfilled.match({
-        type: downloadAttachment.fulfilled.type,
-        payload,
-      })
-    ) {
-      const { blob, filename: realName } = payload as {
-        blob: Blob;
-        filename: string;
-      };
+    const action = await dispatch(downloadAttachment(filename));
+    if (downloadAttachment.fulfilled.match(action)) {
+      const { blob, filename: realName } = action.payload;
 
-      const url = window.URL.createObjectURL(blob); // [web:86][web:89]
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = realName;
@@ -40,17 +47,48 @@ export const AttachmentRow = ({ filename }: { filename: string }) => {
     dispatch(deleteAttachment(filename));
   };
 
+  const label = originalFileName || filename;
+
   return (
-    <div className="flex items-center gap-2">
-      <span className="max-w-60 truncate">{filename}</span>
-      <button disabled={isDownloading} onClick={handleDownload}>
-        {isDownloading ? 'Downloading...' : 'Download'}
-      </button>
-      <button disabled={isDeleting} onClick={handleDelete}>
-        {isDeleting ? 'Deleting...' : 'Delete'}
-      </button>
-      {downloadingError[filename] && <span>{downloadingError[filename]}</span>}
-      {deletingError[filename] && <span>{deletingError[filename]}</span>}
+    <div
+      className={cn(
+        'flex items-center justify-between rounded border px-3 py-2 text-sm',
+        className
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <FileText className="text-muted-foreground h-4 w-4" />
+        <span className="max-w-60 truncate" title={label}>
+          {label}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          disabled={isDownloading}
+          onClick={handleDownload}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-destructive hover:text-destructive h-7 w-7"
+          disabled={isDeleting}
+          onClick={handleDelete}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {(downloadingError[filename] || deletingError[filename]) && (
+        <div className="mt-1 w-full text-xs text-red-500">
+          {downloadingError[filename] || deletingError[filename]}
+        </div>
+      )}
     </div>
   );
 };

@@ -318,9 +318,6 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
                   <MarkToolbarButton nodeType="italic" tooltip="Italic">
                     I
                   </MarkToolbarButton>
-                  <MarkToolbarButton nodeType="underline" tooltip="Underline">
-                    U
-                  </MarkToolbarButton>
                 </FixedToolbar>
                 <EditorContainer className="h-90">
                   <Editor />

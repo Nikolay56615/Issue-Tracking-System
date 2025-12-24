@@ -295,7 +295,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               </Select>
             </div>
           </div>
-          <div className="flex w-full flex-col gap-3">
+          <div className="flex w-full max-w-[54vw] flex-col gap-3">
             <Label>Issue Description</Label>
             <div className="rounded-lg border">
               <Plate editor={editor}>

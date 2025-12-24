@@ -82,7 +82,11 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
   return (
     <Dialog>
       <DialogTrigger>
-        <span className="cursor-pointer font-medium hover:underline">
+        <span
+          className="cursor-pointer font-medium hover:underline"
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           {name}
         </span>
       </DialogTrigger>

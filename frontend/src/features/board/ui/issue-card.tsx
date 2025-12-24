@@ -27,11 +27,11 @@ export const IssueCard = ({
   isDragging = false,
 }: IssueCardProps) => {
   const params = useParams();
-  const projectId = Number(params.projectId); //TODO: remove this shit from here
+  const projectId = Number(params.projectId);
 
   const {
     attributes,
-    listeners,
+    listeners, // НЕ применяем к корневому элементу
     setNodeRef,
     transform,
     transition,
@@ -52,17 +52,18 @@ export const IssueCard = ({
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
-      className={cn(
-        'cursor-grab gap-2 text-start active:cursor-grabbing',
-        isDragging && 'shadow-lg'
-      )}
+      // Убираем {...listeners} отсюда
+      className={cn('gap-2 text-start', isDragging && 'shadow-lg')}
     >
       <CardHeader className="flex flex-row justify-center">
         <IssueDialog issue={issue} />
         <IssueForm mode={'edit'} projectId={projectId} issue={issue} />
       </CardHeader>
-      <CardContent className="line-clamp-3 text-sm">
+      {/* Применяем listeners только к description */}
+      <CardContent
+        className="line-clamp-3 cursor-grab text-sm active:cursor-grabbing"
+        {...listeners} // Только здесь
+      >
         <ReactMarkdown>{issue.description}</ReactMarkdown>
       </CardContent>
       <CardFooter className="gap-2">

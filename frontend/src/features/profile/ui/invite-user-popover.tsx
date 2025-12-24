@@ -211,11 +211,7 @@ export function InviteUserPopover({ projectId }: InviteUserPopoverProps) {
             <Button variant="outline" onClick={() => setOpen(false)} size="sm">
               Cancel
             </Button>
-            <Button
-              onClick={handleInvite}
-              size="sm"
-              disabled={!selectedUser || usersLoading || inviteLoading}
-            >
+            <Button onClick={handleInvite} size="sm">
               {inviteLoading ? 'Sending invite...' : 'Send Invite'}
             </Button>
           </div>

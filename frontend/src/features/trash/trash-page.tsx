@@ -5,6 +5,7 @@ import { useAppDispatch } from '@/store';
 import type { RootState } from '@/store/types.ts';
 import { getTrash, restoreIssue } from '@/features/trash/model/trash.actions';
 import { TrashIssueCard } from '@/features/trash/ui/trash-issue-card.tsx';
+import { Loader2 } from 'lucide-react';
 
 export const TrashPage = () => {
   const params = useParams();
@@ -21,7 +22,11 @@ export const TrashPage = () => {
   }, [dispatch, projectId]);
 
   if (loading) {
-    return <div>Loading trash...</div>;
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   if (error) {

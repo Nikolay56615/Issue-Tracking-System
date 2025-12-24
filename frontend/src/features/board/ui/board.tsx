@@ -30,6 +30,7 @@ import type {
 import { toast } from 'sonner';
 import { getMyRole } from '@/features/board/api/api.board.ts';
 import { getCurrentUser } from '@/features/profile/api/api.profile.ts';
+import { Loader2 } from 'lucide-react';
 
 const statusName: Record<IssueStatus, string> = {
   BACKLOG: 'Backlog',
@@ -209,7 +210,11 @@ export const Board = ({ projectId }: { projectId: number }) => {
   };
 
   if (boardLoading === 'pending') {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   if (boardError) {

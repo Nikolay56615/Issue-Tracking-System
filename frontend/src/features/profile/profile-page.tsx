@@ -19,7 +19,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs.tsx';
 import { Button } from '@/components/ui/button.tsx';
-import { Archive, ArchiveRestore, Ellipsis } from 'lucide-react';
+import { Archive, ArchiveRestore, Ellipsis, Loader2 } from 'lucide-react';
 
 export const ProfilePage = () => {
   const dispatch = useAppDispatch();
@@ -42,7 +42,11 @@ export const ProfilePage = () => {
   }, [dispatch]);
 
   if (profileLoading === 'pending' || projectsLoading === 'pending')
-    return <div>Loading...</div>;
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      </div>
+    );
   if (profileError || projectsError) {
     return <div>Error: {profileError || projectsError}</div>;
   }

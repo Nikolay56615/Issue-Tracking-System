@@ -82,6 +82,9 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [dueDate, setDueDate] = useState<string>(
+    issue?.dueDate ? issue.dueDate.split('T')[0] : ''
+  );
 
   const debounceTimeout = useRef<number | null>(null);
 
@@ -161,12 +164,6 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
         attachmentFileNames = await Promise.all(uploadPromises);
       }
 
-      // Для edit добавляем существующие
-      if (mode === 'edit' && issue) {
-        const existingFileNames = issue.attachments.map((a) => a.url);
-        attachmentFileNames = [...existingFileNames, ...attachmentFileNames];
-      }
-
       const markdownContent = editor.api.markdown.serialize();
       const assigneeIds = selectedUser ? [selectedUser.id] : [];
 
@@ -179,10 +176,18 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             priority,
             description: markdownContent,
             assigneeIds,
-            attachmentFileNames,
+            attachmentFileNames, // <— для create используем attachmentFileNames
+            dueDate: dueDate || undefined, // если бэк не поддерживает - закомментируй
           })
         ).unwrap();
       } else if (mode === 'edit' && issue) {
+        // Для edit собираем attachments как AttachmentDto[]
+        const existingAttachments = issue.attachments;
+        const newAttachments = attachmentFileNames.map((url) => ({
+          originalFileName: url.split('/').pop() || url, // извлекаем имя файла из URL
+          url,
+        }));
+
         await dispatch(
           updateIssue({
             id: issue.id,
@@ -192,7 +197,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               priority,
               description: markdownContent,
               assigneeIds,
-              attachmentFileNames,
+              attachments: [...existingAttachments, ...newAttachments], // <— для update используем attachments,
             },
           })
         ).unwrap();
@@ -211,13 +216,23 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       open={open}
       onOpenChange={(isOpen) => {
         setOpen(isOpen);
-        if (isOpen && mode === 'add') {
-          setName('');
-          setType('TASK');
-          setPriority('HIGH');
-          setFiles([]); // <— очищаем массив файлов
-          setUploadError(null);
-          editor.tf.reset();
+
+        if (isOpen) {
+          // При открытии сбрасываем поля в зависимости от режима
+          if (mode === 'add') {
+            setName('');
+            setType('TASK');
+            setPriority('HIGH');
+            setFiles([]);
+            setUploadError(null);
+            setSelectedUser(null);
+            setSearchQuery('');
+            editor.tf.reset();
+          } else {
+            // В режиме edit сбрасываем только выбранные файлы
+            setFiles([]);
+            setUploadError(null);
+          }
         }
       }}
     >
@@ -230,7 +245,9 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent
+        className="max-h-[95vh] min-w-[60vw] overflow-x-hidden overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -278,7 +295,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               </Select>
             </div>
           </div>
-          <div className="flex w-115 flex-col gap-3">
+          <div className="flex w-full flex-col gap-3">
             <Label>Issue Description</Label>
             <div className="rounded-lg border">
               <Plate editor={editor}>
@@ -362,8 +379,19 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             )}
           </Command>
         </div>
+        <div className="flex flex-col gap-3">
+          <Label htmlFor="dueDate">Due Date</Label>
+          <Input
+            id="dueDate"
+            type="date"
+            className="text-sm"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        </div>
+
         <div className="grid w-full max-w-sm items-center gap-3">
-          <Label htmlFor="picture">Picture</Label>
+          <Label htmlFor="picture">Attachments</Label>
           <Input
             id="picture"
             type="file"
@@ -376,8 +404,11 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             }}
             disabled={isUploading || isCreatingIssue === 'pending'}
           />
+
+          {/* Показываем новые выбранные файлы */}
           {files.length > 0 && (
             <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">New files:</span>
               {files.map((f, idx) => (
                 <span key={idx} className="text-muted-foreground text-xs">
                   {f.name}
@@ -385,8 +416,27 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               ))}
             </div>
           )}
+
+          {/* Показываем существующие attachments в режиме edit */}
+          {mode === 'edit' && issue && issue.attachments.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Current attachments:</span>
+              {issue.attachments.map((attachment, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">
+                    {attachment.originalFileName}
+                  </span>
+                  <span className="text-muted-foreground text-[10px]">
+                    ({attachment.url})
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {uploadError && <p className="text-sm text-red-500">{uploadError}</p>}
         </div>
+
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>

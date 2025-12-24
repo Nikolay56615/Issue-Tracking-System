@@ -34,9 +34,10 @@ import { MarkdownPlugin } from '@platejs/markdown';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   createIssue,
+  updateIssue,
   uploadAttachment,
 } from '@/features/board/model/board.actions.ts';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -44,23 +45,89 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select.tsx';
-import { capitalize } from '@/lib/utils.ts';
-import type { IssuePriority, IssueType } from '@/features/board/model';
+import { capitalize, cn } from '@/lib/utils.ts';
+import type { Issue, IssuePriority, IssueType } from '@/features/board/model';
+import type { UserProfile } from '@/features/profile';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command.tsx';
+import { Loader2, Pencil, User } from 'lucide-react';
+import { ProfileRequests } from '@/features/profile/api';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
   projectId: number;
+  issue?: Issue;
 }
 
-export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
+export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
   const dispatch = useAppDispatch();
-  const [name, setName] = useState('');
-  const [type, setType] = useState<IssueType>('TASK');
-  const [priority, setPriority] = useState<IssuePriority>('HIGH');
-  const [file, setFile] = useState<File | null>(null);
+  const [name, setName] = useState(issue?.name || '');
+  const [type, setType] = useState<IssueType>(issue?.type || 'TASK');
+  const [priority, setPriority] = useState<IssuePriority>(
+    issue?.priority || 'HIGH'
+  );
+  const [files, setFiles] = useState<File[]>([]);
   const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Предзаполняем assignee (берём первого, если есть)
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [userOptions, setUserOptions] = useState<UserProfile[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [dueDate, setDueDate] = useState<string>(
+    issue?.dueDate ? issue.dueDate.split('T')[0] : ''
+  );
+
+  const debounceTimeout = useRef<number | null>(null);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!searchQuery.trim()) {
+        setUserOptions([]);
+        return;
+      }
+
+      setUsersLoading(true);
+      setError(null);
+
+      try {
+        const response = await ProfileRequests.searchUsers(searchQuery);
+        setUserOptions(response);
+      } catch (err) {
+        setError('Failed to fetch users');
+        console.error('Error fetching users:', err);
+        setUserOptions([]);
+      } finally {
+        setUsersLoading(false);
+      }
+    };
+
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+
+    debounceTimeout.current = setTimeout(fetchUsers, 300);
+
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+    };
+  }, [searchQuery]);
+
+  const showEmpty =
+    open &&
+    !usersLoading &&
+    searchQuery.trim().length > 0 &&
+    userOptions.length === 0;
 
   const isCreatingIssue = useAppSelector((state) => state.boardReducer.loading);
 
@@ -75,6 +142,9 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
       BlockquotePlugin.withComponent(BlockquoteElement),
       MarkdownPlugin,
     ],
+    value: issue?.description
+      ? [{ type: 'p', children: [{ text: issue.description }] }]
+      : undefined,
   });
 
   const title = mode === 'add' ? 'Add Issue' : 'Edit Issue';
@@ -86,24 +156,52 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
 
       let attachmentFileNames: string[] = [];
 
-      if (file) {
-        const fileName = await dispatch(uploadAttachment(file)).unwrap();
-        attachmentFileNames = [fileName];
+      // Загружаем все файлы параллельно
+      if (files.length > 0) {
+        const uploadPromises = files.map((file) =>
+          dispatch(uploadAttachment(file)).unwrap()
+        );
+        attachmentFileNames = await Promise.all(uploadPromises);
       }
 
       const markdownContent = editor.api.markdown.serialize();
+      const assigneeIds = selectedUser ? [selectedUser.id] : [];
 
-      await dispatch(
-        createIssue({
-          projectId: projectId,
-          name: name,
-          type: type,
-          priority: priority,
-          description: markdownContent,
-          assigneeIds: [],
-          attachmentFileNames: attachmentFileNames,
-        })
-      ).unwrap();
+      if (mode === 'add') {
+        await dispatch(
+          createIssue({
+            projectId,
+            name,
+            type,
+            priority,
+            description: markdownContent,
+            assigneeIds,
+            attachmentFileNames, // <— для create используем attachmentFileNames
+            dueDate: dueDate || undefined, // если бэк не поддерживает - закомментируй
+          })
+        ).unwrap();
+      } else if (mode === 'edit' && issue) {
+        // Для edit собираем attachments как AttachmentDto[]
+        const existingAttachments = issue.attachments;
+        const newAttachments = attachmentFileNames.map((url) => ({
+          originalFileName: url.split('/').pop() || url, // извлекаем имя файла из URL
+          url,
+        }));
+
+        await dispatch(
+          updateIssue({
+            id: issue.id,
+            data: {
+              name,
+              type,
+              priority,
+              description: markdownContent,
+              assigneeIds,
+              attachments: [...existingAttachments, ...newAttachments], // <— для update используем attachments,
+            },
+          })
+        ).unwrap();
+      }
 
       setOpen(false);
     } catch (error: any) {
@@ -118,20 +216,38 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
       open={open}
       onOpenChange={(isOpen) => {
         setOpen(isOpen);
+
         if (isOpen) {
-          setName('');
-          setType('TASK');
-          setPriority('HIGH');
-          setFile(null);
-          setUploadError(null);
-          editor.tf.reset();
+          // При открытии сбрасываем поля в зависимости от режима
+          if (mode === 'add') {
+            setName('');
+            setType('TASK');
+            setPriority('HIGH');
+            setFiles([]);
+            setUploadError(null);
+            setSelectedUser(null);
+            setSearchQuery('');
+            editor.tf.reset();
+          } else {
+            // В режиме edit сбрасываем только выбранные файлы
+            setFiles([]);
+            setUploadError(null);
+          }
         }
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="default">{title}</Button>
+        {mode === 'add' ? (
+          <Button variant="default">{title}</Button>
+        ) : (
+          <Button className="ml-auto" size="sm" variant="ghost">
+            <Pencil />
+          </Button>
+        )}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent
+        className="max-h-[95vh] min-w-[60vw] overflow-x-hidden overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -179,7 +295,7 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
               </Select>
             </div>
           </div>
-          <div className="flex w-115 flex-col gap-3">
+          <div className="flex w-full flex-col gap-3">
             <Label>Issue Description</Label>
             <div className="rounded-lg border">
               <Plate editor={editor}>
@@ -213,16 +329,114 @@ export const IssueForm = ({ mode, projectId }: IssueFormProps) => {
             </div>
           </div>
         </div>
+        <div>
+          <label className="mb-2 block text-sm font-medium">
+            Select Assignee
+          </label>
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search by name or email..."
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+            />
+
+            {usersLoading && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-muted-foreground ml-2 text-sm">
+                  Searching...
+                </span>
+              </div>
+            )}
+
+            {error && (
+              <div className="text-destructive p-3 text-sm">{error}</div>
+            )}
+
+            {showEmpty && <CommandEmpty>No users found.</CommandEmpty>}
+
+            {!usersLoading && !error && userOptions.length > 0 && (
+              <CommandGroup className="max-h-60 overflow-auto">
+                {userOptions.map((user) => (
+                  <CommandItem
+                    key={user.id}
+                    onSelect={() => setSelectedUser(user)}
+                    className={cn(
+                      'flex items-center gap-2',
+                      selectedUser?.id === user.id && 'bg-accent'
+                    )}
+                  >
+                    <User className="h-4 w-4" />
+                    <div className="flex flex-col">
+                      <span>{user.username}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {user.email}
+                      </span>
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </Command>
+        </div>
+        <div className="flex flex-col gap-3">
+          <Label htmlFor="dueDate">Due Date</Label>
+          <Input
+            id="dueDate"
+            type="date"
+            className="text-sm"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        </div>
+
         <div className="grid w-full max-w-sm items-center gap-3">
-          <Label htmlFor="picture">Picture</Label>
+          <Label htmlFor="picture">Attachments</Label>
           <Input
             id="picture"
             type="file"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            multiple
+            onChange={(e) => {
+              const fileList = e.target.files;
+              if (fileList) {
+                setFiles(Array.from(fileList));
+              }
+            }}
             disabled={isUploading || isCreatingIssue === 'pending'}
           />
+
+          {/* Показываем новые выбранные файлы */}
+          {files.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">New files:</span>
+              {files.map((f, idx) => (
+                <span key={idx} className="text-muted-foreground text-xs">
+                  {f.name}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Показываем существующие attachments в режиме edit */}
+          {mode === 'edit' && issue && issue.attachments.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Current attachments:</span>
+              {issue.attachments.map((attachment, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">
+                    {attachment.originalFileName}
+                  </span>
+                  <span className="text-muted-foreground text-[10px]">
+                    ({attachment.url})
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {uploadError && <p className="text-sm text-red-500">{uploadError}</p>}
         </div>
+
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>

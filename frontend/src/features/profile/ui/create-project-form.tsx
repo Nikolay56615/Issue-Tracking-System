@@ -3,10 +3,7 @@ import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { useAppDispatch } from '@/store';
-import {
-  createProject,
-  fetchProjects,
-} from '@/features/profile/model/profile.actions.ts';
+import { createProject } from '@/features/profile/model/profile.actions.ts';
 import { toast } from 'sonner';
 
 export const CreateProjectForm = () => {
@@ -18,7 +15,6 @@ export const CreateProjectForm = () => {
     try {
       await dispatch(createProject({ name: projectName })).unwrap();
       toast.success('Project created successfully');
-      dispatch(fetchProjects());
     } catch (error) {
       toast.error(error as string);
     }

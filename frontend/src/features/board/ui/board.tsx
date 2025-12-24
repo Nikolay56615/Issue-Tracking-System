@@ -23,7 +23,14 @@ import {
   getLifecycleGraph,
 } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch } from '@/store';
-import type { UserRole } from '@/features/profile/model/profile.types.ts';
+import type {
+  UserProfile,
+  UserRole,
+} from '@/features/profile/model/profile.types.ts';
+import { toast } from 'sonner';
+import { getMyRole } from '@/features/board/api/api.board.ts';
+import { getCurrentUser } from '@/features/profile/api/api.profile.ts';
+import { Loader2 } from 'lucide-react';
 
 const statusName: Record<IssueStatus, string> = {
   BACKLOG: 'Backlog',
@@ -54,7 +61,59 @@ const isTransitionAllowed = (
 };
 
 export const Board = ({ projectId }: { projectId: number }) => {
-  const role: UserRole = 'OWNER'; //TODO: get from api
+  const [role, setRole] = useState<UserRole>('WORKER');
+
+  useEffect(() => {
+    if (!projectId || Number.isNaN(projectId)) return;
+
+    let cancelled = false;
+
+    const fetchRole = async () => {
+      try {
+        const response = await getMyRole(projectId);
+        if (!cancelled) {
+          setRole(response);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to fetch role:', error);
+          setRole('WORKER');
+        }
+      }
+    };
+
+    fetchRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!cancelled) {
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to fetch current user:', error);
+          setCurrentUser(null);
+        }
+      }
+    };
+
+    fetchCurrentUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const dispatch = useAppDispatch();
   const {
@@ -82,7 +141,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
     setActiveIssue(issue);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveIssue(null);
 
@@ -98,23 +157,40 @@ export const Board = ({ projectId }: { projectId: number }) => {
     if (statusOrder.includes(overStatus)) {
       if (draggedIssue.status !== overStatus) {
         if (lifecycleGraph == null) return;
+
         if (
-          isTransitionAllowed(
+          !isTransitionAllowed(
             draggedIssue.status,
             overStatus,
             role,
-            false,
-            false,
+            activeIssue?.authorId === currentUser?.id,
+            activeIssue?.assigneeIds.includes(currentUser?.id ?? -1) ?? false,
             lifecycleGraph
           )
         ) {
-          dispatch(
+          toast.error('Transition not allowed', {
+            description: `Cannot move from ${draggedIssue.status} to ${overStatus}`,
+          });
+          return;
+        }
+
+        try {
+          await dispatch(
             changeIssueStatus({
               id: draggedIssue.id,
               newStatus: overStatus,
               previousStatus: draggedIssue.status,
             })
-          );
+          ).unwrap();
+
+          toast.success(`Status changed to ${overStatus}`);
+        } catch (err: any) {
+          const errorMessage =
+            typeof err === 'string'
+              ? err
+              : err?.message || 'Failed to change status: ';
+
+          toast.error(errorMessage);
         }
       }
     }
@@ -134,7 +210,11 @@ export const Board = ({ projectId }: { projectId: number }) => {
   };
 
   if (boardLoading === 'pending') {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   if (boardError) {

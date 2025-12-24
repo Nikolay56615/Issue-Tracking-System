@@ -8,9 +8,12 @@ import type {
 import {
   changeIssueStatus,
   createIssue,
+  deleteAttachment,
   deleteIssue,
+  downloadAttachment,
   getBoard,
   getLifecycleGraph,
+  updateIssue,
 } from '@/features/board/model/board.actions.ts';
 
 interface IssuesState {
@@ -20,6 +23,7 @@ interface IssuesState {
   boardLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   boardError: string | null;
   statusChangeLoading: Record<number, boolean>;
+  statusChangeError: Record<number, string | null>;
   deleteIssueStatus: {
     loading: boolean;
     error: string | null;
@@ -30,6 +34,10 @@ interface IssuesState {
     error: string | null;
   };
   filters: IssueFilters;
+  downloading: Record<string, boolean>;
+  downloadingError: Record<string, string | null>;
+  deleting: Record<string, boolean>;
+  deletingError: Record<string, string | null>;
 }
 
 const initialState: IssuesState = {
@@ -39,6 +47,7 @@ const initialState: IssuesState = {
   boardLoading: 'idle',
   boardError: null,
   statusChangeLoading: {},
+  statusChangeError: {},
   deleteIssueStatus: {
     loading: false,
     error: null,
@@ -56,6 +65,10 @@ const initialState: IssuesState = {
     dateFrom: undefined,
     dateTo: undefined,
   },
+  downloading: {},
+  downloadingError: {},
+  deleting: {},
+  deletingError: {},
 };
 
 const boardSlice = createSlice({
@@ -137,10 +150,12 @@ const boardSlice = createSlice({
           issue.status = newStatus;
         }
         state.statusChangeLoading[id] = true;
+        state.statusChangeError[id] = null;
       })
       .addCase(changeIssueStatus.fulfilled, (state, action) => {
         const { id } = action.meta.arg;
         state.statusChangeLoading[id] = false;
+        state.statusChangeError[id] = null;
       })
       .addCase(changeIssueStatus.rejected, (state, action) => {
         const { id } = action.meta.arg;
@@ -149,6 +164,8 @@ const boardSlice = createSlice({
           issue.status = action.payload.previousStatus;
         }
         state.statusChangeLoading[id] = false;
+        state.statusChangeError[id] =
+          action.payload?.message || 'Failed to change status';
       })
       .addCase(getLifecycleGraph.pending, (state) => {
         state.lifecycleGraphStatus.loading = true;
@@ -162,6 +179,64 @@ const boardSlice = createSlice({
         state.lifecycleGraphStatus.loading = false;
         state.lifecycleGraphStatus.error =
           action.payload || action.error.message || 'Error happened';
+      })
+      .addCase(downloadAttachment.pending, (state, action) => {
+        const filename = action.meta.arg;
+        state.downloading[filename] = true;
+        state.downloadingError[filename] = null;
+      })
+      .addCase(downloadAttachment.fulfilled, (state, action) => {
+        const filename = action.meta.arg;
+        state.downloading[filename] = false;
+      })
+      .addCase(downloadAttachment.rejected, (state, action) => {
+        const filename = action.meta.arg;
+        state.downloading[filename] = false;
+        state.downloadingError[filename] =
+          (action.payload as string) ||
+          action.error.message ||
+          'Error happened';
+      })
+      .addCase(deleteAttachment.pending, (state, action) => {
+        const { url } = action.meta.arg;
+        state.deleting[url] = true;
+        state.deletingError[url] = null;
+      })
+      .addCase(deleteAttachment.fulfilled, (state, action) => {
+        const { id, url } = action.payload;
+
+        // Удаляем из стейта загрузки
+        state.deleting[url] = false;
+        delete state.deletingError[url];
+
+        // Находим issue по id и удаляем attachment
+        const issue = state.issues.find((i) => i.id === id);
+        if (issue) {
+          issue.attachments = issue.attachments.filter((a) => a.url !== url);
+        }
+      })
+      .addCase(deleteAttachment.rejected, (state, action) => {
+        const { url } = action.meta.arg;
+        state.deleting[url] = false;
+        state.deletingError[url] =
+          (action.payload as string) ||
+          action.error.message ||
+          'Error happened';
+      })
+      .addCase(updateIssue.pending, (state) => {
+        state.loading = 'pending';
+        state.error = null;
+      })
+      .addCase(updateIssue.fulfilled, (state, action) => {
+        state.loading = 'succeeded';
+        const index = state.issues.findIndex((i) => i.id === action.payload.id);
+        if (index !== -1) {
+          state.issues[index] = action.payload;
+        }
+      })
+      .addCase(updateIssue.rejected, (state, action) => {
+        state.loading = 'failed';
+        state.error = action.payload ?? 'Failed to update issue';
       });
   },
 });

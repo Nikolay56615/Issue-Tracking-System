@@ -4,6 +4,7 @@ import type {
   CreateIssueRequest,
   IssueStatus,
   LifecycleGraph,
+  UpdateIssueRequest,
 } from './board.types.ts';
 import type {
   GetBoardRequest,
@@ -106,6 +107,67 @@ export const getLifecycleGraph = createAsyncThunk<
 >('board/lifecycle', async (_, { rejectWithValue }) => {
   try {
     return await BoardRequests.getLifecycleGraph();
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+    return rejectWithValue('Error happened');
+  }
+});
+
+export const downloadAttachment = createAsyncThunk<
+  { filename: string; blob: Blob },
+  string,
+  { rejectValue: string }
+>('attachments/download', async (filename, { rejectWithValue }) => {
+  try {
+    const res = await BoardRequests.downloadAttachment(filename);
+    const blob = res.data as Blob;
+
+    const header = res.headers['content-disposition'] as string | undefined;
+    let realName = filename;
+    if (header) {
+      const idx = header.toLowerCase().indexOf('filename=');
+      if (idx !== -1) {
+        realName = header
+          .substring(idx + 'filename='.length)
+          .trim()
+          .replace(/"/g, '');
+      }
+    }
+
+    return { filename: realName, blob };
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+    return rejectWithValue('Error happened');
+  }
+});
+
+export const deleteAttachment = createAsyncThunk<
+  { id: number; url: string },
+  { id: number; url: string },
+  { rejectValue: string }
+>('attachments/deleteAttachment', async (request, { rejectWithValue }) => {
+  try {
+    await BoardRequests.deleteAttachment(request.id, request.url);
+    return request;
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      return rejectWithValue(e.response?.data?.message || 'Error happened');
+    }
+    return rejectWithValue('Error happened');
+  }
+});
+
+export const updateIssue = createAsyncThunk<
+  Issue,
+  { id: number; data: UpdateIssueRequest },
+  { rejectValue: string }
+>('issues/update', async ({ id, data }, { rejectWithValue }) => {
+  try {
+    return await BoardRequests.updateIssue(id, data);
   } catch (e) {
     if (e instanceof AxiosError) {
       return rejectWithValue(e.response?.data?.message || 'Error happened');

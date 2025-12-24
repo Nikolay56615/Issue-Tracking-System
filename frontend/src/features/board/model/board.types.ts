@@ -51,6 +51,7 @@ export interface CreateIssueRequest {
   description: string;
   assigneeIds: number[];
   attachmentFileNames: string[];
+  dueDate?: string; // формат: 'YYYY-MM-DD'
 }
 
 export interface ChangeIssueStatusRequest {
@@ -69,4 +70,15 @@ export interface LifecycleTransition {
   allowedRoles: UserRole[];
   authorAllowed: boolean;
   assigneeAllowed: boolean;
+}
+
+export interface UpdateIssueRequest {
+  name: string;
+  description?: string;
+  priority: IssuePriority;
+  type: IssueType;
+  status?: IssueStatus;
+  assigneeIds?: number[];
+  attachmentFileNames?: string[];
+  attachments?: Attachment[]; // <— добавь это
 }

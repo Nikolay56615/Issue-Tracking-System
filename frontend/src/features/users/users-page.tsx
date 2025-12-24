@@ -5,6 +5,7 @@ import type { RootState } from '@/store/types.ts';
 import { UserCard } from '@/features/users/ui/user-card.tsx';
 import { useEffect } from 'react';
 import { getProjectUsers } from '@/features/users/model/users.actions.ts';
+import { Loader2 } from 'lucide-react';
 
 export const UsersPage = () => {
   const params = useParams();
@@ -20,7 +21,11 @@ export const UsersPage = () => {
   }, [dispatch, projectId]);
 
   if (loading === 'pending') {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   if (error) {

@@ -1,4 +1,5 @@
 import { ProfileRequests } from '@/features/profile/api';
+import { getApiErrorMessage } from '@/api/get-error-message.ts';
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import type {
   CreateProjectRequest,
@@ -14,8 +15,8 @@ export const fetchProjects = createAsyncThunk<
 >('projects', async (_, { rejectWithValue }) => {
   try {
     return await ProfileRequests.fetchProjects();
-  } catch (error: any) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+  } catch (error: unknown) {
+    return rejectWithValue(getApiErrorMessage(error));
   }
 });
 
@@ -26,8 +27,8 @@ export const getCurrentUser = createAsyncThunk<
 >('currentUser', async (_, { rejectWithValue }) => {
   try {
     return await ProfileRequests.getCurrentUser();
-  } catch (error: any) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+  } catch (error: unknown) {
+    return rejectWithValue(getApiErrorMessage(error));
   }
 });
 

@@ -1,4 +1,4 @@
-import type { UserRole } from '@/features/profile/model/profile.types.ts';
+import type { UserRole } from '@/features/profile';
 
 export interface Issue {
   id: number;

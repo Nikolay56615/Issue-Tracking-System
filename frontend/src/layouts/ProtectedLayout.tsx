@@ -1,11 +1,10 @@
-import { useSelector } from 'react-redux';
-import type { RootState } from '@/store/types.ts';
 import { Navigate, Outlet } from 'react-router';
 import { Loader2 } from 'lucide-react';
+import { useAppSelector } from '@/store';
 
 export const ProtectedLayout = () => {
-  const { loading, isAuthenticated } = useSelector(
-    (state: RootState) => state.authReducer
+  const { loading, isAuthenticated } = useAppSelector(
+    (state) => state.auth
   );
 
   if (loading === 'pending') {

@@ -1,5 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
-import type { Issue } from '@/features/board/model';
+import type { Issue } from '@/features/board';
 import { getTrash, restoreIssue } from './trash.actions';
 
 interface TrashState {

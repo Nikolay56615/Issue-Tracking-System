@@ -1,6 +1,6 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { AxiosError } from 'axios';
-import type { Issue } from '@/features/board/model';
+import type { Issue } from '@/features/board';
 import { TrashRequests } from '@/features/trash/api';
 
 export const getTrash = createAsyncThunk<

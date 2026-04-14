@@ -13,9 +13,9 @@ export const ProfileLayout = () => {
             Issue Tracker
           </span>
         </Link>
-        <Link to={Routes.LOGOUT} className="ml-auto h-full">
+        <div className="ml-auto h-full">
           <LogoutButton />
-        </Link>
+        </div>
       </header>
       <Outlet />
     </>

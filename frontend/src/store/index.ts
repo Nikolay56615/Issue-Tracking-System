@@ -5,19 +5,19 @@ import {
   useDispatch,
   useSelector,
 } from 'react-redux';
-import { boardReducer } from '@/features/board/model/board.reducer.ts';
-import { profileReducer } from '@/features/profile/model/profile.reducer.ts';
-import { authReducer } from '@/features/auth/model/auth.reducer.ts';
-import { usersReducer } from '@/features/users/model/users.reducer.ts';
-import { trashReducer } from '@/features/trash/model/trash.reducer.ts';
+import { authReducer } from '@/features/auth';
+import { boardReducer } from '@/features/board';
+import { profileReducer } from '@/features/profile';
+import { trashReducer } from '@/features/trash';
+import { usersReducer } from '@/features/users';
 
 export const store = configureStore({
   reducer: {
-    boardReducer,
-    profileReducer,
-    authReducer,
-    usersReducer,
-    trashReducer,
+    auth: authReducer,
+    board: boardReducer,
+    profile: profileReducer,
+    trash: trashReducer,
+    users: usersReducer,
   },
 });
 

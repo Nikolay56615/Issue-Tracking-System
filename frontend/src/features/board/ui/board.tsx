@@ -15,22 +15,18 @@ import {
 } from '@dnd-kit/core';
 import { useEffect, useState } from 'react';
 import { StatusColumn } from './status-column.tsx';
-import { useSelector } from 'react-redux';
-import type { RootState } from '@/store/types.ts';
 import {
   changeIssueStatus,
   getBoard,
   getLifecycleGraph,
 } from '@/features/board/model/board.actions.ts';
-import { useAppDispatch } from '@/store';
-import type {
-  UserProfile,
-  UserRole,
-} from '@/features/profile/model/profile.types.ts';
+import { useAppDispatch, useAppSelector } from '@/store';
+import type { UserProfile, UserRole } from '@/features/profile';
 import { toast } from 'sonner';
 import { getMyRole } from '@/features/board/api/api.board.ts';
-import { getCurrentUser } from '@/features/profile/api/api.profile.ts';
+import { ProfileRequests } from '@/features/profile';
 import { Loader2 } from 'lucide-react';
+import { getApiErrorMessage } from '@/api/get-error-message.ts';
 
 const statusName: Record<IssueStatus, string> = {
   BACKLOG: 'Backlog',
@@ -96,7 +92,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
 
     const fetchCurrentUser = async () => {
       try {
-        const user = await getCurrentUser();
+        const user = await ProfileRequests.getCurrentUser();
         if (!cancelled) {
           setCurrentUser(user);
         }
@@ -122,7 +118,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
     boardError,
     statusChangeLoading,
     lifecycleGraph,
-  } = useSelector((state: RootState) => state.boardReducer);
+  } = useAppSelector((state) => state.board);
 
   useEffect(() => {
     dispatch(getBoard({ projectId }));
@@ -184,13 +180,8 @@ export const Board = ({ projectId }: { projectId: number }) => {
           ).unwrap();
 
           toast.success(`Status changed to ${overStatus}`);
-        } catch (err: any) {
-          const errorMessage =
-            typeof err === 'string'
-              ? err
-              : err?.message || 'Failed to change status: ';
-
-          toast.error(errorMessage);
+        } catch (error: unknown) {
+          toast.error(getApiErrorMessage(error, 'Failed to change status'));
         }
       }
     }

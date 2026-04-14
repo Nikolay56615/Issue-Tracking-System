@@ -1,7 +1,8 @@
 import { Button } from '@/components/ui/button.tsx';
+import { logout } from '@/features/auth';
+import { Routes } from '@/shared/constants/routes.ts';
 import { useAppDispatch } from '@/store';
 import { useNavigate } from 'react-router';
-import { logout } from '@/features/auth/model/auth.reducer.ts';
 
 export const LogoutButton = () => {
   const dispatch = useAppDispatch();
@@ -9,8 +10,7 @@ export const LogoutButton = () => {
 
   const handleLogout = () => {
     dispatch(logout());
-    localStorage.removeItem('authToken');
-    navigate('/auth', { replace: true });
+    navigate(Routes.AUTH, { replace: true });
   };
 
   return (

@@ -24,7 +24,7 @@ export const AttachmentRow = ({
   console.log('og ' + originalFileName);
   const dispatch = useAppDispatch();
   const { downloading, deleting, downloadingError, deletingError } =
-    useAppSelector((s) => s.boardReducer);
+    useAppSelector((state) => state.board);
 
   const isDownloading = !!downloading[filename];
   const isDeleting = !!deleting[filename];

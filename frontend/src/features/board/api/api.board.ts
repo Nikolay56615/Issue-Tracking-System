@@ -8,7 +8,7 @@ import type {
   UpdateIssueRequest,
   UploadResponse,
 } from '@/features/board/model/board.types.ts';
-import type { UserRole } from '@/features/profile/model/profile.types.ts';
+import type { UserRole } from '@/features/profile';
 
 export const createIssue = async (request: CreateIssueRequest) => {
   const { data } = await axiosInstance.post<Issue>('/issues', request);

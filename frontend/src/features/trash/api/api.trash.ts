@@ -1,5 +1,5 @@
 import { axiosInstance } from '@/api/instance.ts';
-import type { Issue } from '@/features/board/model';
+import type { Issue } from '@/features/board';
 
 export const getTrash = async (projectId: number) => {
   const { data } = await axiosInstance.get<Issue[]>(

@@ -47,9 +47,9 @@ export const ProjectLayout = () => {
             Trash
           </Button>
         </NavLink>
-        <Link to={Routes.LOGOUT} className="ml-auto h-full">
+        <div className="ml-auto h-full">
           <LogoutButton />
-        </Link>
+        </div>
       </header>
       <Outlet />
     </>

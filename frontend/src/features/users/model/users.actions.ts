@@ -1,5 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import type { UserProfileWithRole } from '@/features/profile/model/profile.types.ts';
+import type { UserProfileWithRole } from '@/features/profile';
 import { AxiosError } from 'axios';
 import { UsersRequests } from '@/features/users/api';
 

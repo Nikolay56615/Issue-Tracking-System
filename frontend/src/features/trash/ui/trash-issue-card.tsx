@@ -1,14 +1,12 @@
 // TrashIssueCard.tsx
-import type { Issue } from '@/features/board/model';
+import type { Issue } from '@/features/board';
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
 } from '@/components/ui/card.tsx';
-import { PriorityBadge } from '@/features/board/ui/priority-badge.tsx';
-import { TypeBadge } from '@/features/board/ui/type-badge.tsx';
-import { IssueDialog } from '@/features/board/ui/issue-dialog.tsx';
+import { IssueDialog, PriorityBadge, TypeBadge } from '@/features/board';
 import { Button } from '@/components/ui/button.tsx';
 
 interface TrashIssueCardProps {

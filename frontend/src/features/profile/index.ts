@@ -1,3 +1,11 @@
 export { ProfilePage } from './profile-page.tsx';
-export type { UserProfile } from './model';
+export { ProfileRequests } from './api';
 export { profileReducer } from './model';
+export {
+  archiveProject,
+  createProject,
+  fetchProjects,
+  getCurrentUser,
+  restoreProject,
+} from './model/profile.actions.ts';
+export type { UserProfile, UserProfileWithRole, UserRole } from './model';

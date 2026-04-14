@@ -1,7 +1,5 @@
 import { useParams } from 'react-router';
-import { useAppDispatch } from '@/store';
-import { useSelector } from 'react-redux';
-import type { RootState } from '@/store/types.ts';
+import { useAppDispatch, useAppSelector } from '@/store';
 import { UserCard } from '@/features/users/ui/user-card.tsx';
 import { useEffect } from 'react';
 import { getProjectUsers } from '@/features/users/model/users.actions.ts';
@@ -12,9 +10,7 @@ export const UsersPage = () => {
   const projectId = Number(params.projectId);
 
   const dispatch = useAppDispatch();
-  const { users, loading, error } = useSelector(
-    (state: RootState) => state.usersReducer
-  );
+  const { users, loading, error } = useAppSelector((state) => state.users);
 
   useEffect(() => {
     dispatch(getProjectUsers(projectId));
@@ -29,7 +25,7 @@ export const UsersPage = () => {
   }
 
   if (error) {
-    return <div>Error: ${error}</div>;
+    return <div>Error: {error}</div>;
   }
 
   return (

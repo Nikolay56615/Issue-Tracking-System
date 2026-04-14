@@ -1,6 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { getProjectUsers } from '@/features/users/model/users.actions.ts';
-import type { UserProfileWithRole } from '@/features/profile/model/profile.types.ts';
+import type { UserProfileWithRole } from '@/features/profile';
 
 interface UsersState {
   users: UserProfileWithRole[];

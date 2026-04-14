@@ -56,7 +56,8 @@ import {
   CommandItem,
 } from '@/components/ui/command.tsx';
 import { Loader2, Pencil, User } from 'lucide-react';
-import { ProfileRequests } from '@/features/profile/api';
+import { ProfileRequests } from '@/features/profile';
+import { getApiErrorMessage } from '@/api/get-error-message.ts';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
@@ -129,7 +130,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
     searchQuery.trim().length > 0 &&
     userOptions.length === 0;
 
-  const isCreatingIssue = useAppSelector((state) => state.boardReducer.loading);
+  const isCreatingIssue = useAppSelector((state) => state.board.loading);
 
   const editor = usePlateEditor({
     plugins: [
@@ -204,8 +205,8 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       }
 
       setOpen(false);
-    } catch (error: any) {
-      setUploadError(error.message || 'Upload failed');
+    } catch (error: unknown) {
+      setUploadError(getApiErrorMessage(error, 'Upload failed'));
     } finally {
       setIsUploading(false);
     }
@@ -271,7 +272,9 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
                 </SelectTrigger>
                 <SelectContent>
                   {['TASK', 'BUG', 'FEATURE', 'SEARCH'].map((type) => (
-                    <SelectItem value={type}>{capitalize(type)}</SelectItem>
+                    <SelectItem key={type} value={type}>
+                      {capitalize(type)}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -287,7 +290,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
                 </SelectTrigger>
                 <SelectContent>
                   {['URGENT', 'HIGH', 'MEDIUM', 'LOW'].map((priority) => (
-                    <SelectItem value={priority}>
+                    <SelectItem key={priority} value={priority}>
                       {capitalize(priority)}
                     </SelectItem>
                   ))}

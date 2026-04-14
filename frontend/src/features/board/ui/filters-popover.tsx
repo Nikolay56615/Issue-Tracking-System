@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { IssuePriority, IssueType } from '@/features/board/model';
 import { BadgeButton } from '@/features/board/ui/badge-button.tsx';
 import type { UserProfile } from '@/features/profile';
-import { ProfileRequests } from '@/features/profile/api';
+import { ProfileRequests } from '@/features/profile';
 import {
   Command,
   CommandEmpty,
@@ -35,7 +35,7 @@ interface FiltersPopoverProps {
 
 export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
   const dispatch = useAppDispatch();
-  const filters = useAppSelector((state) => state.boardReducer.filters);
+  const filters = useAppSelector((state) => state.board.filters);
 
   const [open, setOpen] = useState(false);
   const [localTypes, setLocalTypes] = useState<IssueType[]>(

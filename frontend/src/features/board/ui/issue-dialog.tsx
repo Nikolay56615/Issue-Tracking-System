@@ -14,10 +14,10 @@ import { Trash, User } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { deleteIssue } from '@/features/board/model/board.actions.ts';
 import { useEffect, useState } from 'react';
-import type { UserProfileWithRole } from '@/features/profile/model/profile.types.ts';
+import type { UserProfileWithRole } from '@/features/profile';
 import { IssueForm } from '@/features/board/ui/issue-form.tsx';
 import ReactMarkdown from 'react-markdown';
-import { UsersRequests } from '@/features/users/api';
+import { UsersRequests } from '@/features/users';
 import { AttachmentImage } from '@/features/board/ui/attachment-image.tsx';
 import { AttachmentRow } from '@/features/board/ui/attachment-row.tsx';
 
@@ -40,7 +40,7 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
   } = issue;
 
   const dispatch = useAppDispatch();
-  const { deleteIssueStatus } = useAppSelector((state) => state.boardReducer);
+  const { deleteIssueStatus } = useAppSelector((state) => state.board);
 
   const [assignees, setAssignees] = useState<UserProfileWithRole[]>([]);
   const [author, setAuthor] = useState<UserProfileWithRole | null>(null);

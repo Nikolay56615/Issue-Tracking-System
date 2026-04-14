@@ -24,7 +24,7 @@ export const AttachmentImage = ({
 }: AttachmentImageProps) => {
   const dispatch = useAppDispatch();
   const { downloading, downloadingError, deleting, deletingError } =
-    useAppSelector((state) => state.boardReducer);
+    useAppSelector((state) => state.board);
 
   const [src, setSrc] = useState<string | null>(null);
 

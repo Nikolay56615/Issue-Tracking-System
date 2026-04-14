@@ -13,7 +13,7 @@ export const BoardPage = () => {
   const projectId = Number(params.projectId);
 
   const dispatch = useAppDispatch();
-  const filters = useAppSelector((state) => state.boardReducer.filters);
+  const filters = useAppSelector((state) => state.board.filters);
 
   const debounceTimeout = useRef<number | null>(null);
 

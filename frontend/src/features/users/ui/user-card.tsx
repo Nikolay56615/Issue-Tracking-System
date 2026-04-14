@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card.tsx';
-import type { UserProfileWithRole } from '@/features/profile/model/profile.types.ts';
+import type { UserProfileWithRole } from '@/features/profile';
 import { capitalize } from '@/lib/utils.ts';
 
 interface UserCardProps {

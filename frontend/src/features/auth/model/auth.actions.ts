@@ -4,6 +4,7 @@ import type {
   RegisterRequest,
   RegisterResponse,
 } from '@/features/auth/model/auth.types.ts';
+import { getApiErrorMessage } from '@/api/get-error-message.ts';
 import { AuthRequests } from '../api';
 
 export const login = createAsyncThunk<
@@ -13,8 +14,8 @@ export const login = createAsyncThunk<
 >('auth/login', async (credentials, { rejectWithValue }) => {
   try {
     return await AuthRequests.login(credentials);
-  } catch (error: any) {
-    return rejectWithValue(error.response?.data?.message || 'Login failed');
+  } catch (error: unknown) {
+    return rejectWithValue(getApiErrorMessage(error, 'Login failed'));
   }
 });
 
@@ -25,7 +26,7 @@ export const register = createAsyncThunk<
 >('auth/register', async (credentials, { rejectWithValue }) => {
   try {
     return await AuthRequests.register(credentials);
-  } catch (error: any) {
-    return rejectWithValue(error.response?.data?.message || 'Registration failed');
+  } catch (error: unknown) {
+    return rejectWithValue(getApiErrorMessage(error, 'Registration failed'));
   }
 });

@@ -1,7 +1,5 @@
 import { CreateProjectForm, UserInfo } from './ui';
-import type { RootState } from '@/store/types.ts';
-import { useSelector } from 'react-redux';
-import { useAppDispatch } from '@/store';
+import { useAppDispatch, useAppSelector } from '@/store';
 import {
   archiveProject,
   fetchProjects,
@@ -29,10 +27,10 @@ export const ProfilePage = () => {
     profileError,
     projects,
     projectsLoading,
-    projectsError,
-    archiveProjectLoadingIds,
-    restoreProjectLoadingIds,
-  } = useSelector((state: RootState) => state.profileReducer);
+  projectsError,
+  archiveProjectLoadingIds,
+  restoreProjectLoadingIds,
+  } = useAppSelector((state) => state.profile);
 
   const [activeTab, setActiveTab] = useState('active');
 

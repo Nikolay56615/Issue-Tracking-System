@@ -1,8 +1,6 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router';
-import { useSelector } from 'react-redux';
-import { useAppDispatch } from '@/store';
-import type { RootState } from '@/store/types.ts';
+import { useAppDispatch, useAppSelector } from '@/store';
 import { getTrash, restoreIssue } from '@/features/trash/model/trash.actions';
 import { TrashIssueCard } from '@/features/trash/ui/trash-issue-card.tsx';
 import { Loader2 } from 'lucide-react';
@@ -13,7 +11,7 @@ export const TrashPage = () => {
 
   const dispatch = useAppDispatch();
   const { items, loading, error, restoreLoadingIds, restoreErrors } =
-    useSelector((state: RootState) => state.trashReducer);
+    useAppSelector((state) => state.trash);
 
   useEffect(() => {
     if (!Number.isNaN(projectId)) {

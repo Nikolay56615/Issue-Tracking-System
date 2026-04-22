@@ -14,6 +14,8 @@ import { IssueDialog } from '@/features/board/ui/issue-dialog.tsx';
 import { IssueForm } from '@/features/board/ui/issue-form.tsx';
 import { useParams } from 'react-router';
 import ReactMarkdown from 'react-markdown';
+import { useAppSelector } from '@/store';
+import { getVisibleFields } from '@/features/project-config/model';
 
 interface IssueCardProps {
   issue: Issue;
@@ -28,6 +30,14 @@ export const IssueCard = ({
 }: IssueCardProps) => {
   const params = useParams();
   const projectId = Number(params.projectId);
+  const { config: projectConfig } = useAppSelector(
+    (state) => state.projectConfig
+  );
+  const cardFields = getVisibleFields(projectConfig, 'card');
+  const visibleFieldIds = new Set(cardFields.map((field) => field.id));
+  const customCardFields = cardFields.filter(
+    (field) => field.source === 'custom'
+  );
 
   const {
     attributes,
@@ -59,16 +69,39 @@ export const IssueCard = ({
         <IssueDialog issue={issue} />
         <IssueForm mode={'edit'} projectId={projectId} issue={issue} />
       </CardHeader>
-      {/* Применяем listeners только к description */}
       <CardContent
-        className="line-clamp-3 cursor-grab text-sm active:cursor-grabbing"
-        {...listeners} // Только здесь
+        className="flex cursor-grab flex-col gap-2 text-sm
+          active:cursor-grabbing"
+        {...listeners}
       >
-        <ReactMarkdown>{issue.description}</ReactMarkdown>
+        {visibleFieldIds.has('description') && (
+          <div className="line-clamp-3">
+            <ReactMarkdown>{issue.description}</ReactMarkdown>
+          </div>
+        )}
+        {visibleFieldIds.has('dueDate') && issue.dueDate && (
+          <span className="text-muted-foreground text-xs">
+            Due: {issue.dueDate}
+          </span>
+        )}
+        {customCardFields.map((field) => {
+          const value = issue.customFields?.[field.id];
+          if (value === undefined || value === null || value === '')
+            return null;
+
+          return (
+            <span key={field.id} className="text-muted-foreground text-xs">
+              {field.label}:{' '}
+              {Array.isArray(value) ? value.join(', ') : String(value)}
+            </span>
+          );
+        })}
       </CardContent>
       <CardFooter className="gap-2">
-        <TypeBadge type={issue.type} />
-        <PriorityBadge priority={issue.priority} />
+        {visibleFieldIds.has('type') && <TypeBadge type={issue.type} />}
+        {visibleFieldIds.has('priority') && (
+          <PriorityBadge priority={issue.priority} />
+        )}
       </CardFooter>
     </Card>
   );

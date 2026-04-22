@@ -6,7 +6,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog.tsx';
 import type { Issue } from '@/features/board/model';
-import { capitalize } from '@/lib/utils.ts';
 import { TypeBadge } from '@/features/board/ui/type-badge.tsx';
 import { PriorityBadge } from '@/features/board/ui/priority-badge.tsx';
 import { Button } from '@/components/ui/button.tsx';
@@ -20,6 +19,11 @@ import ReactMarkdown from 'react-markdown';
 import { UsersRequests } from '@/features/users';
 import { AttachmentImage } from '@/features/board/ui/attachment-image.tsx';
 import { AttachmentRow } from '@/features/board/ui/attachment-row.tsx';
+import {
+  getOrderedStatuses,
+  getStatusLabel,
+  getVisibleFields,
+} from '@/features/project-config/model';
 
 interface IssueDialogProps {
   issue: Issue;
@@ -41,6 +45,15 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
 
   const dispatch = useAppDispatch();
   const { deleteIssueStatus } = useAppSelector((state) => state.board);
+  const { config: projectConfig } = useAppSelector(
+    (state) => state.projectConfig
+  );
+  const dialogFields = getVisibleFields(projectConfig, 'dialog');
+  const visibleFieldIds = new Set(dialogFields.map((field) => field.id));
+  const customDialogFields = dialogFields.filter(
+    (field) => field.source === 'custom'
+  );
+  const statuses = getOrderedStatuses(projectConfig);
 
   const [assignees, setAssignees] = useState<UserProfileWithRole[]>([]);
   const [author, setAuthor] = useState<UserProfileWithRole | null>(null);
@@ -98,46 +111,63 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
 
         <div className="flex-1 overflow-y-auto">
           <div className="flex flex-col gap-3 pr-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground text-sm">Id: {id}</span>
-              <span className="text-muted-foreground text-sm">
-                Project: {projectId}
-              </span>
-            </div>
+            {(visibleFieldIds.has('id') ||
+              visibleFieldIds.has('projectId')) && (
+              <div className="flex flex-col gap-1">
+                {visibleFieldIds.has('id') && (
+                  <span className="text-muted-foreground text-sm">
+                    Id: {id}
+                  </span>
+                )}
+                {visibleFieldIds.has('projectId') && (
+                  <span className="text-muted-foreground text-sm">
+                    Project: {projectId}
+                  </span>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-2">
-              <TypeBadge type={type} />
-              <PriorityBadge priority={priority} />
-              <span className="rounded-md border px-2 py-1 text-xs">
-                {capitalize(status)}
-              </span>
-            </div>
-
-            {/* Author */}
-            <div>
-              <span className="mb-1 block text-sm font-medium">Author</span>
-              {loadingUsers ? (
-                <div className="text-muted-foreground text-sm">Loading...</div>
-              ) : author ? (
-                <div
-                  className="flex items-center gap-2 rounded border px-3 py-2
-                    text-sm"
-                >
-                  <User className="text-muted-foreground h-4 w-4" />
-                  <div className="flex flex-col">
-                    <span className="font-medium">{author.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {author.email}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-muted-foreground text-sm">Unknown</div>
+              {visibleFieldIds.has('type') && <TypeBadge type={type} />}
+              {visibleFieldIds.has('priority') && (
+                <PriorityBadge priority={priority} />
+              )}
+              {visibleFieldIds.has('status') && (
+                <span className="rounded-md border px-2 py-1 text-xs">
+                  {getStatusLabel(statuses, status)}
+                </span>
               )}
             </div>
 
+            {/* Author */}
+            {visibleFieldIds.has('authorId') && (
+              <div>
+                <span className="mb-1 block text-sm font-medium">Author</span>
+                {loadingUsers ? (
+                  <div className="text-muted-foreground text-sm">
+                    Loading...
+                  </div>
+                ) : author ? (
+                  <div
+                    className="flex items-center gap-2 rounded border px-3 py-2
+                      text-sm"
+                  >
+                    <User className="text-muted-foreground h-4 w-4" />
+                    <div className="flex flex-col">
+                      <span className="font-medium">{author.name}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {author.email}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground text-sm">Unknown</div>
+                )}
+              </div>
+            )}
+
             {/* Assignees */}
-            {assigneeIds.length > 0 && (
+            {visibleFieldIds.has('assigneeIds') && assigneeIds.length > 0 && (
               <div>
                 <span className="mb-2 block text-sm font-medium">
                   Assignees
@@ -168,14 +198,43 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
               </div>
             )}
 
-            <div>
-              <span className="mb-1 block text-sm font-medium">
-                Description
-              </span>
-              <ReactMarkdown>{description}</ReactMarkdown>
-            </div>
+            {visibleFieldIds.has('description') && (
+              <div>
+                <span className="mb-1 block text-sm font-medium">
+                  Description
+                </span>
+                <ReactMarkdown>{description}</ReactMarkdown>
+              </div>
+            )}
 
-            {attachments.length > 0 && (
+            {visibleFieldIds.has('dueDate') && issue.dueDate && (
+              <div>
+                <span className="mb-1 block text-sm font-medium">Due Date</span>
+                <span className="text-muted-foreground text-sm">
+                  {issue.dueDate}
+                </span>
+              </div>
+            )}
+
+            {customDialogFields.map((field) => {
+              const value = issue.customFields?.[field.id];
+              if (value === undefined || value === null || value === '') {
+                return null;
+              }
+
+              return (
+                <div key={field.id}>
+                  <span className="mb-1 block text-sm font-medium">
+                    {field.label}
+                  </span>
+                  <span className="text-muted-foreground text-sm">
+                    {Array.isArray(value) ? value.join(', ') : String(value)}
+                  </span>
+                </div>
+              );
+            })}
+
+            {visibleFieldIds.has('attachments') && attachments.length > 0 && (
               <div>
                 <span className="mb-2 block text-sm font-medium">
                   Attachments

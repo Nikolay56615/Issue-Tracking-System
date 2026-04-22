@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "vite --mode mock",
+    "mock": "mock-config-server --config ./mock-server.config.js --watch",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -58,6 +60,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
+    "mock-config-server": "^4.0.3",
     "prettier": "^3.6.2",
     "prettier-plugin-classnames": "^0.8.5",
     "prettier-plugin-merge": "^0.8.0",

@@ -3,6 +3,7 @@ export const Routes = {
   PROFILE: '/',
   BOARD: '/:projectId/board',
   USERS: '/:projectId/users',
+  SETTINGS: '/:projectId/settings',
   TRASH: '/:projectId/trash',
   LOGOUT: '/logout',
 };

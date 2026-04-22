@@ -1,7 +1,6 @@
 import type {
   Issue,
   IssueStatus,
-  LifecycleGraph,
   LifecycleTransition,
 } from '@/features/board/model/board.types.ts';
 import { IssueCard } from './issue-card.tsx';
@@ -19,7 +18,6 @@ import { StatusColumn } from './status-column.tsx';
 import {
   changeIssueStatus,
   getBoard,
-  getLifecycleGraph,
 } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch, useAppSelector } from '@/store';
 import type { UserProfile, UserRole } from '@/features/profile';
@@ -28,15 +26,11 @@ import { getMyRole } from '@/features/board/api/api.board.ts';
 import { ProfileRequests } from '@/features/profile';
 import { Loader2 } from 'lucide-react';
 import { getApiErrorMessage } from '@/api/get-error-message.ts';
-
-const statusName: Record<IssueStatus, string> = {
-  BACKLOG: 'Backlog',
-  IN_PROGRESS: 'In Progress',
-  REVIEW: 'Review',
-  DONE: 'Done',
-};
-
-const statusOrder: IssueStatus[] = ['BACKLOG', 'IN_PROGRESS', 'REVIEW', 'DONE'];
+import {
+  fetchProjectConfig,
+  getOrderedStatuses,
+  getStatusLabel,
+} from '@/features/project-config/model';
 
 const isTransitionAccessAllowed = (
   transition: LifecycleTransition,
@@ -57,9 +51,9 @@ const isTransitionAllowed = (
   userRole: UserRole,
   isAuthor: boolean,
   isAssignee: boolean,
-  lifecycleGraph: LifecycleGraph
+  transitions: LifecycleTransition[]
 ): boolean => {
-  return lifecycleGraph.transitions.some((transition) => {
+  return transitions.some((transition) => {
     if (transition.from !== from || transition.to !== to) {
       return false;
     }
@@ -153,17 +147,19 @@ export const Board = ({ projectId }: { projectId: number }) => {
   }, []);
 
   const dispatch = useAppDispatch();
-  const {
-    issues,
-    boardLoading,
-    boardError,
-    statusChangeLoading,
-    lifecycleGraph,
-  } = useAppSelector((state) => state.board);
+  const { issues, boardLoading, boardError, statusChangeLoading } =
+    useAppSelector((state) => state.board);
+  const { config: projectConfig, loading: configLoading } = useAppSelector(
+    (state) => state.projectConfig
+  );
+
+  const statuses = getOrderedStatuses(projectConfig);
+  const statusIds = statuses.map((status) => status.id);
+  const transitions = projectConfig?.lifecycle.transitions ?? [];
 
   useEffect(() => {
     dispatch(getBoard({ projectId }));
-    dispatch(getLifecycleGraph());
+    dispatch(fetchProjectConfig(projectId));
   }, [dispatch, projectId]);
 
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
@@ -191,11 +187,11 @@ export const Board = ({ projectId }: { projectId: number }) => {
 
     const overStatus = over.id as IssueStatus;
 
-    if (!statusOrder.includes(overStatus) || draggedIssue.status === overStatus) {
+    if (!statusIds.includes(overStatus) || draggedIssue.status === overStatus) {
       return;
     }
 
-    if (lifecycleGraph == null) return;
+    if (projectConfig == null) return;
 
     if (role == null) {
       toast.error('Project role is not loaded', {
@@ -216,11 +212,14 @@ export const Board = ({ projectId }: { projectId: number }) => {
         role,
         isAuthor,
         isAssignee,
-        lifecycleGraph
+        transitions
       )
     ) {
       toast.error('Transition not allowed', {
-        description: `Cannot move from ${draggedIssue.status} to ${overStatus}`,
+        description: `Cannot move from ${getStatusLabel(
+          statuses,
+          draggedIssue.status
+        )} to ${getStatusLabel(statuses, overStatus)}`,
       });
       return;
     }
@@ -234,7 +233,9 @@ export const Board = ({ projectId }: { projectId: number }) => {
         })
       ).unwrap();
 
-      toast.success(`Status changed to ${overStatus}`);
+      toast.success(
+        `Status changed to ${getStatusLabel(statuses, overStatus)}`
+      );
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, 'Failed to change status'));
     }
@@ -247,11 +248,11 @@ export const Board = ({ projectId }: { projectId: number }) => {
   }, new Map<IssueStatus, Issue[]>());
 
   const canDrag = (issue: Issue): boolean => {
-    if (lifecycleGraph === null || role === null) return false;
+    if (projectConfig === null || role === null) return false;
 
     const { isAuthor, isAssignee } = getIssueUserRelation(issue, currentUser);
 
-    return lifecycleGraph.transitions.some((transition) => {
+    return transitions.some((transition) => {
       return (
         transition.from === issue.status &&
         isTransitionAccessAllowed(transition, role, isAuthor, isAssignee)
@@ -259,7 +260,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
     });
   };
 
-  if (boardLoading === 'pending') {
+  if (boardLoading === 'pending' || configLoading === 'pending') {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
@@ -280,20 +281,20 @@ export const Board = ({ projectId }: { projectId: number }) => {
       <div className="flex h-full min-h-0 flex-col">
         {roleError && (
           <div
-            className="border-destructive/30 bg-destructive/10 text-destructive mx-8
-              mt-4 rounded-md border px-3 py-2 text-sm"
+            className="border-destructive/30 bg-destructive/10 text-destructive
+              mx-8 mt-4 rounded-md border px-3 py-2 text-sm"
           >
             {roleError}
           </div>
         )}
         <div className="flex min-h-0 flex-1 flex-row gap-4 rounded-lg px-8 py-4">
-          {statusOrder.map((status) => {
-            const statusIssues = grouped.get(status) || [];
+          {statuses.map((status) => {
+            const statusIssues = grouped.get(status.id) || [];
             return (
               <StatusColumn
-                key={status}
-                status={status}
-                title={statusName[status]}
+                key={status.id}
+                status={status.id}
+                title={status.label}
                 issues={statusIssues}
                 canDrag={canDrag}
               />

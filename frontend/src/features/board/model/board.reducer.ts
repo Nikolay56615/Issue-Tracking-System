@@ -64,6 +64,7 @@ const initialState: IssuesState = {
     nameQuery: '',
     dateFrom: undefined,
     dateTo: undefined,
+    customFields: {},
   },
   downloading: {},
   downloadingError: {},
@@ -96,6 +97,7 @@ const boardSlice = createSlice({
         nameQuery: '',
         dateFrom: undefined,
         dateTo: undefined,
+        customFields: {},
       };
     },
     setNameQuery(state, action: PayloadAction<string>) {

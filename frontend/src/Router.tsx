@@ -3,6 +3,7 @@ import { createBrowserRouter } from 'react-router';
 import { AuthPage } from '@/features/auth';
 import { BoardPage } from '@/features/board';
 import { ProfilePage } from '@/features/profile';
+import { ProjectSettingsPage } from '@/features/project-config/project-settings-page.tsx';
 import { TrashPage } from '@/features/trash';
 import { UsersPage } from '@/features/users';
 import { ProtectedLayout } from '@/layouts/ProtectedLayout.tsx';
@@ -37,6 +38,10 @@ export const router = createBrowserRouter([
           {
             path: Routes.USERS,
             element: <UsersPage />,
+          },
+          {
+            path: Routes.SETTINGS,
+            element: <ProjectSettingsPage />,
           },
           {
             path: Routes.TRASH,

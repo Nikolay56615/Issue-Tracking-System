@@ -3,5 +3,6 @@ export type {
   IssueStatus,
   IssueType,
   IssuePriority,
+  IssueCustomFieldValue,
   CreateIssueRequest,
 } from './board.types.ts';

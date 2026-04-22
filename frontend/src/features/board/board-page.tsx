@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { getBoard } from '@/features/board/model/board.actions.ts';
 import { setNameQuery } from '@/features/board/model/board.reducer.ts';
+import { fetchProjectConfig } from '@/features/project-config/model';
 
 export const BoardPage = () => {
   const params = useParams();
@@ -16,6 +17,10 @@ export const BoardPage = () => {
   const filters = useAppSelector((state) => state.board.filters);
 
   const debounceTimeout = useRef<number | null>(null);
+
+  useEffect(() => {
+    dispatch(fetchProjectConfig(projectId));
+  }, [dispatch, projectId]);
 
   useEffect(() => {
     if (debounceTimeout.current) {

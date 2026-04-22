@@ -5,9 +5,20 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select.tsx';
 import { capitalize, cn } from '@/lib/utils';
 import { useEffect, useRef, useState } from 'react';
-import type { IssuePriority, IssueType } from '@/features/board/model';
+import type {
+  IssueCustomFieldValue,
+  IssuePriority,
+  IssueType,
+} from '@/features/board/model';
 import { BadgeButton } from '@/features/board/ui/badge-button.tsx';
 import type { UserProfile } from '@/features/profile';
 import { ProfileRequests } from '@/features/profile';
@@ -25,6 +36,7 @@ import {
   setFilters,
   resetFilters,
 } from '@/features/board/model/board.reducer.ts';
+import { getVisibleFields } from '@/features/project-config/model';
 
 const TYPES = ['TASK', 'BUG', 'FEATURE', 'SEARCH'] as const;
 const PRIORITIES = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'] as const;
@@ -36,6 +48,14 @@ interface FiltersPopoverProps {
 export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
   const dispatch = useAppDispatch();
   const filters = useAppSelector((state) => state.board.filters);
+  const { config: projectConfig } = useAppSelector(
+    (state) => state.projectConfig
+  );
+  const filterFields = getVisibleFields(projectConfig, 'filter');
+  const visibleFilterIds = new Set(filterFields.map((field) => field.id));
+  const customFilterFields = filterFields.filter(
+    (field) => field.source === 'custom'
+  );
 
   const [open, setOpen] = useState(false);
   const [localTypes, setLocalTypes] = useState<IssueType[]>(
@@ -57,6 +77,9 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [localCustomFilters, setLocalCustomFilters] = useState<
+    Record<string, IssueCustomFieldValue>
+  >(filters.customFields ?? {});
 
   const debounceTimeout = useRef<number | null>(null);
 
@@ -107,6 +130,7 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
     setSelectedUser(null);
     setSearchQuery('');
     setLocalDateRange({});
+    setLocalCustomFilters({});
     dispatch(resetFilters());
   };
 
@@ -118,6 +142,7 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
       nameQuery: filters.nameQuery,
       dateFrom: localDateRange.from?.toISOString().split('T')[0],
       dateTo: localDateRange.to?.toISOString().split('T')[0],
+      customFields: localCustomFilters,
     };
 
     dispatch(setFilters(newFilters));
@@ -139,136 +164,230 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="mr-4 w-80 p-4" align="start">
-        <div className="mb-3">
-          <label className="mb-2 block text-sm font-medium">Type</label>
-          <div className="flex flex-wrap gap-2">
-            {TYPES.map((type) => {
-              const checked = localTypes.includes(type);
-              return (
-                <BadgeButton
-                  key={type}
-                  onClick={() => {
-                    setLocalTypes((prev) =>
-                      prev.includes(type)
-                        ? prev.filter((x) => x !== type)
-                        : [...prev, type]
-                    );
-                  }}
-                  className={cn(checked && 'bg-accent')}
-                >
-                  {capitalize(type)}
-                </BadgeButton>
-              );
-            })}
-          </div>
-        </div>
-        <div className="mb-3">
-          <label className="mb-2 block text-sm font-medium">Priority</label>
-          <div className="flex flex-wrap gap-2">
-            {PRIORITIES.map((priority) => {
-              const checked = localPriorities.includes(priority);
-              return (
-                <BadgeButton
-                  key={priority}
-                  onClick={() => {
-                    setLocalPriorities((prev) =>
-                      prev.includes(priority)
-                        ? prev.filter((x) => x !== priority)
-                        : [...prev, priority]
-                    );
-                  }}
-                  className={cn(checked && 'bg-accent')}
-                >
-                  {capitalize(priority)}
-                </BadgeButton>
-              );
-            })}
-          </div>
-        </div>
-        <div className="mb-3">
-          <label className="mb-2 block text-sm font-medium">Assignee</label>
-          <Command shouldFilter={false}>
-            <CommandInput
-              placeholder="Search by name or email..."
-              value={searchQuery}
-              onValueChange={setSearchQuery}
-            />
-
-            {usersLoading && (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-muted-foreground ml-2 text-sm">
-                  Searching...
-                </span>
-              </div>
-            )}
-
-            {error && (
-              <div className="text-destructive p-3 text-sm">{error}</div>
-            )}
-
-            {showEmpty && <CommandEmpty>No users found.</CommandEmpty>}
-
-            {!usersLoading && !error && userOptions.length > 0 && (
-              <CommandGroup className="max-h-60 overflow-auto">
-                {userOptions.map((user) => (
-                  <CommandItem
-                    key={user.id}
-                    onSelect={() => setSelectedUser(user)}
-                    className={cn(
-                      'flex items-center gap-2',
-                      selectedUser?.id === user.id && 'bg-accent'
-                    )}
+        {visibleFilterIds.has('type') && (
+          <div className="mb-3">
+            <label className="mb-2 block text-sm font-medium">Type</label>
+            <div className="flex flex-wrap gap-2">
+              {TYPES.map((type) => {
+                const checked = localTypes.includes(type);
+                return (
+                  <BadgeButton
+                    key={type}
+                    onClick={() => {
+                      setLocalTypes((prev) =>
+                        prev.includes(type)
+                          ? prev.filter((x) => x !== type)
+                          : [...prev, type]
+                      );
+                    }}
+                    className={cn(checked && 'bg-accent')}
                   >
-                    <User className="h-4 w-4" />
-                    <div className="flex flex-col">
-                      <span>{user.username}</span>
-                      <span className="text-muted-foreground text-xs">
-                        {user.email}
-                      </span>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </Command>
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium">Date range</label>
-          <div className="flex items-center gap-2">
-            <Input
-              type="date"
-              className="h-8 text-xs"
-              value={
-                localDateRange.from
-                  ? localDateRange.from.toISOString().split('T')[0]
-                  : ''
-              }
-              onChange={(e) => {
-                setLocalDateRange((prev) => ({
-                  ...prev,
-                  from: e.target.value ? new Date(e.target.value) : undefined,
-                }));
-              }}
-            />
-            <span className="text-xs">–</span>
-            <Input
-              type="date"
-              className="h-8 text-xs"
-              value={
-                localDateRange.to
-                  ? localDateRange.to.toISOString().split('T')[0]
-                  : ''
-              }
-              onChange={(e) => {
-                setLocalDateRange((prev) => ({
-                  ...prev,
-                  to: e.target.value ? new Date(e.target.value) : undefined,
-                }));
-              }}
-            />
+                    {capitalize(type)}
+                  </BadgeButton>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
+        {visibleFilterIds.has('priority') && (
+          <div className="mb-3">
+            <label className="mb-2 block text-sm font-medium">Priority</label>
+            <div className="flex flex-wrap gap-2">
+              {PRIORITIES.map((priority) => {
+                const checked = localPriorities.includes(priority);
+                return (
+                  <BadgeButton
+                    key={priority}
+                    onClick={() => {
+                      setLocalPriorities((prev) =>
+                        prev.includes(priority)
+                          ? prev.filter((x) => x !== priority)
+                          : [...prev, priority]
+                      );
+                    }}
+                    className={cn(checked && 'bg-accent')}
+                  >
+                    {capitalize(priority)}
+                  </BadgeButton>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {visibleFilterIds.has('assigneeIds') && (
+          <div className="mb-3">
+            <label className="mb-2 block text-sm font-medium">Assignee</label>
+            <Command shouldFilter={false}>
+              <CommandInput
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onValueChange={setSearchQuery}
+              />
+
+              {usersLoading && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-muted-foreground ml-2 text-sm">
+                    Searching...
+                  </span>
+                </div>
+              )}
+
+              {error && (
+                <div className="text-destructive p-3 text-sm">{error}</div>
+              )}
+
+              {showEmpty && <CommandEmpty>No users found.</CommandEmpty>}
+
+              {!usersLoading && !error && userOptions.length > 0 && (
+                <CommandGroup className="max-h-60 overflow-auto">
+                  {userOptions.map((user) => (
+                    <CommandItem
+                      key={user.id}
+                      onSelect={() => setSelectedUser(user)}
+                      className={cn(
+                        'flex items-center gap-2',
+                        selectedUser?.id === user.id && 'bg-accent'
+                      )}
+                    >
+                      <User className="h-4 w-4" />
+                      <div className="flex flex-col">
+                        <span>{user.username}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {user.email}
+                        </span>
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </Command>
+          </div>
+        )}
+        {(visibleFilterIds.has('dueDate') ||
+          visibleFilterIds.has('startDate')) && (
+          <div>
+            <label className="mb-2 block text-sm font-medium">Date range</label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                className="h-8 text-xs"
+                value={
+                  localDateRange.from
+                    ? localDateRange.from.toISOString().split('T')[0]
+                    : ''
+                }
+                onChange={(e) => {
+                  setLocalDateRange((prev) => ({
+                    ...prev,
+                    from: e.target.value ? new Date(e.target.value) : undefined,
+                  }));
+                }}
+              />
+              <span className="text-xs">–</span>
+              <Input
+                type="date"
+                className="h-8 text-xs"
+                value={
+                  localDateRange.to
+                    ? localDateRange.to.toISOString().split('T')[0]
+                    : ''
+                }
+                onChange={(e) => {
+                  setLocalDateRange((prev) => ({
+                    ...prev,
+                    to: e.target.value ? new Date(e.target.value) : undefined,
+                  }));
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {customFilterFields.map((field) => {
+          const value = localCustomFilters[field.id];
+
+          if (field.type === 'select') {
+            return (
+              <div key={field.id} className="mb-3">
+                <label className="mb-2 block text-sm font-medium">
+                  {field.label}
+                </label>
+                <Select
+                  value={typeof value === 'string' ? value : ''}
+                  onValueChange={(nextValue) =>
+                    setLocalCustomFilters((prev) => ({
+                      ...prev,
+                      [field.id]: nextValue,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={field.label} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(field.options ?? []).map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          }
+
+          if (field.type === 'checkbox') {
+            return (
+              <label
+                key={field.id}
+                className="mb-3 flex items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={Boolean(value)}
+                  onChange={(event) =>
+                    setLocalCustomFilters((prev) => ({
+                      ...prev,
+                      [field.id]: event.target.checked,
+                    }))
+                  }
+                />
+                <span>{field.label}</span>
+              </label>
+            );
+          }
+
+          return (
+            <div key={field.id} className="mb-3">
+              <label className="mb-2 block text-sm font-medium">
+                {field.label}
+              </label>
+              <Input
+                type={
+                  field.type === 'number'
+                    ? 'number'
+                    : field.type === 'date'
+                      ? 'date'
+                      : 'text'
+                }
+                value={
+                  typeof value === 'string' || typeof value === 'number'
+                    ? value
+                    : ''
+                }
+                onChange={(event) =>
+                  setLocalCustomFilters((prev) => ({
+                    ...prev,
+                    [field.id]:
+                      field.type === 'number'
+                        ? Number(event.target.value)
+                        : event.target.value,
+                  }))
+                }
+              />
+            </div>
+          );
+        })}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" size="sm" onClick={handleReset}>
             Reset

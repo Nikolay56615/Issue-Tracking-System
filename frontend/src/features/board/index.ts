@@ -23,6 +23,7 @@ export {
 export type {
   CreateIssueRequest,
   Issue,
+  IssueCustomFieldValue,
   IssuePriority,
   IssueStatus,
   IssueType,

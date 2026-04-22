@@ -13,13 +13,16 @@ export interface Issue {
   startDate: string;
   dueDate: string;
   attachments: Attachment[];
+  customFields?: Record<string, IssueCustomFieldValue>;
 }
 
-export type IssueStatus = 'BACKLOG' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+export type IssueStatus = string;
 
 export type IssueType = 'TASK' | 'BUG' | 'FEATURE' | 'SEARCH';
 
 export type IssuePriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type IssueCustomFieldValue = string | number | boolean | string[] | null;
 
 export interface Attachment {
   originalFileName: string;
@@ -41,17 +44,19 @@ export interface IssueFilters {
   nameQuery?: string;
   dateFrom?: string;
   dateTo?: string;
+  customFields?: Record<string, IssueCustomFieldValue>;
 }
 
 export interface CreateIssueRequest {
   projectId: number;
   name: string;
-  type: IssueType;
-  priority: IssuePriority;
+  type?: IssueType;
+  priority?: IssuePriority;
   description: string;
   assigneeIds: number[];
   attachmentFileNames: string[];
   dueDate?: string; // формат: 'YYYY-MM-DD'
+  customFields?: Record<string, IssueCustomFieldValue>;
 }
 
 export interface ChangeIssueStatusRequest {
@@ -75,10 +80,11 @@ export interface LifecycleTransition {
 export interface UpdateIssueRequest {
   name: string;
   description?: string;
-  priority: IssuePriority;
-  type: IssueType;
+  priority?: IssuePriority;
+  type?: IssueType;
   status?: IssueStatus;
   assigneeIds?: number[];
   attachmentFileNames?: string[];
   attachments?: Attachment[]; // <— добавь это
+  customFields?: Record<string, IssueCustomFieldValue>;
 }

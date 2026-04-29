@@ -37,7 +37,7 @@ import {
   updateIssue,
   uploadAttachment,
 } from '@/features/board/model/board.actions.ts';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -45,28 +45,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select.tsx';
-import { capitalize, cn } from '@/lib/utils.ts';
+import { capitalize } from '@/lib/utils.ts';
 import type {
   Issue,
   IssueCustomFieldValue,
   IssuePriority,
   IssueType,
 } from '@/features/board/model';
-import type { UserProfile } from '@/features/profile';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from '@/components/ui/command.tsx';
-import { Loader2, Pencil, User } from 'lucide-react';
-import { ProfileRequests } from '@/features/profile';
+import { Loader2, Pencil } from 'lucide-react';
 import { getApiErrorMessage } from '@/api/get-error-message.ts';
+import type { CustomFieldDefinition } from '@/features/project-config/model/project-config.types.ts';
 import {
-  getEditableFields,
-  type IssueFieldConfig,
+  formatCustomFieldValue,
+  getAssignableMembersForField,
 } from '@/features/project-config/model';
+import { UsersRequests } from '@/features/users/api';
+import type { UserProfileWithRole } from '@/features/profile';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
@@ -74,82 +68,37 @@ interface IssueFormProps {
   issue?: Issue;
 }
 
+const ISSUE_TYPES: IssueType[] = ['TASK', 'BUG', 'FEATURE', 'SEARCH'];
+const ISSUE_PRIORITIES: IssuePriority[] = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'];
+
 export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
   const dispatch = useAppDispatch();
+  const { issues, loading } = useAppSelector((state) => state.board);
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
-  const editableFields = getEditableFields(
-    projectConfig,
-    mode === 'add' ? 'create' : 'edit'
-  );
-  const [name, setName] = useState(issue?.name || '');
-  const [type, setType] = useState<IssueType>(issue?.type || 'TASK');
+
+  const customFields = projectConfig?.customFields ?? [];
+  const [name, setName] = useState(issue?.name ?? '');
+  const [type, setType] = useState<IssueType>(issue?.type ?? 'TASK');
   const [priority, setPriority] = useState<IssuePriority>(
-    issue?.priority || 'HIGH'
+    issue?.priority ?? 'HIGH'
   );
   const [files, setFiles] = useState<File[]>([]);
   const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-
-  // Предзаполняем assignee (берём первого, если есть)
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [userOptions, setUserOptions] = useState<UserProfile[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [dueDate, setDueDate] = useState<string>(
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [assigneeId, setAssigneeId] = useState<number | null>(
+    issue?.assigneeIds[0] ?? null
+  );
+  const [projectMembers, setProjectMembers] = useState<UserProfileWithRole[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [dueDate, setDueDate] = useState(
     issue?.dueDate ? issue.dueDate.split('T')[0] : ''
   );
-  const [customFields, setCustomFields] = useState<
+  const [fieldValues, setFieldValues] = useState<
     Record<string, IssueCustomFieldValue>
   >(issue?.customFields ?? {});
-
-  const debounceTimeout = useRef<number | null>(null);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      if (!searchQuery.trim()) {
-        setUserOptions([]);
-        return;
-      }
-
-      setUsersLoading(true);
-      setError(null);
-
-      try {
-        const response = await ProfileRequests.searchUsers(searchQuery);
-        setUserOptions(response);
-      } catch (err) {
-        setError('Failed to fetch users');
-        console.error('Error fetching users:', err);
-        setUserOptions([]);
-      } finally {
-        setUsersLoading(false);
-      }
-    };
-
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-    }
-
-    debounceTimeout.current = setTimeout(fetchUsers, 300);
-
-    return () => {
-      if (debounceTimeout.current) {
-        clearTimeout(debounceTimeout.current);
-      }
-    };
-  }, [searchQuery]);
-
-  const showEmpty =
-    open &&
-    !usersLoading &&
-    searchQuery.trim().length > 0 &&
-    userOptions.length === 0;
-
-  const isCreatingIssue = useAppSelector((state) => state.board.loading);
 
   const editor = usePlateEditor({
     plugins: [
@@ -167,69 +116,110 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       : undefined,
   });
 
-  const title = mode === 'add' ? 'Add Issue' : 'Edit Issue';
-
-  const isFieldVisible = (fieldId: string) =>
-    editableFields.some((field) => field.id === fieldId);
-
-  const setCustomFieldValue = (
-    fieldId: string,
-    value: IssueCustomFieldValue
-  ) => {
-    setCustomFields((prev) => ({ ...prev, [fieldId]: value }));
-  };
-
-  const getCustomFieldValue = (fieldId: string) =>
-    customFields[fieldId] ?? null;
-
-  const isEmptyValue = (value: IssueCustomFieldValue | string | number[]) => {
-    if (Array.isArray(value)) return value.length === 0;
-    return value === null || value === undefined || value === '';
-  };
-
-  const validateRequiredFields = () => {
-    const missingField = editableFields.find((field) => {
-      if (!field.required) return false;
-
-      if (field.source === 'custom') {
-        return isEmptyValue(getCustomFieldValue(field.id));
-      }
-
-      if (field.id === 'name') return isEmptyValue(name);
-      if (field.id === 'type') return isEmptyValue(type);
-      if (field.id === 'priority') return isEmptyValue(priority);
-      if (field.id === 'description') {
-        return isEmptyValue(editor.api.markdown.serialize());
-      }
-      if (field.id === 'assigneeIds')
-        return isEmptyValue(selectedUser ? [selectedUser.id] : []);
-      if (field.id === 'dueDate') return isEmptyValue(dueDate);
-      if (field.id === 'attachments')
-        return files.length === 0 && !issue?.attachments.length;
-
-      return false;
-    });
-
-    if (missingField) {
-      setUploadError(`${missingField.label} is required`);
-      return false;
+  useEffect(() => {
+    if (!open) {
+      return;
     }
 
-    return true;
+    let cancelled = false;
+
+    const loadMembers = async () => {
+      setMembersLoading(true);
+      try {
+        const data = await UsersRequests.getProjectUsers(projectId);
+        if (!cancelled) {
+          setProjectMembers(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load project members:', error);
+          setProjectMembers([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setMembersLoading(false);
+        }
+      }
+    };
+
+    loadMembers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId]);
+
+  const issueReferenceOptions = useMemo(
+    () => issues.filter((item) => item.projectId === projectId && item.id !== issue?.id),
+    [issues, projectId, issue?.id]
+  );
+
+  const resetState = () => {
+    setName(issue?.name ?? '');
+    setType(issue?.type ?? 'TASK');
+    setPriority(issue?.priority ?? 'HIGH');
+    setFiles([]);
+    setSubmitError(null);
+    setAssigneeId(issue?.assigneeIds[0] ?? null);
+    setDueDate(issue?.dueDate ? issue.dueDate.split('T')[0] : '');
+    setFieldValues(issue?.customFields ?? {});
   };
 
-  const renderCustomField = (field: IssueFieldConfig) => {
-    const value = getCustomFieldValue(field.id);
+  const setFieldValue = (fieldId: string, value: IssueCustomFieldValue) => {
+    setFieldValues((prev) => ({ ...prev, [fieldId]: value }));
+  };
 
-    if (field.type === 'textarea') {
+  const getFieldValue = (fieldId: string) => fieldValues[fieldId] ?? null;
+
+  const validateCustomField = (field: CustomFieldDefinition) => {
+    const value = getFieldValue(field.id);
+
+    if (field.required && (value === null || value === '' || value === undefined)) {
+      return `${field.name} is required`;
+    }
+
+    if (field.type === 'text' && typeof value === 'string') {
+      if (field.config.maxLength && value.length > field.config.maxLength) {
+        return `${field.name} is too long`;
+      }
+    }
+
+    if (field.type === 'number' && typeof value === 'number') {
+      if (field.config.isInteger && !Number.isInteger(value)) {
+        return `${field.name} must be an integer`;
+      }
+      if (field.config.min != null && value < field.config.min) {
+        return `${field.name} is below minimum`;
+      }
+      if (field.config.max != null && value > field.config.max) {
+        return `${field.name} is above maximum`;
+      }
+    }
+
+    if (field.type === 'user_reference' && value != null) {
+      const availableMembers = getAssignableMembersForField(field, projectMembers);
+      if (!availableMembers.some((member) => member.id === value)) {
+        return `${field.name} references an unavailable member`;
+      }
+    }
+
+    if (field.type === 'issue_reference' && value != null) {
+      if (!issueReferenceOptions.some((item) => item.id === value)) {
+        return `${field.name} references an unavailable issue`;
+      }
+    }
+
+    return null;
+  };
+
+  const renderFieldControl = (field: CustomFieldDefinition) => {
+    const value = getFieldValue(field.id);
+
+    if (field.type === 'text') {
       return (
-        <textarea
-          className="border-input bg-background min-h-24 rounded-md border px-3
-            py-2 text-sm"
+        <Input
           value={typeof value === 'string' ? value : ''}
-          onChange={(event) =>
-            setCustomFieldValue(field.id, event.target.value)
-          }
+          onChange={(event) => setFieldValue(field.id, event.target.value)}
         />
       );
     }
@@ -238,9 +228,9 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       return (
         <Input
           type="number"
-          value={typeof value === 'number' ? value : ''}
+          value={typeof value === 'number' ? String(value) : ''}
           onChange={(event) =>
-            setCustomFieldValue(
+            setFieldValue(
               field.id,
               event.target.value === '' ? null : Number(event.target.value)
             )
@@ -249,48 +239,24 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       );
     }
 
-    if (field.type === 'date') {
-      return (
-        <Input
-          type="date"
-          value={typeof value === 'string' ? value : ''}
-          onChange={(event) =>
-            setCustomFieldValue(field.id, event.target.value)
-          }
-        />
-      );
-    }
+    if (field.type === 'user_reference') {
+      const availableMembers = getAssignableMembersForField(field, projectMembers);
 
-    if (field.type === 'checkbox') {
-      return (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={Boolean(value)}
-            onChange={(event) =>
-              setCustomFieldValue(field.id, event.target.checked)
-            }
-          />
-          <span>Enabled</span>
-        </label>
-      );
-    }
-
-    if (field.type === 'select') {
       return (
         <Select
-          value={typeof value === 'string' ? value : ''}
+          value={value == null ? 'none' : String(value)}
           onValueChange={(nextValue) =>
-            setCustomFieldValue(field.id, nextValue)
+            setFieldValue(field.id, nextValue === 'none' ? null : Number(nextValue))
           }
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder={field.label} />
+            <SelectValue placeholder={field.name} />
           </SelectTrigger>
           <SelectContent>
-            {(field.options ?? []).map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
+            <SelectItem value="none">Not set</SelectItem>
+            {availableMembers.map((member) => (
+              <SelectItem key={member.id} value={String(member.id)}>
+                {member.name} ({member.roleName})
               </SelectItem>
             ))}
           </SelectContent>
@@ -298,55 +264,48 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       );
     }
 
-    if (field.type === 'multiSelect') {
-      const selectedValues = Array.isArray(value) ? value : [];
-
-      return (
-        <div className="flex flex-wrap gap-3">
-          {(field.options ?? []).map((option) => (
-            <label
-              key={option.value}
-              className="flex items-center gap-2 text-sm"
-            >
-              <input
-                type="checkbox"
-                checked={selectedValues.includes(option.value)}
-                onChange={(event) => {
-                  setCustomFieldValue(
-                    field.id,
-                    event.target.checked
-                      ? [...selectedValues, option.value]
-                      : selectedValues.filter((item) => item !== option.value)
-                  );
-                }}
-              />
-              <span>{option.label}</span>
-            </label>
-          ))}
-        </div>
-      );
-    }
-
     return (
-      <Input
-        value={typeof value === 'string' ? value : ''}
-        onChange={(event) => setCustomFieldValue(field.id, event.target.value)}
-      />
+      <Select
+        value={value == null ? 'none' : String(value)}
+        onValueChange={(nextValue) =>
+          setFieldValue(field.id, nextValue === 'none' ? null : Number(nextValue))
+        }
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={field.name} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">Not set</SelectItem>
+          {issueReferenceOptions.map((relatedIssue) => (
+            <SelectItem key={relatedIssue.id} value={String(relatedIssue.id)}>
+              {relatedIssue.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     );
   };
 
   const onSubmit = async () => {
     try {
       setIsUploading(true);
-      setUploadError(null);
+      setSubmitError(null);
 
-      if (!validateRequiredFields()) {
+      if (!name.trim()) {
+        setSubmitError('Name is required');
         return;
+      }
+
+      for (const field of customFields) {
+        const fieldError = validateCustomField(field);
+        if (fieldError) {
+          setSubmitError(fieldError);
+          return;
+        }
       }
 
       let attachmentFileNames: string[] = [];
 
-      // Загружаем все файлы параллельно
       if (files.length > 0) {
         const uploadPromises = files.map((file) =>
           dispatch(uploadAttachment(file)).unwrap()
@@ -354,8 +313,8 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
         attachmentFileNames = await Promise.all(uploadPromises);
       }
 
-      const markdownContent = editor.api.markdown.serialize();
-      const assigneeIds = selectedUser ? [selectedUser.id] : [];
+      const description = editor.api.markdown.serialize();
+      const assigneeIds = assigneeId == null ? [] : [assigneeId];
 
       if (mode === 'add') {
         await dispatch(
@@ -364,18 +323,17 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             name,
             type,
             priority,
-            description: markdownContent,
+            description,
             assigneeIds,
-            attachmentFileNames, // <— для create используем attachmentFileNames
-            dueDate: dueDate || undefined, // если бэк не поддерживает - закомментируй
-            customFields,
+            attachmentFileNames,
+            dueDate: dueDate || undefined,
+            customFields: fieldValues,
           })
         ).unwrap();
-      } else if (mode === 'edit' && issue) {
-        // Для edit собираем attachments как AttachmentDto[]
+      } else if (issue) {
         const existingAttachments = issue.attachments;
         const newAttachments = attachmentFileNames.map((url) => ({
-          originalFileName: url.split('/').pop() || url, // извлекаем имя файла из URL
+          originalFileName: url.split('/').pop() || url,
           url,
         }));
 
@@ -386,18 +344,19 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               name,
               type,
               priority,
-              description: markdownContent,
+              description,
               assigneeIds,
-              attachments: [...existingAttachments, ...newAttachments], // <— для update используем attachments,
-              customFields,
+              attachments: [...existingAttachments, ...newAttachments],
+              customFields: fieldValues,
+              dueDate: dueDate || undefined,
             },
           })
         ).unwrap();
       }
 
       setOpen(false);
-    } catch (error: unknown) {
-      setUploadError(getApiErrorMessage(error, 'Upload failed'));
+    } catch (error) {
+      setSubmitError(getApiErrorMessage(error, 'Failed to save issue'));
     } finally {
       setIsUploading(false);
     }
@@ -408,31 +367,14 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       open={open}
       onOpenChange={(isOpen) => {
         setOpen(isOpen);
-
         if (isOpen) {
-          // При открытии сбрасываем поля в зависимости от режима
-          if (mode === 'add') {
-            setName('');
-            setType('TASK');
-            setPriority('HIGH');
-            setFiles([]);
-            setUploadError(null);
-            setSelectedUser(null);
-            setSearchQuery('');
-            setCustomFields({});
-            editor.tf.reset();
-          } else {
-            // В режиме edit сбрасываем только выбранные файлы
-            setFiles([]);
-            setUploadError(null);
-            setCustomFields(issue?.customFields ?? {});
-          }
+          resetState();
         }
       }}
     >
       <DialogTrigger asChild>
         {mode === 'add' ? (
-          <Button variant="default">{title}</Button>
+          <Button variant="default">Add Issue</Button>
         ) : (
           <Button className="ml-auto" size="sm" variant="ghost">
             <Pencil />
@@ -443,160 +385,115 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
         className="max-h-[95vh] min-w-[60vw] overflow-x-hidden overflow-y-auto"
       >
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Issue' : 'Edit Issue'}</DialogTitle>
         </DialogHeader>
+
         <div className="flex flex-col gap-4">
-          {isFieldVisible('name') && (
-            <div className="flex flex-col gap-3">
-              <Label>Issue Name</Label>
-              <Input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-          )}
-          {(isFieldVisible('type') || isFieldVisible('priority')) && (
-            <div className="flex gap-4">
-              {isFieldVisible('type') && (
-                <div className="flex flex-1 flex-col gap-3">
-                  <span className="text-sm font-medium">Type</span>
-                  <Select
-                    value={type}
-                    onValueChange={(value) => setType(value as IssueType)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {['TASK', 'BUG', 'FEATURE', 'SEARCH'].map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {capitalize(type)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {isFieldVisible('priority') && (
-                <div className="flex flex-1 flex-col gap-3">
-                  <span className="text-sm font-medium">Priority</span>
-                  <Select
-                    value={priority}
-                    onValueChange={(value) =>
-                      setPriority(value as IssuePriority)
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {['URGENT', 'HIGH', 'MEDIUM', 'LOW'].map((priority) => (
-                        <SelectItem key={priority} value={priority}>
-                          {capitalize(priority)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          )}
-          {isFieldVisible('description') && (
-            <div className="flex w-full max-w-[54vw] flex-col gap-3">
-              <Label>Issue Description</Label>
-              <div className="rounded-lg border">
-                <Plate editor={editor}>
-                  <FixedToolbar className="justify-start rounded-t-lg">
-                    <ToolbarButton onClick={() => editor.tf.h1.toggle()}>
-                      H1
-                    </ToolbarButton>
-                    <ToolbarButton onClick={() => editor.tf.h2.toggle()}>
-                      H2
-                    </ToolbarButton>
-                    <ToolbarButton onClick={() => editor.tf.h3.toggle()}>
-                      H3
-                    </ToolbarButton>
-                    <ToolbarButton
-                      onClick={() => editor.tf.blockquote.toggle()}
-                    >
-                      Quote
-                    </ToolbarButton>
-                    <MarkToolbarButton nodeType="bold" tooltip="Bold">
-                      B
-                    </MarkToolbarButton>
-                    <MarkToolbarButton nodeType="italic" tooltip="Italic">
-                      I
-                    </MarkToolbarButton>
-                  </FixedToolbar>
-                  <EditorContainer className="h-90">
-                    <Editor />
-                  </EditorContainer>
-                </Plate>
-              </div>
-            </div>
-          )}
-          {editableFields
-            .filter((field) => field.source === 'custom')
-            .map((field) => (
-              <div key={field.id} className="flex flex-col gap-3">
-                <Label>{field.label}</Label>
-                {renderCustomField(field)}
-              </div>
-            ))}
-        </div>
-        {isFieldVisible('assigneeIds') && (
-          <div>
-            <label className="mb-2 block text-sm font-medium">
-              Select Assignee
-            </label>
-            <Command shouldFilter={false}>
-              <CommandInput
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onValueChange={setSearchQuery}
-              />
-
-              {usersLoading && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-muted-foreground ml-2 text-sm">
-                    Searching...
-                  </span>
-                </div>
-              )}
-
-              {error && (
-                <div className="text-destructive p-3 text-sm">{error}</div>
-              )}
-
-              {showEmpty && <CommandEmpty>No users found.</CommandEmpty>}
-
-              {!usersLoading && !error && userOptions.length > 0 && (
-                <CommandGroup className="max-h-60 overflow-auto">
-                  {userOptions.map((user) => (
-                    <CommandItem
-                      key={user.id}
-                      onSelect={() => setSelectedUser(user)}
-                      className={cn(
-                        'flex items-center gap-2',
-                        selectedUser?.id === user.id && 'bg-accent'
-                      )}
-                    >
-                      <User className="h-4 w-4" />
-                      <div className="flex flex-col">
-                        <span>{user.username}</span>
-                        <span className="text-muted-foreground text-xs">
-                          {user.email}
-                        </span>
-                      </div>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-            </Command>
+          <div className="flex flex-col gap-3">
+            <Label>Issue Name</Label>
+            <Input value={name} onChange={(event) => setName(event.target.value)} />
           </div>
-        )}
-        {isFieldVisible('dueDate') && (
+
+          <div className="flex gap-4">
+            <div className="flex flex-1 flex-col gap-3">
+              <Label>Type</Label>
+              <Select
+                value={type}
+                onValueChange={(value) => setType(value as IssueType)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ISSUE_TYPES.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {capitalize(item)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-1 flex-col gap-3">
+              <Label>Priority</Label>
+              <Select
+                value={priority}
+                onValueChange={(value) => setPriority(value as IssuePriority)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ISSUE_PRIORITIES.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {capitalize(item)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex w-full max-w-[54vw] flex-col gap-3">
+            <Label>Issue Description</Label>
+            <div className="rounded-lg border">
+              <Plate editor={editor}>
+                <FixedToolbar className="justify-start rounded-t-lg">
+                  <ToolbarButton onClick={() => editor.tf.h1.toggle()}>
+                    H1
+                  </ToolbarButton>
+                  <ToolbarButton onClick={() => editor.tf.h2.toggle()}>
+                    H2
+                  </ToolbarButton>
+                  <ToolbarButton onClick={() => editor.tf.h3.toggle()}>
+                    H3
+                  </ToolbarButton>
+                  <ToolbarButton onClick={() => editor.tf.blockquote.toggle()}>
+                    Quote
+                  </ToolbarButton>
+                  <MarkToolbarButton nodeType="bold" tooltip="Bold">
+                    B
+                  </MarkToolbarButton>
+                  <MarkToolbarButton nodeType="italic" tooltip="Italic">
+                    I
+                  </MarkToolbarButton>
+                </FixedToolbar>
+                <EditorContainer className="h-90">
+                  <Editor />
+                </EditorContainer>
+              </Plate>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Label>Assignee</Label>
+            {membersLoading ? (
+              <div className="flex items-center gap-2 text-sm">
+                <Loader2 className="size-4 animate-spin" />
+                <span>Loading members...</span>
+              </div>
+            ) : (
+              <Select
+                value={assigneeId == null ? 'none' : String(assigneeId)}
+                onValueChange={(value) =>
+                  setAssigneeId(value === 'none' ? null : Number(value))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Assignee" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not set</SelectItem>
+                  {projectMembers.map((member) => (
+                    <SelectItem key={member.id} value={String(member.id)}>
+                      {member.name} ({member.roleName})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
           <div className="flex flex-col gap-3">
             <Label htmlFor="dueDate">Due Date</Label>
             <Input
@@ -604,63 +501,74 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               type="date"
               className="text-sm"
               value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              onChange={(event) => setDueDate(event.target.value)}
             />
           </div>
-        )}
 
-        {isFieldVisible('attachments') && (
           <div className="grid w-full max-w-sm items-center gap-3">
             <Label htmlFor="picture">Attachments</Label>
             <Input
               id="picture"
               type="file"
               multiple
-              onChange={(e) => {
-                const fileList = e.target.files;
+              onChange={(event) => {
+                const fileList = event.target.files;
                 if (fileList) {
                   setFiles(Array.from(fileList));
                 }
               }}
-              disabled={isUploading || isCreatingIssue === 'pending'}
+              disabled={isUploading || loading === 'pending'}
             />
-
-            {/* Показываем новые выбранные файлы */}
             {files.length > 0 && (
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">New files:</span>
-                {files.map((f, idx) => (
-                  <span key={idx} className="text-muted-foreground text-xs">
-                    {f.name}
+                {files.map((file) => (
+                  <span key={file.name} className="text-muted-foreground text-xs">
+                    {file.name}
                   </span>
                 ))}
               </div>
             )}
-
-            {/* Показываем существующие attachments в режиме edit */}
             {mode === 'edit' && issue && issue.attachments.length > 0 && (
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">
-                  Current attachments:
-                </span>
-                {issue.attachments.map((attachment, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-xs">
-                    <span className="text-muted-foreground">
-                      {attachment.originalFileName}
-                    </span>
-                    <span className="text-muted-foreground text-[10px]">
-                      ({attachment.url})
-                    </span>
-                  </div>
+                <span className="text-sm font-medium">Current attachments:</span>
+                {issue.attachments.map((attachment) => (
+                  <span key={attachment.url} className="text-muted-foreground text-xs">
+                    {attachment.originalFileName}
+                  </span>
                 ))}
               </div>
             )}
-
-            {uploadError && (
-              <p className="text-sm text-red-500">{uploadError}</p>
-            )}
           </div>
-        )}
+
+          {customFields.length > 0 && (
+            <div className="flex flex-col gap-4">
+              <div>
+                <h3 className="text-sm font-medium">Custom fields</h3>
+                <p className="text-muted-foreground text-sm">
+                  These fields are configured for the current project.
+                </p>
+              </div>
+              {customFields.map((field) => (
+                <div key={field.id} className="flex flex-col gap-2">
+                  <Label>{field.name}</Label>
+                  {renderFieldControl(field)}
+                  {getFieldValue(field.id) != null && (
+                    <span className="text-muted-foreground text-xs">
+                      Value:{' '}
+                      {formatCustomFieldValue(field, getFieldValue(field.id), {
+                        issues,
+                        members: projectMembers,
+                      })}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {submitError && <p className="text-sm text-red-500">{submitError}</p>}
+        </div>
 
         <DialogFooter>
           <DialogClose asChild>
@@ -669,12 +577,12 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
           <Button
             type="submit"
             onClick={onSubmit}
-            disabled={isUploading || isCreatingIssue === 'pending' || !name}
+            disabled={isUploading || loading === 'pending' || !name.trim()}
           >
             {isUploading
               ? 'Uploading...'
-              : isCreatingIssue === 'pending'
-                ? 'Creating...'
+              : loading === 'pending'
+                ? 'Saving...'
                 : mode === 'add'
                   ? 'Create'
                   : 'Save'}

@@ -4,15 +4,16 @@ import { Button } from '@/components/ui/button.tsx';
 import { cn } from '@/lib/utils.ts';
 import { LogoutButton } from '@/components/logout-button.tsx';
 import { useEffect, useState } from 'react';
-import type { UserRole } from '@/features/profile';
+import type { CustomRole } from '@/features/profile';
 import { getMyRole } from '@/features/board/api/api.board.ts';
+import { hasPermission } from '@/features/project-config/model';
 
-const canOpenSettings = (role: UserRole | null) =>
-  role === 'ADMIN' || role === 'OWNER';
+const canOpenSettings = (role: CustomRole | null) =>
+  hasPermission(role, 'settings.manage');
 
 export const ProjectLayout = () => {
   const { projectId } = useParams();
-  const [role, setRole] = useState<UserRole | null>(null);
+  const [role, setRole] = useState<CustomRole | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -22,7 +23,7 @@ export const ProjectLayout = () => {
     const loadRole = async () => {
       try {
         const response = await getMyRole(Number(projectId));
-        if (!cancelled) setRole(response);
+        if (!cancelled) setRole(response.role);
       } catch {
         if (!cancelled) setRole(null);
       }

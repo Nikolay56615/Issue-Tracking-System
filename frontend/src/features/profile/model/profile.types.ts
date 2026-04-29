@@ -1,14 +1,37 @@
+export type PermissionKey =
+  | 'issue.view'
+  | 'issue.create'
+  | 'issue.edit'
+  | 'issue.remove'
+  | 'members.invite'
+  | 'members.remove'
+  | 'members.assignRole'
+  | 'settings.manage'
+  | 'project.archive'
+  | 'project.restore'
+  | 'template.export'
+  | 'template.apply';
+
 export interface UserProfile {
   id: number;
   email: string;
   username: string;
 }
 
+export interface CustomRole {
+  id: string;
+  projectId: number;
+  name: string;
+  permissions: PermissionKey[];
+}
+
 export interface UserProfileWithRole {
   id: number;
   email: string;
   name: string;
-  role: UserRole;
+  roleId: string;
+  roleName: string;
+  permissions: PermissionKey[];
 }
 
 export interface Project {
@@ -16,16 +39,24 @@ export interface Project {
   name: string;
   ownerId: number;
   archived: boolean;
+  currentRoleId?: string;
+  currentRoleName?: string;
+  currentPermissions?: PermissionKey[];
 }
 
 export interface CreateProjectRequest {
   name: string;
+  templateProjectId?: number;
 }
 
 export interface InviteUserRequest {
   projectId: number;
   userId: number;
-  role: UserRole;
+  roleId: string;
 }
 
-export type UserRole = 'WORKER' | 'REVIEWER' | 'ADMIN' | 'OWNER';
+export interface UpdateProjectMemberRoleRequest {
+  projectId: number;
+  userId: number;
+  roleId: string;
+}

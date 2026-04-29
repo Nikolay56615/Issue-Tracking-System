@@ -20,30 +20,68 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { User, Loader2 } from 'lucide-react';
-import type { UserProfile } from '@/features/profile';
-import type { UserRole } from '@/features/profile/model/profile.types.ts';
-import { capitalize, cn } from '@/lib/utils.ts';
+import type { CustomRole, UserProfile } from '@/features/profile';
+import { cn } from '@/lib/utils.ts';
 import { ProfileRequests } from '@/features/profile/api';
 import { toast } from 'sonner';
 import { AxiosError } from 'axios';
-
-const ROLES = ['WORKER', 'REVIEWER', 'ADMIN', 'OWNER'] as const;
+import { ProjectConfigRequests } from '@/features/project-config/api';
 
 interface InviteUserPopoverProps {
   projectId: number;
+  roles?: CustomRole[];
+  disabled?: boolean;
 }
 
-export function InviteUserPopover({ projectId }: InviteUserPopoverProps) {
+const EMPTY_ROLES: CustomRole[] = [];
+
+export function InviteUserPopover({
+  projectId,
+  roles = EMPTY_ROLES,
+  disabled = false,
+}: InviteUserPopoverProps) {
   const [open, setOpen] = useState(false);
   const [userOptions, setUserOptions] = useState<UserProfile[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [selectedRole, setSelectedRole] = useState<UserRole>('WORKER');
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [usersLoading, setUsersLoading] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localRoles, setLocalRoles] = useState<CustomRole[]>(roles);
 
   const debounceTimeout = useRef<number | null>(null);
+
+  useEffect(() => {
+    setLocalRoles(roles);
+  }, [roles]);
+
+  useEffect(() => {
+    if (!open || localRoles.length > 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadRoles = async () => {
+      try {
+        const config = await ProjectConfigRequests.getProjectConfig(projectId);
+        if (!cancelled) {
+          setLocalRoles(config.roles);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          console.error('Failed to load project roles:', loadError);
+        }
+      }
+    };
+
+    loadRoles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, localRoles.length, projectId]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -88,7 +126,7 @@ export function InviteUserPopover({ projectId }: InviteUserPopoverProps) {
     const promise = ProfileRequests.inviteUser({
       projectId,
       userId: selectedUser.id,
-      role: selectedRole,
+      roleId: selectedRoleId,
     });
 
     toast.promise(promise, {
@@ -103,7 +141,7 @@ export function InviteUserPopover({ projectId }: InviteUserPopoverProps) {
     });
 
     setSelectedUser(null);
-    setSelectedRole('WORKER');
+    setSelectedRoleId(localRoles[0]?.id ?? '');
     setOpen(false);
     setSearchQuery('');
     setUserOptions([]);
@@ -115,7 +153,7 @@ export function InviteUserPopover({ projectId }: InviteUserPopoverProps) {
     if (!isOpen) {
       setSearchQuery('');
       setSelectedUser(null);
-      setSelectedRole('WORKER');
+      setSelectedRoleId(localRoles[0]?.id ?? '');
       setError(null);
     }
   };
@@ -126,10 +164,21 @@ export function InviteUserPopover({ projectId }: InviteUserPopoverProps) {
     searchQuery.trim().length > 0 &&
     userOptions.length === 0;
 
+  useEffect(() => {
+    if (!selectedRoleId && localRoles.length > 0) {
+      setSelectedRoleId(localRoles[0].id);
+    }
+  }, [localRoles, selectedRoleId]);
+
   return (
     <Popover open={open} onOpenChange={handlePopoverOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="ml-auto">
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          disabled={disabled}
+        >
           Invite User
         </Button>
       </PopoverTrigger>
@@ -191,16 +240,16 @@ export function InviteUserPopover({ projectId }: InviteUserPopoverProps) {
               Select Role
             </label>
             <Select
-              value={selectedRole}
-              onValueChange={(value) => setSelectedRole(value as UserRole)}
+              value={selectedRoleId}
+              onValueChange={setSelectedRoleId}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
-                {ROLES.map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {capitalize(role)}
+                {localRoles.map((role) => (
+                  <SelectItem key={role.id} value={role.id}>
+                    {role.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -211,7 +260,11 @@ export function InviteUserPopover({ projectId }: InviteUserPopoverProps) {
             <Button variant="outline" onClick={() => setOpen(false)} size="sm">
               Cancel
             </Button>
-            <Button onClick={handleInvite} size="sm">
+            <Button
+              onClick={handleInvite}
+              size="sm"
+              disabled={!selectedUser || !selectedRoleId}
+            >
               {inviteLoading ? 'Sending invite...' : 'Send Invite'}
             </Button>
           </div>

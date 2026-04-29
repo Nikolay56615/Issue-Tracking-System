@@ -1,97 +1,156 @@
 import type {
-  IssueCustomFieldValue,
-  IssuePriority,
-  IssueType,
-} from '@/features/board/model';
-import type { UserRole } from '@/features/profile';
-
-export type IssueFieldSource = 'system' | 'custom';
-
-export type IssueFieldType =
-  | 'text'
-  | 'textarea'
-  | 'number'
-  | 'date'
-  | 'checkbox'
-  | 'select'
-  | 'multiSelect';
-
-export type IssueFieldSurface =
-  | 'create'
-  | 'edit'
-  | 'card'
-  | 'dialog'
-  | 'filter';
+  CustomRole,
+  PermissionKey,
+} from '@/features/profile/model/profile.types.ts';
 
 export type SystemIssueFieldId =
-  | 'id'
-  | 'projectId'
   | 'name'
+  | 'description'
   | 'type'
   | 'priority'
-  | 'status'
-  | 'description'
-  | 'assigneeIds'
-  | 'authorId'
+  | 'assignee'
   | 'startDate'
   | 'dueDate'
   | 'attachments';
 
-export interface IssueFieldOption {
-  label: string;
-  value: string;
-}
+export type CustomFieldType =
+  | 'text'
+  | 'number'
+  | 'user_reference'
+  | 'issue_reference';
 
-export interface IssueFieldConfig {
+export interface BaseCustomFieldDefinition {
   id: string;
-  source: IssueFieldSource;
-  label: string;
-  type: IssueFieldType;
+  projectId: number;
+  name: string;
+  type: CustomFieldType;
   required: boolean;
-  editable: boolean;
-  order: number;
-  visibleOn: IssueFieldSurface[];
-  options?: IssueFieldOption[];
 }
 
-export interface LifecycleStatusConfig {
+export interface TextFieldDefinition extends BaseCustomFieldDefinition {
+  type: 'text';
+  config: {
+    maxLength?: number;
+  };
+}
+
+export interface NumberFieldDefinition extends BaseCustomFieldDefinition {
+  type: 'number';
+  config: {
+    min?: number;
+    max?: number;
+    isInteger?: boolean;
+  };
+}
+
+export interface UserReferenceFieldDefinition
+  extends BaseCustomFieldDefinition {
+  type: 'user_reference';
+  config: {
+    allowedRoleIds: string[];
+  };
+}
+
+export interface IssueReferenceFieldDefinition
+  extends BaseCustomFieldDefinition {
+  type: 'issue_reference';
+  config: Record<string, never>;
+}
+
+export type CustomFieldDefinition =
+  | TextFieldDefinition
+  | NumberFieldDefinition
+  | UserReferenceFieldDefinition
+  | IssueReferenceFieldDefinition;
+
+export interface CustomStatus {
   id: string;
-  label: string;
-  order: number;
+  projectId: number;
+  name: string;
+  displayOrder: number;
+  color: string;
   isInitial?: boolean;
 }
 
-export interface LifecycleTransitionConfig {
-  from: string;
-  to: string;
-  allowedRoles: UserRole[];
-  authorAllowed: boolean;
-  assigneeAllowed: boolean;
+export type TransitionCondition =
+  | {
+      type: 'role';
+      roleId: string;
+    }
+  | {
+      type: 'author';
+    }
+  | {
+      type: 'assignee';
+    }
+  | {
+      type: 'field_user_reference';
+      customFieldId: string;
+    };
+
+export interface Transition {
+  id: string;
+  fromStatusId: string;
+  toStatusId: string;
+  conditions: TransitionCondition[];
 }
 
 export interface LifecycleConfig {
-  statuses: LifecycleStatusConfig[];
-  transitions: LifecycleTransitionConfig[];
+  statuses: CustomStatus[];
+  transitions: Transition[];
 }
 
 export interface ProjectConfig {
   projectId: number;
-  issueFields: IssueFieldConfig[];
+  roles: CustomRole[];
   lifecycle: LifecycleConfig;
+  customFields: CustomFieldDefinition[];
   updatedAt: string;
 }
 
-export type ProjectConfigFieldValue =
-  | IssueCustomFieldValue
-  | IssueType
-  | IssuePriority
-  | number[]
-  | undefined;
+export interface ProjectTemplate {
+  sourceProjectId: number;
+  sourceProjectName: string;
+  config: Omit<ProjectConfig, 'projectId' | 'updatedAt'>;
+}
 
-export const PROTECTED_SYSTEM_FIELD_IDS: SystemIssueFieldId[] = [
-  'id',
-  'projectId',
-  'name',
-  'status',
-  'authorId',
+export interface ProjectTemplateSummary {
+  projectId: number;
+  projectName: string;
+}
+
+export const PERMISSION_GROUPS: Array<{
+  label: string;
+  permissions: PermissionKey[];
+}> = [
+  {
+    label: 'Issues',
+    permissions: ['issue.view', 'issue.create', 'issue.edit', 'issue.remove'],
+  },
+  {
+    label: 'Members',
+    permissions: ['members.invite', 'members.remove', 'members.assignRole'],
+  },
+  {
+    label: 'Project Settings',
+    permissions: ['settings.manage', 'template.export', 'template.apply'],
+  },
+  {
+    label: 'Project',
+    permissions: ['project.archive', 'project.restore'],
+  },
+];
+
+export const SYSTEM_ISSUE_FIELDS: Array<{
+  id: SystemIssueFieldId;
+  label: string;
+}> = [
+  { id: 'name', label: 'Name' },
+  { id: 'description', label: 'Description' },
+  { id: 'type', label: 'Type' },
+  { id: 'priority', label: 'Priority' },
+  { id: 'assignee', label: 'Assignee' },
+  { id: 'startDate', label: 'Start date' },
+  { id: 'dueDate', label: 'Due date' },
+  { id: 'attachments', label: 'Attachments' },
 ];

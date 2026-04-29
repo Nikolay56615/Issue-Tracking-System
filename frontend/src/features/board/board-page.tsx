@@ -8,6 +8,7 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { getBoard } from '@/features/board/model/board.actions.ts';
 import { setNameQuery } from '@/features/board/model/board.reducer.ts';
 import { fetchProjectConfig } from '@/features/project-config/model';
+import { getProjectUsers } from '@/features/users';
 
 export const BoardPage = () => {
   const params = useParams();
@@ -20,6 +21,7 @@ export const BoardPage = () => {
 
   useEffect(() => {
     dispatch(fetchProjectConfig(projectId));
+    dispatch(getProjectUsers(projectId));
   }, [dispatch, projectId]);
 
   useEffect(() => {

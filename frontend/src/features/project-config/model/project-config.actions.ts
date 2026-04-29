@@ -1,6 +1,9 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { getApiErrorMessage } from '@/api/get-error-message.ts';
-import type { ProjectConfig } from '@/features/project-config/model/project-config.types.ts';
+import type {
+  ProjectConfig,
+  ProjectTemplate,
+} from '@/features/project-config/model/project-config.types.ts';
 import { ProjectConfigRequests } from '@/features/project-config/api';
 
 export const fetchProjectConfig = createAsyncThunk<
@@ -30,3 +33,37 @@ export const saveProjectConfig = createAsyncThunk<
     );
   }
 });
+
+export const exportProjectTemplate = createAsyncThunk<
+  ProjectTemplate,
+  number,
+  { rejectValue: string }
+>('project-config/export-template', async (projectId, { rejectWithValue }) => {
+  try {
+    return await ProjectConfigRequests.exportProjectTemplate(projectId);
+  } catch (error: unknown) {
+    return rejectWithValue(
+      getApiErrorMessage(error, 'Failed to export project template')
+    );
+  }
+});
+
+export const applyProjectTemplate = createAsyncThunk<
+  ProjectConfig,
+  { projectId: number; sourceProjectId: number },
+  { rejectValue: string }
+>(
+  'project-config/apply-template',
+  async ({ projectId, sourceProjectId }, { rejectWithValue }) => {
+    try {
+      return await ProjectConfigRequests.applyProjectTemplate(
+        projectId,
+        sourceProjectId
+      );
+    } catch (error: unknown) {
+      return rejectWithValue(
+        getApiErrorMessage(error, 'Failed to apply project template')
+      );
+    }
+  }
+);

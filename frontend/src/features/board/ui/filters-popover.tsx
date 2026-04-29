@@ -1,4 +1,5 @@
-import { Filter, Loader2, User } from 'lucide-react';
+import { Filter, Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -13,30 +14,25 @@ import {
   SelectValue,
 } from '@/components/ui/select.tsx';
 import { capitalize, cn } from '@/lib/utils';
-import { useEffect, useRef, useState } from 'react';
 import type {
   IssueCustomFieldValue,
   IssuePriority,
   IssueType,
 } from '@/features/board/model';
 import { BadgeButton } from '@/features/board/ui/badge-button.tsx';
-import type { UserProfile } from '@/features/profile';
-import { ProfileRequests } from '@/features/profile';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from '@/components/ui/command.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { getBoard } from '@/features/board/model/board.actions.ts';
 import {
-  setFilters,
   resetFilters,
+  setFilters,
 } from '@/features/board/model/board.reducer.ts';
-import { getVisibleFields } from '@/features/project-config/model';
+import {
+  getAssignableMembersForField,
+  type CustomFieldDefinition,
+} from '@/features/project-config/model';
+import { UsersRequests } from '@/features/users';
+import type { UserProfileWithRole } from '@/features/profile';
 
 const TYPES = ['TASK', 'BUG', 'FEATURE', 'SEARCH'] as const;
 const PRIORITIES = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'] as const;
@@ -45,22 +41,19 @@ interface FiltersPopoverProps {
   projectId: number;
 }
 
+const getStringValue = (value: IssueCustomFieldValue) =>
+  typeof value === 'string' ? value : '';
+
 export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
   const dispatch = useAppDispatch();
-  const filters = useAppSelector((state) => state.board.filters);
+  const { filters, issues } = useAppSelector((state) => state.board);
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
-  const filterFields = getVisibleFields(projectConfig, 'filter');
-  const visibleFilterIds = new Set(filterFields.map((field) => field.id));
-  const customFilterFields = filterFields.filter(
-    (field) => field.source === 'custom'
-  );
 
+  const customFields = projectConfig?.customFields ?? [];
   const [open, setOpen] = useState(false);
-  const [localTypes, setLocalTypes] = useState<IssueType[]>(
-    filters.types ?? []
-  );
+  const [localTypes, setLocalTypes] = useState<IssueType[]>(filters.types ?? []);
   const [localPriorities, setLocalPriorities] = useState<IssuePriority[]>(
     filters.priorities ?? []
   );
@@ -71,88 +64,167 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
     from: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
     to: filters.dateTo ? new Date(filters.dateTo) : undefined,
   });
-
-  const [userOptions, setUserOptions] = useState<UserProfile[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [projectMembers, setProjectMembers] = useState<UserProfileWithRole[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [localAssigneeId, setLocalAssigneeId] = useState<number | undefined>(
+    filters.assigneeId
+  );
   const [localCustomFilters, setLocalCustomFilters] = useState<
     Record<string, IssueCustomFieldValue>
   >(filters.customFields ?? {});
 
-  const debounceTimeout = useRef<number | null>(null);
-
   useEffect(() => {
-    const fetchUsers = async () => {
-      if (!searchQuery.trim()) {
-        setUserOptions([]);
-        return;
-      }
+    if (!open) return;
 
-      setUsersLoading(true);
-      setError(null);
+    let cancelled = false;
 
+    const loadMembers = async () => {
+      setMembersLoading(true);
       try {
-        const response = await ProfileRequests.searchUsers(searchQuery);
-        setUserOptions(response);
-      } catch (err) {
-        setError('Failed to fetch users');
-        console.error('Error fetching users:', err);
-        setUserOptions([]);
+        const data = await UsersRequests.getProjectUsers(projectId);
+        if (!cancelled) {
+          setProjectMembers(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load members for filters:', error);
+          setProjectMembers([]);
+        }
       } finally {
-        setUsersLoading(false);
+        if (!cancelled) {
+          setMembersLoading(false);
+        }
       }
     };
 
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-    }
-
-    debounceTimeout.current = setTimeout(fetchUsers, 300);
+    loadMembers();
 
     return () => {
-      if (debounceTimeout.current) {
-        clearTimeout(debounceTimeout.current);
-      }
+      cancelled = true;
     };
-  }, [searchQuery]);
+  }, [open, projectId]);
 
-  const showEmpty =
-    open &&
-    !usersLoading &&
-    searchQuery.trim().length > 0 &&
-    userOptions.length === 0;
+  const issueReferenceOptions = useMemo(
+    () => issues.filter((issue) => issue.projectId === projectId),
+    [issues, projectId]
+  );
 
   const handleReset = () => {
     setLocalTypes([]);
     setLocalPriorities([]);
-    setSelectedUser(null);
-    setSearchQuery('');
+    setLocalAssigneeId(undefined);
     setLocalDateRange({});
     setLocalCustomFilters({});
     dispatch(resetFilters());
   };
 
   const handleSave = () => {
-    const newFilters = {
+    const nextFilters = {
       types: localTypes,
       priorities: localPriorities,
-      assigneeId: selectedUser?.id,
+      assigneeId: localAssigneeId,
       nameQuery: filters.nameQuery,
       dateFrom: localDateRange.from?.toISOString().split('T')[0],
       dateTo: localDateRange.to?.toISOString().split('T')[0],
       customFields: localCustomFilters,
     };
 
-    dispatch(setFilters(newFilters));
+    dispatch(setFilters(nextFilters));
     dispatch(
       getBoard({
         projectId,
-        filters: newFilters,
+        filters: nextFilters,
       })
     );
     setOpen(false);
+  };
+
+  const renderCustomFieldFilter = (field: CustomFieldDefinition) => {
+    const value = localCustomFilters[field.id];
+
+    if (field.type === 'text') {
+      return (
+        <Input
+          value={getStringValue(value)}
+          onChange={(event) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]: event.target.value,
+            }))
+          }
+        />
+      );
+    }
+
+    if (field.type === 'number') {
+      return (
+        <Input
+          type="number"
+          value={typeof value === 'number' ? String(value) : ''}
+          onChange={(event) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]:
+                event.target.value === ''
+                  ? null
+                  : Number(event.target.value),
+            }))
+          }
+        />
+      );
+    }
+
+    if (field.type === 'user_reference') {
+      const allowedMembers = getAssignableMembersForField(field, projectMembers);
+
+      return (
+        <Select
+          value={value == null ? 'all' : String(value)}
+          onValueChange={(nextValue) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]: nextValue === 'all' ? null : Number(nextValue),
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={field.name} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any member</SelectItem>
+            {allowedMembers.map((member) => (
+              <SelectItem key={member.id} value={String(member.id)}>
+                {member.name} ({member.roleName})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    return (
+      <Select
+        value={value == null ? 'all' : String(value)}
+        onValueChange={(nextValue) =>
+          setLocalCustomFilters((prev) => ({
+            ...prev,
+            [field.id]: nextValue === 'all' ? null : Number(nextValue),
+          }))
+        }
+      >
+        <SelectTrigger>
+          <SelectValue placeholder={field.name} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Any issue</SelectItem>
+          {issueReferenceOptions.map((issue) => (
+            <SelectItem key={issue.id} value={String(issue.id)}>
+              {issue.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
   };
 
   return (
@@ -163,9 +235,9 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
           Filters
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="mr-4 w-80 p-4" align="start">
-        {visibleFilterIds.has('type') && (
-          <div className="mb-3">
+      <PopoverContent className="mr-4 w-96 p-4" align="start">
+        <div className="space-y-4">
+          <div>
             <label className="mb-2 block text-sm font-medium">Type</label>
             <div className="flex flex-wrap gap-2">
               {TYPES.map((type) => {
@@ -173,13 +245,13 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
                 return (
                   <BadgeButton
                     key={type}
-                    onClick={() => {
+                    onClick={() =>
                       setLocalTypes((prev) =>
                         prev.includes(type)
-                          ? prev.filter((x) => x !== type)
+                          ? prev.filter((item) => item !== type)
                           : [...prev, type]
-                      );
-                    }}
+                      )
+                    }
                     className={cn(checked && 'bg-accent')}
                   >
                     {capitalize(type)}
@@ -188,9 +260,8 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
               })}
             </div>
           </div>
-        )}
-        {visibleFilterIds.has('priority') && (
-          <div className="mb-3">
+
+          <div>
             <label className="mb-2 block text-sm font-medium">Priority</label>
             <div className="flex flex-wrap gap-2">
               {PRIORITIES.map((priority) => {
@@ -198,13 +269,13 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
                 return (
                   <BadgeButton
                     key={priority}
-                    onClick={() => {
+                    onClick={() =>
                       setLocalPriorities((prev) =>
                         prev.includes(priority)
-                          ? prev.filter((x) => x !== priority)
+                          ? prev.filter((item) => item !== priority)
                           : [...prev, priority]
-                      );
-                    }}
+                      )
+                    }
                     className={cn(checked && 'bg-accent')}
                   >
                     {capitalize(priority)}
@@ -213,61 +284,38 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
               })}
             </div>
           </div>
-        )}
-        {visibleFilterIds.has('assigneeIds') && (
-          <div className="mb-3">
-            <label className="mb-2 block text-sm font-medium">Assignee</label>
-            <Command shouldFilter={false}>
-              <CommandInput
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onValueChange={setSearchQuery}
-              />
 
-              {usersLoading && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-muted-foreground ml-2 text-sm">
-                    Searching...
-                  </span>
-                </div>
-              )}
-
-              {error && (
-                <div className="text-destructive p-3 text-sm">{error}</div>
-              )}
-
-              {showEmpty && <CommandEmpty>No users found.</CommandEmpty>}
-
-              {!usersLoading && !error && userOptions.length > 0 && (
-                <CommandGroup className="max-h-60 overflow-auto">
-                  {userOptions.map((user) => (
-                    <CommandItem
-                      key={user.id}
-                      onSelect={() => setSelectedUser(user)}
-                      className={cn(
-                        'flex items-center gap-2',
-                        selectedUser?.id === user.id && 'bg-accent'
-                      )}
-                    >
-                      <User className="h-4 w-4" />
-                      <div className="flex flex-col">
-                        <span>{user.username}</span>
-                        <span className="text-muted-foreground text-xs">
-                          {user.email}
-                        </span>
-                      </div>
-                    </CommandItem>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Assignee</label>
+            {membersLoading ? (
+              <div className="flex items-center gap-2 text-sm">
+                <Loader2 className="size-4 animate-spin" />
+                <span>Loading members...</span>
+              </div>
+            ) : (
+              <Select
+                value={localAssigneeId == null ? 'all' : String(localAssigneeId)}
+                onValueChange={(value) =>
+                  setLocalAssigneeId(value === 'all' ? undefined : Number(value))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Any assignee" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any assignee</SelectItem>
+                  {projectMembers.map((member) => (
+                    <SelectItem key={member.id} value={String(member.id)}>
+                      {member.name} ({member.roleName})
+                    </SelectItem>
                   ))}
-                </CommandGroup>
-              )}
-            </Command>
+                </SelectContent>
+              </Select>
+            )}
           </div>
-        )}
-        {(visibleFilterIds.has('dueDate') ||
-          visibleFilterIds.has('startDate')) && (
+
           <div>
-            <label className="mb-2 block text-sm font-medium">Date range</label>
+            <label className="mb-2 block text-sm font-medium">Due date</label>
             <div className="flex items-center gap-2">
               <Input
                 type="date"
@@ -277,14 +325,16 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
                     ? localDateRange.from.toISOString().split('T')[0]
                     : ''
                 }
-                onChange={(e) => {
+                onChange={(event) =>
                   setLocalDateRange((prev) => ({
                     ...prev,
-                    from: e.target.value ? new Date(e.target.value) : undefined,
-                  }));
-                }}
+                    from: event.target.value
+                      ? new Date(event.target.value)
+                      : undefined,
+                  }))
+                }
               />
-              <span className="text-xs">–</span>
+              <span className="text-xs">-</span>
               <Input
                 type="date"
                 className="h-8 text-xs"
@@ -293,108 +343,33 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
                     ? localDateRange.to.toISOString().split('T')[0]
                     : ''
                 }
-                onChange={(e) => {
+                onChange={(event) =>
                   setLocalDateRange((prev) => ({
                     ...prev,
-                    to: e.target.value ? new Date(e.target.value) : undefined,
-                  }));
-                }}
-              />
-            </div>
-          </div>
-        )}
-        {customFilterFields.map((field) => {
-          const value = localCustomFilters[field.id];
-
-          if (field.type === 'select') {
-            return (
-              <div key={field.id} className="mb-3">
-                <label className="mb-2 block text-sm font-medium">
-                  {field.label}
-                </label>
-                <Select
-                  value={typeof value === 'string' ? value : ''}
-                  onValueChange={(nextValue) =>
-                    setLocalCustomFilters((prev) => ({
-                      ...prev,
-                      [field.id]: nextValue,
-                    }))
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={field.label} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(field.options ?? []).map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            );
-          }
-
-          if (field.type === 'checkbox') {
-            return (
-              <label
-                key={field.id}
-                className="mb-3 flex items-center gap-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={Boolean(value)}
-                  onChange={(event) =>
-                    setLocalCustomFilters((prev) => ({
-                      ...prev,
-                      [field.id]: event.target.checked,
-                    }))
-                  }
-                />
-                <span>{field.label}</span>
-              </label>
-            );
-          }
-
-          return (
-            <div key={field.id} className="mb-3">
-              <label className="mb-2 block text-sm font-medium">
-                {field.label}
-              </label>
-              <Input
-                type={
-                  field.type === 'number'
-                    ? 'number'
-                    : field.type === 'date'
-                      ? 'date'
-                      : 'text'
-                }
-                value={
-                  typeof value === 'string' || typeof value === 'number'
-                    ? value
-                    : ''
-                }
-                onChange={(event) =>
-                  setLocalCustomFilters((prev) => ({
-                    ...prev,
-                    [field.id]:
-                      field.type === 'number'
-                        ? Number(event.target.value)
-                        : event.target.value,
+                    to: event.target.value
+                      ? new Date(event.target.value)
+                      : undefined,
                   }))
                 }
               />
             </div>
-          );
-        })}
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={handleReset}>
-            Reset
-          </Button>
-          <Button size="sm" onClick={handleSave}>
-            Save
-          </Button>
+          </div>
+
+          {customFields.map((field) => (
+            <div key={field.id} className="space-y-2">
+              <label className="block text-sm font-medium">{field.name}</label>
+              {renderCustomFieldFilter(field)}
+            </div>
+          ))}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={handleReset}>
+              Reset
+            </Button>
+            <Button size="sm" onClick={handleSave}>
+              Save
+            </Button>
+          </div>
         </div>
       </PopoverContent>
     </Popover>

@@ -20,7 +20,7 @@ import {
   getBoard,
 } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch, useAppSelector } from '@/store';
-import type { UserProfile, UserRole } from '@/features/profile';
+import type { CustomRole, UserProfile } from '@/features/profile';
 import { toast } from 'sonner';
 import { getMyRole } from '@/features/board/api/api.board.ts';
 import { ProfileRequests } from '@/features/profile';
@@ -30,57 +30,35 @@ import {
   fetchProjectConfig,
   getOrderedStatuses,
   getStatusLabel,
+  isTransitionAllowedForIssue,
 } from '@/features/project-config/model';
 
-const isTransitionAccessAllowed = (
-  transition: LifecycleTransition,
-  userRole: UserRole,
-  isAuthor: boolean,
-  isAssignee: boolean
-): boolean => {
-  const roleAllowed = transition.allowedRoles.includes(userRole);
-  const authorAllowed = transition.authorAllowed && isAuthor;
-  const assigneeAllowed = transition.assigneeAllowed && isAssignee;
-
-  return roleAllowed || authorAllowed || assigneeAllowed;
-};
-
 const isTransitionAllowed = (
-  from: IssueStatus,
+  issue: Issue,
   to: IssueStatus,
-  userRole: UserRole,
-  isAuthor: boolean,
-  isAssignee: boolean,
+  currentUserId: number | null,
+  currentRoleId: string | null,
   transitions: LifecycleTransition[]
 ): boolean => {
   return transitions.some((transition) => {
-    if (transition.from !== from || transition.to !== to) {
+    if (
+      transition.fromStatusId !== issue.status ||
+      transition.toStatusId !== to
+    ) {
       return false;
     }
 
-    return isTransitionAccessAllowed(
+    return isTransitionAllowedForIssue({
       transition,
-      userRole,
-      isAuthor,
-      isAssignee
-    );
+      issue,
+      currentUserId,
+      currentRoleId,
+    });
   });
 };
 
-const getIssueUserRelation = (
-  issue: Issue,
-  currentUser: UserProfile | null
-) => {
-  const currentUserId = currentUser?.id;
-
-  return {
-    isAuthor: issue.authorId === currentUserId,
-    isAssignee: issue.assigneeIds.includes(currentUserId ?? -1),
-  };
-};
-
 export const Board = ({ projectId }: { projectId: number }) => {
-  const [role, setRole] = useState<UserRole | null>(null);
+  const [role, setRole] = useState<CustomRole | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -95,7 +73,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
       try {
         const response = await getMyRole(projectId);
         if (!cancelled) {
-          setRole(response);
+          setRole(response.role);
         }
       } catch (error) {
         if (!cancelled) {
@@ -200,26 +178,20 @@ export const Board = ({ projectId }: { projectId: number }) => {
       return;
     }
 
-    const { isAuthor, isAssignee } = getIssueUserRelation(
-      draggedIssue,
-      currentUser
-    );
-
     if (
       !isTransitionAllowed(
-        draggedIssue.status,
+        draggedIssue,
         overStatus,
-        role,
-        isAuthor,
-        isAssignee,
+        currentUser?.id ?? null,
+        role.id,
         transitions
       )
     ) {
       toast.error('Transition not allowed', {
         description: `Cannot move from ${getStatusLabel(
-          statuses,
+          projectConfig,
           draggedIssue.status
-        )} to ${getStatusLabel(statuses, overStatus)}`,
+        )} to ${getStatusLabel(projectConfig, overStatus)}`,
       });
       return;
     }
@@ -233,9 +205,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
         })
       ).unwrap();
 
-      toast.success(
-        `Status changed to ${getStatusLabel(statuses, overStatus)}`
-      );
+      toast.success(`Status changed to ${getStatusLabel(projectConfig, overStatus)}`);
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, 'Failed to change status'));
     }
@@ -250,12 +220,15 @@ export const Board = ({ projectId }: { projectId: number }) => {
   const canDrag = (issue: Issue): boolean => {
     if (projectConfig === null || role === null) return false;
 
-    const { isAuthor, isAssignee } = getIssueUserRelation(issue, currentUser);
-
     return transitions.some((transition) => {
       return (
-        transition.from === issue.status &&
-        isTransitionAccessAllowed(transition, role, isAuthor, isAssignee)
+        transition.fromStatusId === issue.status &&
+        isTransitionAllowedForIssue({
+          transition,
+          issue,
+          currentUserId: currentUser?.id ?? null,
+          currentRoleId: role.id,
+        })
       );
     });
   };
@@ -287,14 +260,17 @@ export const Board = ({ projectId }: { projectId: number }) => {
             {roleError}
           </div>
         )}
-        <div className="flex min-h-0 flex-1 flex-row gap-4 rounded-lg px-8 py-4">
+        <div
+          className="flex min-h-0 flex-1 flex-row gap-4 overflow-x-auto rounded-lg
+            px-8 py-4"
+        >
           {statuses.map((status) => {
             const statusIssues = grouped.get(status.id) || [];
             return (
               <StatusColumn
                 key={status.id}
                 status={status.id}
-                title={status.label}
+                title={status.name}
                 issues={statusIssues}
                 canDrag={canDrag}
               />

@@ -1,4 +1,5 @@
-import type { UserRole } from '@/features/profile';
+import type { Transition } from '@/features/project-config/model/project-config.types.ts';
+import type { CustomRole } from '@/features/profile/model/profile.types.ts';
 
 export interface Issue {
   id: number;
@@ -22,7 +23,7 @@ export type IssueType = 'TASK' | 'BUG' | 'FEATURE' | 'SEARCH';
 
 export type IssuePriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
 
-export type IssueCustomFieldValue = string | number | boolean | string[] | null;
+export type IssueCustomFieldValue = string | number | null;
 
 export interface Attachment {
   originalFileName: string;
@@ -32,6 +33,7 @@ export interface Attachment {
 export interface UploadResponse {
   url: string;
 }
+
 export interface GetBoardRequest {
   projectId: number;
   filters?: IssueFilters;
@@ -55,7 +57,7 @@ export interface CreateIssueRequest {
   description: string;
   assigneeIds: number[];
   attachmentFileNames: string[];
-  dueDate?: string; // формат: 'YYYY-MM-DD'
+  dueDate?: string;
   customFields?: Record<string, IssueCustomFieldValue>;
 }
 
@@ -66,16 +68,10 @@ export interface ChangeIssueStatusRequest {
 
 export interface LifecycleGraph {
   statuses: IssueStatus[];
-  transitions: LifecycleTransition[];
+  transitions: Transition[];
 }
 
-export interface LifecycleTransition {
-  from: IssueStatus;
-  to: IssueStatus;
-  allowedRoles: UserRole[];
-  authorAllowed: boolean;
-  assigneeAllowed: boolean;
-}
+export type LifecycleTransition = Transition;
 
 export interface UpdateIssueRequest {
   name: string;
@@ -84,7 +80,12 @@ export interface UpdateIssueRequest {
   type?: IssueType;
   status?: IssueStatus;
   assigneeIds?: number[];
+  dueDate?: string;
   attachmentFileNames?: string[];
-  attachments?: Attachment[]; // <— добавь это
+  attachments?: Attachment[];
   customFields?: Record<string, IssueCustomFieldValue>;
+}
+
+export interface CurrentProjectRoleResponse {
+  role: CustomRole;
 }

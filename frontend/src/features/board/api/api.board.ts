@@ -2,13 +2,13 @@ import type { CreateIssueRequest } from '../model';
 import { axiosInstance } from '@/api/instance.ts';
 import type {
   ChangeIssueStatusRequest,
+  CurrentProjectRoleResponse,
   GetBoardRequest,
   Issue,
   LifecycleGraph,
   UpdateIssueRequest,
   UploadResponse,
 } from '@/features/board/model/board.types.ts';
-import type { UserRole } from '@/features/profile';
 
 export const createIssue = async (request: CreateIssueRequest) => {
   const { data } = await axiosInstance.post<Issue>('/issues', request);
@@ -60,7 +60,9 @@ export const getLifecycleGraph = async () => {
 };
 
 export const getMyRole = async (id: number) => {
-  const { data } = await axiosInstance.get<UserRole>(`/projects/${id}/my-role`);
+  const { data } = await axiosInstance.get<CurrentProjectRoleResponse>(
+    `/projects/${id}/my-role`
+  );
 
   return data;
 };

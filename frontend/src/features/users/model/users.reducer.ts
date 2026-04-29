@@ -1,16 +1,24 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { getProjectUsers } from '@/features/users/model/users.actions.ts';
+import {
+  getProjectUsers,
+  removeProjectUser,
+  updateProjectUserRole,
+} from '@/features/users/model/users.actions.ts';
 import type { UserProfileWithRole } from '@/features/profile';
 
 interface UsersState {
   users: UserProfileWithRole[];
   loading: 'idle' | 'pending' | 'succeeded' | 'failed';
+  roleUpdateLoadingByUserId: Record<number, boolean>;
+  removingByUserId: Record<number, boolean>;
   error: string | null;
 }
 
 const initialState: UsersState = {
   users: [],
   loading: 'idle',
+  roleUpdateLoadingByUserId: {},
+  removingByUserId: {},
   error: null,
 };
 
@@ -31,6 +39,31 @@ const usersSlice = createSlice({
       .addCase(getProjectUsers.rejected, (state, action) => {
         state.loading = 'failed';
         state.error = action.payload ?? 'Failed to fetch users';
+      })
+      .addCase(updateProjectUserRole.pending, (state, action) => {
+        state.roleUpdateLoadingByUserId[action.meta.arg.userId] = true;
+      })
+      .addCase(updateProjectUserRole.fulfilled, (state, action) => {
+        state.roleUpdateLoadingByUserId[action.payload.id] = false;
+        const index = state.users.findIndex((user) => user.id === action.payload.id);
+        if (index !== -1) {
+          state.users[index] = action.payload;
+        }
+      })
+      .addCase(updateProjectUserRole.rejected, (state, action) => {
+        state.roleUpdateLoadingByUserId[action.meta.arg.userId] = false;
+        state.error = action.payload ?? 'Failed to update member role';
+      })
+      .addCase(removeProjectUser.pending, (state, action) => {
+        state.removingByUserId[action.meta.arg.userId] = true;
+      })
+      .addCase(removeProjectUser.fulfilled, (state, action) => {
+        state.removingByUserId[action.payload.userId] = false;
+        state.users = state.users.filter((user) => user.id !== action.payload.userId);
+      })
+      .addCase(removeProjectUser.rejected, (state, action) => {
+        state.removingByUserId[action.meta.arg.userId] = false;
+        state.error = action.payload ?? 'Failed to remove member';
       });
   },
 });

@@ -15,7 +15,10 @@ import { IssueForm } from '@/features/board/ui/issue-form.tsx';
 import { useParams } from 'react-router';
 import ReactMarkdown from 'react-markdown';
 import { useAppSelector } from '@/store';
-import { getVisibleFields } from '@/features/project-config/model';
+import {
+  formatCustomFieldValue,
+  getCustomFieldById,
+} from '@/features/project-config/model';
 
 interface IssueCardProps {
   issue: Issue;
@@ -33,10 +36,12 @@ export const IssueCard = ({
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
-  const cardFields = getVisibleFields(projectConfig, 'card');
-  const visibleFieldIds = new Set(cardFields.map((field) => field.id));
-  const customCardFields = cardFields.filter(
-    (field) => field.source === 'custom'
+  const { issues, users: members } = useAppSelector((state) => ({
+    issues: state.board.issues,
+    users: state.users.users,
+  }));
+  const customFieldEntries = Object.entries(issue.customFields ?? {}).filter(
+    ([, value]) => value !== null && value !== undefined && value !== ''
   );
 
   const {
@@ -74,34 +79,34 @@ export const IssueCard = ({
           active:cursor-grabbing"
         {...listeners}
       >
-        {visibleFieldIds.has('description') && (
+        {issue.description && (
           <div className="line-clamp-3">
             <ReactMarkdown>{issue.description}</ReactMarkdown>
           </div>
         )}
-        {visibleFieldIds.has('dueDate') && issue.dueDate && (
+        {issue.dueDate && (
           <span className="text-muted-foreground text-xs">
             Due: {issue.dueDate}
           </span>
         )}
-        {customCardFields.map((field) => {
-          const value = issue.customFields?.[field.id];
-          if (value === undefined || value === null || value === '')
-            return null;
+        {customFieldEntries.map(([fieldId, value]) => {
+          const field = getCustomFieldById(projectConfig, fieldId);
+          if (!field) return null;
 
           return (
             <span key={field.id} className="text-muted-foreground text-xs">
-              {field.label}:{' '}
-              {Array.isArray(value) ? value.join(', ') : String(value)}
+              {field.name}:{' '}
+              {formatCustomFieldValue(field, value, {
+                issues,
+                members,
+              })}
             </span>
           );
         })}
       </CardContent>
       <CardFooter className="gap-2">
-        {visibleFieldIds.has('type') && <TypeBadge type={issue.type} />}
-        {visibleFieldIds.has('priority') && (
-          <PriorityBadge priority={issue.priority} />
-        )}
+        <TypeBadge type={issue.type} />
+        <PriorityBadge priority={issue.priority} />
       </CardFooter>
     </Card>
   );

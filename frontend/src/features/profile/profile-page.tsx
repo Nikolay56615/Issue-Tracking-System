@@ -18,6 +18,10 @@ import {
 } from '@/components/ui/tabs.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Archive, ArchiveRestore, Ellipsis, Loader2 } from 'lucide-react';
+import type { PermissionKey } from '@/features/profile';
+
+const can = (permissions: PermissionKey[] | undefined, permission: PermissionKey) =>
+  Boolean(permissions?.includes(permission));
 
 export const ProfilePage = () => {
   const dispatch = useAppDispatch();
@@ -27,9 +31,9 @@ export const ProfilePage = () => {
     profileError,
     projects,
     projectsLoading,
-  projectsError,
-  archiveProjectLoadingIds,
-  restoreProjectLoadingIds,
+    projectsError,
+    archiveProjectLoadingIds,
+    restoreProjectLoadingIds,
   } = useAppSelector((state) => state.profile);
 
   const [activeTab, setActiveTab] = useState('active');
@@ -79,9 +83,11 @@ export const ProfilePage = () => {
                       {project.name}
                     </span>
                   </Link>
-                  {project.ownerId === profile.id && (
+                  {can(project.currentPermissions, 'members.invite') && (
+                    <InviteUserPopover projectId={project.id} />
+                  )}
+                  {can(project.currentPermissions, 'project.archive') && (
                     <>
-                      <InviteUserPopover projectId={project.id} />
                       <Button
                         disabled={archiveProjectLoadingIds.includes(project.id)}
                         size="sm"
@@ -113,7 +119,7 @@ export const ProfilePage = () => {
                   <Link to={`/${project.id}/board`}>
                     <span>{project.name}</span>
                   </Link>
-                  {project.ownerId === profile.id && (
+                  {can(project.currentPermissions, 'project.restore') && (
                     <Button
                       size="sm"
                       onClick={() => dispatch(restoreProject(project.id))}

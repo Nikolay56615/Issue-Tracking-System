@@ -8,4 +8,10 @@ export {
   getCurrentUser,
   restoreProject,
 } from './model/profile.actions.ts';
-export type { UserProfile, UserProfileWithRole, UserRole } from './model';
+export type {
+  CustomRole,
+  PermissionKey,
+  Project,
+  UserProfile,
+  UserProfileWithRole,
+} from './model';

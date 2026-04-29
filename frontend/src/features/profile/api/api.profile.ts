@@ -3,6 +3,7 @@ import type {
   CreateProjectRequest,
   InviteUserRequest,
   Project,
+  UpdateProjectMemberRoleRequest,
   UserProfile,
 } from '@/features/profile/model/profile.types.ts';
 
@@ -18,9 +19,13 @@ export const getCurrentUser = async () => {
   return data;
 };
 
-export const createProject = async ({ name }: CreateProjectRequest) => {
+export const createProject = async ({
+  name,
+  templateProjectId,
+}: CreateProjectRequest) => {
   const { data } = await axiosInstance.post<Project>('/projects', {
-    name: name,
+    name,
+    templateProjectId,
   });
 
   return data;
@@ -29,14 +34,33 @@ export const createProject = async ({ name }: CreateProjectRequest) => {
 export const inviteUser = async ({
   projectId,
   userId,
-  role,
+  roleId,
 }: InviteUserRequest) => {
   const { data } = await axiosInstance.post(`/projects/${projectId}/invite`, {
     userId,
-    role,
+    roleId,
   });
 
   return data;
+};
+
+export const updateProjectMemberRole = async ({
+  projectId,
+  userId,
+  roleId,
+}: UpdateProjectMemberRoleRequest) => {
+  const { data } = await axiosInstance.put(
+    `/projects/${projectId}/members/${userId}/role`,
+    {
+      roleId,
+    }
+  );
+
+  return data;
+};
+
+export const removeProjectMember = async (projectId: number, userId: number) => {
+  await axiosInstance.delete(`/projects/${projectId}/members/${userId}`);
 };
 
 export const searchUsers = async (query: string) => {

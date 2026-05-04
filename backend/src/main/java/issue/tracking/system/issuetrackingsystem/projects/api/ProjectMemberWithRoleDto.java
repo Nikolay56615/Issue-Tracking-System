@@ -4,6 +4,8 @@ public record ProjectMemberWithRoleDto(
     Long id,
     String name,
     String email,
-    String role
+    String roleId,
+    String roleName,
+    java.util.List<String> permissions
 ) {}
 

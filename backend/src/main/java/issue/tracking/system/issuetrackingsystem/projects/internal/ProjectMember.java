@@ -2,8 +2,6 @@ package issue.tracking.system.issuetrackingsystem.projects.internal;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -25,12 +23,11 @@ public class ProjectMember {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private ProjectRole role;
+    @Column(name = "role", nullable = false)
+    private String roleId;
 
-    public ProjectMember(Long userId, ProjectRole role) {
+    public ProjectMember(Long userId, String roleId) {
         this.userId = userId;
-        this.role = role;
+        this.roleId = roleId;
     }
 }

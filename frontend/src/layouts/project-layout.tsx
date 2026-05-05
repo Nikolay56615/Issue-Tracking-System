@@ -38,58 +38,60 @@ export const ProjectLayout = () => {
 
   return (
     <>
-      <header
-        className="flex h-15 w-screen items-center gap-4 border-b px-40 py-2"
-      >
-        <Link to={Routes.PROFILE}>
-          <span className="cursor-pointer text-2xl font-extrabold">
-            Issue Tracker
-          </span>
-        </Link>
-        <NavLink
-          to={generatePath(Routes.BOARD, { projectId })}
-          className={({ isActive }) =>
-            cn(isActive && 'bg-accent rounded-md', 'ml-5 h-full')
-          }
+      <header className="border-b">
+        <div
+          className="mx-auto flex h-15 w-full max-w-7xl items-center gap-4 px-6"
         >
-          <Button className="h-full cursor-pointer" variant="ghost">
-            Board
-          </Button>
-        </NavLink>
-        <NavLink
-          to={generatePath(Routes.USERS, { projectId })}
-          className={({ isActive }) =>
-            cn(isActive && 'bg-accent rounded-md', 'h-full')
-          }
-        >
-          <Button className="h-full cursor-pointer" variant="ghost">
-            Users
-          </Button>
-        </NavLink>
-        <NavLink
-          to={generatePath(Routes.TRASH, { projectId })}
-          className={({ isActive }) =>
-            cn(isActive && 'bg-accent rounded-md', 'h-full')
-          }
-        >
-          <Button className="h-full cursor-pointer" variant="ghost">
-            Trash
-          </Button>
-        </NavLink>
-        {canOpenSettings(role) && (
+          <Link to={Routes.PROFILE}>
+            <span className="cursor-pointer text-2xl font-extrabold">
+              Issue Tracker
+            </span>
+          </Link>
           <NavLink
-            to={generatePath(Routes.SETTINGS, { projectId })}
+            to={generatePath(Routes.BOARD, { projectId })}
             className={({ isActive }) =>
-              cn(isActive && 'bg-accent rounded-md', 'h-full')
+              cn(isActive && 'bg-accent rounded-md', 'ml-5')
             }
           >
-            <Button className="h-full cursor-pointer" variant="ghost">
-              Settings
+            <Button className="h-9 cursor-pointer" variant="ghost">
+              Board
             </Button>
           </NavLink>
-        )}
-        <div className="ml-auto h-full">
-          <LogoutButton />
+          <NavLink
+            to={generatePath(Routes.USERS, { projectId })}
+            className={({ isActive }) =>
+              cn(isActive && 'bg-accent rounded-md')
+            }
+          >
+            <Button className="h-9 cursor-pointer" variant="ghost">
+              Users
+            </Button>
+          </NavLink>
+          <NavLink
+            to={generatePath(Routes.TRASH, { projectId })}
+            className={({ isActive }) =>
+              cn(isActive && 'bg-accent rounded-md')
+            }
+          >
+            <Button className="h-9 cursor-pointer" variant="ghost">
+              Trash
+            </Button>
+          </NavLink>
+          {canOpenSettings(role) && (
+            <NavLink
+              to={generatePath(Routes.SETTINGS, { projectId })}
+              className={({ isActive }) =>
+                cn(isActive && 'bg-accent rounded-md')
+              }
+            >
+              <Button className="h-9 cursor-pointer" variant="ghost">
+                Settings
+              </Button>
+            </NavLink>
+          )}
+          <div className="ml-auto">
+            <LogoutButton />
+          </div>
         </div>
       </header>
       <Outlet />

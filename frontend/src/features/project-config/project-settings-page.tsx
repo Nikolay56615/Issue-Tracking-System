@@ -366,17 +366,19 @@ const RowToggleButton = ({
         />
       </button>
     ) : (
-      <div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2.5">
-        {accent}
-        <div className="min-w-0 flex-1">
+      <div
+        className="flex min-w-0 flex-1 items-center justify-between gap-3
+          rounded-lg px-2 py-2.5"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          {accent}
           <div className="truncate text-sm font-medium">{title}</div>
-          {(subtitle || meta) && (
-            <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-              {subtitle ? <span>{subtitle}</span> : null}
-              {meta ? <span>{meta}</span> : null}
-            </div>
-          )}
         </div>
+        {meta || subtitle ? (
+          <span className="text-muted-foreground shrink-0 text-xs">
+            {meta ?? subtitle}
+          </span>
+        ) : null}
       </div>
     )}
   </div>
@@ -397,16 +399,16 @@ const SettingsSection = ({
 }) => (
   <section className={cn('rounded-xl border bg-background', className)}>
     <div
-      className="flex flex-wrap items-start justify-between gap-3 border-b px-4
+      className="flex min-h-15 flex-wrap justify-between gap-3 border-b px-4
         py-3"
     >
-      <div className="space-y-1">
+      <div className="min-w-0 flex-1 space-y-1">
         <h2 className="text-sm font-semibold">{title}</h2>
         {description ? (
           <p className="text-muted-foreground text-sm">{description}</p>
         ) : null}
       </div>
-      {action}
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
     <div className="space-y-2 p-3">{children}</div>
   </section>
@@ -1520,7 +1522,7 @@ export const ProjectSettingsPage = () => {
                             subtitle={
                               isCustomField && field
                                 ? formatFieldTypeLabel(field.type)
-                                : 'System field'
+                                : undefined
                             }
                             meta={getFieldEntryMeta(fieldEntry, issues)}
                             open={isOpen}

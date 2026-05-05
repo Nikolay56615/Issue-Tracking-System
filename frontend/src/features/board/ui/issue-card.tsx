@@ -19,10 +19,7 @@ import {
   formatCustomFieldValue,
   getCustomFieldById,
   getOrderedCustomFields,
-  getStatusById,
-  getStatusLabel,
 } from '@/features/project-config/model';
-import { StatusBadge } from '@/features/board/ui/status-badge.tsx';
 
 interface IssueCardProps {
   issue: Issue;
@@ -45,7 +42,6 @@ export const IssueCard = ({
     users: state.users.users,
   }));
   const orderedCustomFields = getOrderedCustomFields(projectConfig);
-  const statusMeta = getStatusById(projectConfig, issue.status);
   const customFieldEntries = orderedCustomFields
     .map((field) => [field.id, issue.customFields?.[field.id]] as const)
     .filter(([, value]) => value !== null && value !== undefined && value !== '');
@@ -111,10 +107,6 @@ export const IssueCard = ({
         })}
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2">
-        <StatusBadge
-          label={getStatusLabel(projectConfig, issue.status)}
-          color={statusMeta?.color ?? '#64748b'}
-        />
         <TypeBadge type={issue.type} />
         <PriorityBadge priority={issue.priority} />
       </CardFooter>

@@ -104,7 +104,7 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
           {name}
         </span>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[80vh] flex-col">
+      <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-3xl">
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle>{name}</DialogTitle>
           <IssueForm mode="edit" projectId={projectId} issue={issue} />

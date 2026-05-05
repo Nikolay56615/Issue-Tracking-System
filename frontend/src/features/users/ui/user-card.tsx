@@ -32,7 +32,7 @@ export const UserCard = ({
   onRemove,
 }: UserCardProps) => {
   return (
-    <Card className="flex w-103 flex-row gap-4 px-6 py-4">
+    <Card className="flex w-full flex-row gap-4 px-6 py-4">
       <div
         className="flex h-16 w-16 items-center justify-center rounded-full
           bg-purple-100"

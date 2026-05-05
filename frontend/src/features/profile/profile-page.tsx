@@ -57,12 +57,12 @@ export const ProfilePage = () => {
   const archivedProjects = projects.filter((p) => p.archived);
 
   return (
-    <div className="mx-auto my-0 flex max-w-320 gap-4 pt-13">
+    <div className="mx-auto my-0 flex w-full max-w-320 gap-4 px-6 pt-13">
       <UserInfo profile={profile} />
-      <div className="flex flex-col gap-4">
+      <div className="flex w-full max-w-3xl flex-col gap-4">
         <CreateProjectForm />
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-120">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="active">Active</TabsTrigger>
             <TabsTrigger value="archived">Archived</TabsTrigger>
@@ -75,7 +75,7 @@ export const ProfilePage = () => {
               activeProjects.map((project) => (
                 <Card
                   key={project.id}
-                  className="flex w-120 flex-row gap-2 rounded-lg bg-white p-4
+                  className="flex w-full flex-row gap-2 rounded-lg bg-white p-4
                     text-xl text-black"
                 >
                   <Link to={`/${project.id}/board`}>
@@ -113,7 +113,7 @@ export const ProfilePage = () => {
               archivedProjects.map((project) => (
                 <Card
                   key={project.id}
-                  className="flex w-120 flex-row justify-between gap-1
+                  className="flex w-full flex-row justify-between gap-1
                     rounded-lg bg-white p-4 text-xl text-black"
                 >
                   <Link to={`/${project.id}/board`}>

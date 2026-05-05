@@ -76,30 +76,37 @@ export const UsersPage = () => {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-320 gap-4 p-8 md:grid-cols-2 xl:grid-cols-3">
-      {users.map((user) => (
-        <UserCard
-          key={user.id}
-          user={user}
-          availableRoles={availableRoles}
-          canManageRoles={canManageRoles}
-          canRemove={canRemove}
-          roleUpdating={Boolean(roleUpdateLoadingByUserId[user.id])}
-          removing={Boolean(removingByUserId[user.id])}
-          onRoleChange={(roleId) => {
-            dispatch(updateProjectUserRole({ projectId, userId: user.id, roleId }))
-              .unwrap()
-              .then(() => toast.success('Member role updated'))
-              .catch((updateError) => toast.error(String(updateError)));
-          }}
-          onRemove={() => {
-            dispatch(removeProjectUser({ projectId, userId: user.id }))
-              .unwrap()
-              .then(() => toast.success('Member removed'))
-              .catch((removeError) => toast.error(String(removeError)));
-          }}
-        />
-      ))}
+    <div className="w-full px-4 py-8 sm:px-6 lg:px-8">
+      <div
+        className="mx-auto grid w-full max-w-320 gap-4 md:grid-cols-2
+          xl:grid-cols-3"
+      >
+        {users.map((user) => (
+          <UserCard
+            key={user.id}
+            user={user}
+            availableRoles={availableRoles}
+            canManageRoles={canManageRoles}
+            canRemove={canRemove}
+            roleUpdating={Boolean(roleUpdateLoadingByUserId[user.id])}
+            removing={Boolean(removingByUserId[user.id])}
+            onRoleChange={(roleId) => {
+              dispatch(
+                updateProjectUserRole({ projectId, userId: user.id, roleId })
+              )
+                .unwrap()
+                .then(() => toast.success('Member role updated'))
+                .catch((updateError) => toast.error(String(updateError)));
+            }}
+            onRemove={() => {
+              dispatch(removeProjectUser({ projectId, userId: user.id }))
+                .unwrap()
+                .then(() => toast.success('Member removed'))
+                .catch((removeError) => toast.error(String(removeError)));
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 };

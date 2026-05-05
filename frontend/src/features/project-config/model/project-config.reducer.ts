@@ -7,6 +7,7 @@ import {
   saveProjectConfig,
 } from '@/features/project-config/model/project-config.actions.ts';
 import type { ProjectTemplate } from '@/features/project-config/model/project-config.types.ts';
+import { getNormalizedFieldOrder } from '@/features/project-config/model/project-config.utils.ts';
 
 interface ProjectConfigState {
   config: ProjectConfig | null;
@@ -30,6 +31,11 @@ const initialState: ProjectConfigState = {
   exportedTemplate: null,
 };
 
+const normalizeConfig = (config: ProjectConfig): ProjectConfig => ({
+  ...config,
+  fieldOrder: getNormalizedFieldOrder(config),
+});
+
 const projectConfigSlice = createSlice({
   name: 'projectConfig',
   initialState,
@@ -42,7 +48,7 @@ const projectConfigSlice = createSlice({
       })
       .addCase(fetchProjectConfig.fulfilled, (state, action) => {
         state.loading = 'succeeded';
-        state.config = action.payload;
+        state.config = normalizeConfig(action.payload);
       })
       .addCase(fetchProjectConfig.rejected, (state, action) => {
         state.loading = 'failed';
@@ -54,7 +60,7 @@ const projectConfigSlice = createSlice({
       })
       .addCase(saveProjectConfig.fulfilled, (state, action) => {
         state.saving = 'succeeded';
-        state.config = action.payload;
+        state.config = normalizeConfig(action.payload);
       })
       .addCase(saveProjectConfig.rejected, (state, action) => {
         state.saving = 'failed';
@@ -79,7 +85,7 @@ const projectConfigSlice = createSlice({
       })
       .addCase(applyProjectTemplate.fulfilled, (state, action) => {
         state.templateLoading = 'succeeded';
-        state.config = action.payload;
+        state.config = normalizeConfig(action.payload);
       })
       .addCase(applyProjectTemplate.rejected, (state, action) => {
         state.templateLoading = 'failed';

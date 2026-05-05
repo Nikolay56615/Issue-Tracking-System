@@ -18,6 +18,7 @@ import { useAppSelector } from '@/store';
 import {
   formatCustomFieldValue,
   getCustomFieldById,
+  getOrderedCustomFields,
 } from '@/features/project-config/model';
 
 interface IssueCardProps {
@@ -40,9 +41,10 @@ export const IssueCard = ({
     issues: state.board.issues,
     users: state.users.users,
   }));
-  const customFieldEntries = Object.entries(issue.customFields ?? {}).filter(
-    ([, value]) => value !== null && value !== undefined && value !== ''
-  );
+  const orderedCustomFields = getOrderedCustomFields(projectConfig);
+  const customFieldEntries = orderedCustomFields
+    .map((field) => [field.id, issue.customFields?.[field.id]] as const)
+    .filter(([, value]) => value !== null && value !== undefined && value !== '');
 
   const {
     attributes,

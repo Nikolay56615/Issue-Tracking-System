@@ -29,6 +29,7 @@ import {
 } from '@/features/board/model/board.reducer.ts';
 import {
   getAssignableMembersForField,
+  getOrderedCustomFields,
   type CustomFieldDefinition,
 } from '@/features/project-config/model';
 import { UsersRequests } from '@/features/users';
@@ -51,7 +52,7 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
     (state) => state.projectConfig
   );
 
-  const customFields = projectConfig?.customFields ?? [];
+  const customFields = getOrderedCustomFields(projectConfig);
   const [open, setOpen] = useState(false);
   const [localTypes, setLocalTypes] = useState<IssueType[]>(filters.types ?? []);
   const [localPriorities, setLocalPriorities] = useState<IssuePriority[]>(

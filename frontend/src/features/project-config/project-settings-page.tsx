@@ -49,12 +49,14 @@ import {
   applyProjectTemplate,
   exportProjectTemplate,
   fetchProjectConfig,
+  getNormalizedFieldOrder,
+  getOrderedIssueFields,
   hasPermission,
   PERMISSION_GROUPS,
   saveProjectConfig,
-  SYSTEM_ISSUE_FIELDS,
   type CustomFieldDefinition,
   type CustomFieldType,
+  type OrderedIssueFieldEntry,
   type ProjectConfig,
   type Transition,
   type TransitionCondition,
@@ -247,6 +249,30 @@ const describeTransitionCondition = (
   return formatConditionLabel(condition.type);
 };
 
+const getFieldEntryMeta = (
+  fieldEntry: OrderedIssueFieldEntry,
+  issues: Issue[]
+) => {
+  if (fieldEntry.kind === 'system') {
+    if (fieldEntry.systemFieldId === 'author') {
+      return 'System field · read only';
+    }
+
+    return 'System field';
+  }
+
+  const customField = fieldEntry.customField;
+  if (!customField) {
+    return 'Custom field';
+  }
+
+  if (hasValuesForField(issues, customField.id)) {
+    return 'Has issue values';
+  }
+
+  return customField.required ? 'Required' : 'Optional';
+};
+
 const RowToggleButton = ({
   title,
   subtitle,
@@ -255,18 +281,20 @@ const RowToggleButton = ({
   onClick,
   accent,
   draggable,
+  expandable = true,
 }: {
   title: string;
   subtitle?: string;
   meta?: string;
   open: boolean;
-  onClick: () => void;
+  onClick?: () => void;
   accent?: ReactNode;
   draggable?: {
     attributes: object;
     listeners: object | undefined;
     setActivatorNodeRef: (element: HTMLElement | null) => void;
   };
+  expandable?: boolean;
 }) => (
   <div className="flex items-center gap-2 px-2 py-1.5">
     {draggable ? (
@@ -281,29 +309,44 @@ const RowToggleButton = ({
         <GripVertical className="size-4" />
       </button>
     ) : null}
-    <button
-      type="button"
-      onClick={onClick}
-      className="hover:bg-muted/40 flex min-w-0 flex-1 items-center gap-3
-        rounded-lg px-2 py-2.5 text-left transition-colors"
-    >
-      {accent}
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{title}</div>
-        {(subtitle || meta) && (
-          <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-            {subtitle ? <span>{subtitle}</span> : null}
-            {meta ? <span>{meta}</span> : null}
-          </div>
-        )}
+    {expandable ? (
+      <button
+        type="button"
+        onClick={onClick}
+        className="hover:bg-muted/40 flex min-w-0 flex-1 items-center gap-3
+          rounded-lg px-2 py-2.5 text-left transition-colors"
+      >
+        {accent}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{title}</div>
+          {(subtitle || meta) && (
+            <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              {subtitle ? <span>{subtitle}</span> : null}
+              {meta ? <span>{meta}</span> : null}
+            </div>
+          )}
+        </div>
+        <ChevronDown
+          className={cn(
+            'text-muted-foreground h-4 w-4 shrink-0 transition-transform',
+            open && 'rotate-180'
+          )}
+        />
+      </button>
+    ) : (
+      <div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2.5">
+        {accent}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{title}</div>
+          {(subtitle || meta) && (
+            <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              {subtitle ? <span>{subtitle}</span> : null}
+              {meta ? <span>{meta}</span> : null}
+            </div>
+          )}
+        </div>
       </div>
-      <ChevronDown
-        className={cn(
-          'text-muted-foreground h-4 w-4 shrink-0 transition-transform',
-          open && 'rotate-180'
-        )}
-      />
-    </button>
+    )}
   </div>
 );
 
@@ -485,7 +528,11 @@ export const ProjectSettingsPage = () => {
       [],
     [draft]
   );
+  const fieldEntries = useMemo(() => getOrderedIssueFields(draft), [draft]);
   const statusSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  );
+  const fieldSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
@@ -698,10 +745,15 @@ export const ProjectSettingsPage = () => {
   };
 
   const addField = () => {
-    updateDraft((current) => ({
-      ...current,
-      customFields: [...current.customFields, createFieldDraft(current.projectId)],
-    }));
+    updateDraft((current) => {
+      const nextField = createFieldDraft(current.projectId);
+
+      return {
+        ...current,
+        customFields: [...current.customFields, nextField],
+        fieldOrder: [...getNormalizedFieldOrder(current), nextField.id],
+      };
+    });
   };
 
   const deleteField = (fieldId: string) => {
@@ -713,6 +765,7 @@ export const ProjectSettingsPage = () => {
     updateDraft((current) => ({
       ...current,
       customFields: current.customFields.filter((field) => field.id !== fieldId),
+      fieldOrder: getNormalizedFieldOrder(current).filter((item) => item !== fieldId),
       lifecycle: {
         ...current.lifecycle,
         transitions: current.lifecycle.transitions.map((transition) => ({
@@ -801,6 +854,29 @@ export const ProjectSettingsPage = () => {
             })
           ),
         },
+      };
+    });
+  };
+
+  const handleFieldDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    updateDraft((current) => {
+      const orderedFields = getNormalizedFieldOrder(current);
+      const oldIndex = orderedFields.findIndex((fieldId) => fieldId === active.id);
+      const newIndex = orderedFields.findIndex((fieldId) => fieldId === over.id);
+
+      if (oldIndex === -1 || newIndex === -1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        fieldOrder: arrayMove(orderedFields, oldIndex, newIndex),
       };
     });
   };
@@ -1318,29 +1394,8 @@ export const ProjectSettingsPage = () => {
 
         <TabsContent value="fields" className="mt-0 space-y-4">
           <SettingsSection
-            title="System Fields"
-            description="Pinned issue fields that are always available for the project."
-          >
-            {SYSTEM_ISSUE_FIELDS.map((field) => (
-              <div
-                key={field.id}
-                className="bg-muted/20 flex items-center justify-between rounded-lg
-                  border px-3 py-2.5"
-              >
-                <div>
-                  <div className="text-sm font-medium">{field.label}</div>
-                  <div className="text-muted-foreground text-xs">{field.id}</div>
-                </div>
-                <span className="text-muted-foreground text-xs uppercase">
-                  System
-                </span>
-              </div>
-            ))}
-          </SettingsSection>
-
-          <SettingsSection
-            title="Custom Fields"
-            description="Keep the field list compact and expand only the field you are editing."
+            title="Issue Fields"
+            description="System and custom fields share one ordered list. Drag rows to control field order."
             action={
               <Button size="sm" onClick={addField}>
                 <Plus data-icon="inline-start" />
@@ -1348,248 +1403,273 @@ export const ProjectSettingsPage = () => {
               </Button>
             }
           >
-            {draft.customFields.map((field) => {
-              const isOpen = expandedFieldId === field.id;
+            <DndContext
+              sensors={fieldSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleFieldDragEnd}
+            >
+              <SortableContext
+                items={fieldEntries.map((fieldEntry) => fieldEntry.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {fieldEntries.map((fieldEntry) => {
+                  const isCustomField = fieldEntry.kind === 'custom';
+                  const field = fieldEntry.customField;
+                  const isOpen = field != null && expandedFieldId === field.id;
 
-              return (
-                <div key={field.id} className="rounded-lg border">
-                  <RowToggleButton
-                    title={field.name}
-                    subtitle={formatFieldTypeLabel(field.type)}
-                    meta={
-                      hasValuesForField(issues, field.id)
-                        ? 'Has issue values'
-                        : field.required
-                          ? 'Required'
-                          : 'Optional'
-                    }
-                    open={isOpen}
-                    onClick={() =>
-                      setExpandedFieldId(isOpen ? null : field.id)
-                    }
-                  />
-                  {isOpen && (
-                    <div className="border-t px-3 py-3">
-                      <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-                        <div className="space-y-2">
-                          <Label>Name</Label>
-                          <Input
-                            value={field.name}
-                            onChange={(event) =>
-                              updateField(field.id, (current) => ({
-                                ...current,
-                                name: event.target.value,
-                              }))
+                  return (
+                    <SortableSettingsRow key={fieldEntry.id} id={fieldEntry.id}>
+                      {({ draggable, isDragging }) => (
+                        <div
+                          className={cn(
+                            'rounded-lg border bg-background',
+                            isDragging && 'shadow-sm'
+                          )}
+                        >
+                          <RowToggleButton
+                            title={fieldEntry.label}
+                            subtitle={
+                              isCustomField && field
+                                ? formatFieldTypeLabel(field.type)
+                                : 'System field'
                             }
+                            meta={getFieldEntryMeta(fieldEntry, issues)}
+                            open={isOpen}
+                            onClick={
+                              field
+                                ? () =>
+                                    setExpandedFieldId(isOpen ? null : field.id)
+                                : undefined
+                            }
+                            draggable={draggable}
+                            expandable={Boolean(field)}
                           />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Type</Label>
-                          <Select
-                            value={field.type}
-                            onValueChange={(value) =>
-                              updateField(field.id, (current) =>
-                                switchFieldType(
-                                  current,
-                                  value as CustomFieldType,
-                                  draft.roles
-                                )
-                              )
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FIELD_TYPE_OPTIONS.map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {formatFieldTypeLabel(type)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex items-end justify-end">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteField(field.id)}
-                          >
-                            <Trash data-icon="inline-start" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-
-                      <label className="mt-4 flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={field.required}
-                          onChange={(event) =>
-                            updateField(field.id, (current) => ({
-                              ...current,
-                              required: event.target.checked,
-                            }))
-                          }
-                        />
-                        <span>Required field</span>
-                      </label>
-
-                      <div className="mt-4">
-                        {field.type === 'text' && (
-                          <div className="space-y-2">
-                            <Label>Max length</Label>
-                            <Input
-                              type="number"
-                              value={field.config.maxLength ?? ''}
-                              onChange={(event) =>
-                                updateField(field.id, (current) =>
-                                  current.type === 'text'
-                                    ? {
-                                        ...current,
-                                        config: {
-                                          maxLength:
-                                            event.target.value === ''
-                                              ? undefined
-                                              : Number(event.target.value),
-                                        },
-                                      }
-                                    : current
-                                )
-                              }
-                            />
-                          </div>
-                        )}
-
-                        {field.type === 'number' && (
-                          <div className="grid gap-3 md:grid-cols-3">
-                            <div className="space-y-2">
-                              <Label>Min</Label>
-                              <Input
-                                type="number"
-                                value={field.config.min ?? ''}
-                                onChange={(event) =>
-                                  updateField(field.id, (current) =>
-                                    current.type === 'number'
-                                      ? {
-                                          ...current,
-                                          config: {
-                                            ...current.config,
-                                            min:
-                                              event.target.value === ''
-                                                ? undefined
-                                                : Number(event.target.value),
-                                          },
-                                        }
-                                      : current
-                                  )
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Max</Label>
-                              <Input
-                                type="number"
-                                value={field.config.max ?? ''}
-                                onChange={(event) =>
-                                  updateField(field.id, (current) =>
-                                    current.type === 'number'
-                                      ? {
-                                          ...current,
-                                          config: {
-                                            ...current.config,
-                                            max:
-                                              event.target.value === ''
-                                                ? undefined
-                                                : Number(event.target.value),
-                                          },
-                                        }
-                                      : current
-                                  )
-                                }
-                              />
-                            </div>
-                            <label className="flex items-end gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(field.config.isInteger)}
-                                onChange={(event) =>
-                                  updateField(field.id, (current) =>
-                                    current.type === 'number'
-                                      ? {
-                                          ...current,
-                                          config: {
-                                            ...current.config,
-                                            isInteger: event.target.checked,
-                                          },
-                                        }
-                                      : current
-                                  )
-                                }
-                              />
-                              <span>Integer only</span>
-                            </label>
-                          </div>
-                        )}
-
-                        {field.type === 'user_reference' && (
-                          <div className="space-y-2">
-                            <Label>Allowed roles</Label>
-                            <div className="grid gap-2 md:grid-cols-2">
-                              {draft.roles.map((projectRole) => (
-                                <label
-                                  key={projectRole.id}
-                                  className="flex items-center gap-2 text-sm"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={field.config.allowedRoleIds.includes(
-                                      projectRole.id
-                                    )}
+                          {field && isOpen && (
+                            <div className="border-t px-3 py-3">
+                              <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
+                                <div className="space-y-2">
+                                  <Label>Name</Label>
+                                  <Input
+                                    value={field.name}
                                     onChange={(event) =>
-                                      updateField(field.id, (current) =>
-                                        current.type === 'user_reference'
-                                          ? {
-                                              ...current,
-                                              config: {
-                                                allowedRoleIds:
-                                                  event.target.checked
-                                                    ? [
-                                                        ...current.config
-                                                          .allowedRoleIds,
-                                                        projectRole.id,
-                                                      ]
-                                                    : current.config.allowedRoleIds.filter(
-                                                        (item) =>
-                                                          item !==
-                                                          projectRole.id
-                                                      ),
-                                              },
-                                            }
-                                          : current
-                                      )
+                                      updateField(field.id, (current) => ({
+                                        ...current,
+                                        name: event.target.value,
+                                      }))
                                     }
                                   />
-                                  <span>{projectRole.name}</span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                                </div>
 
-                        {field.type === 'issue_reference' && (
-                          <div className="text-muted-foreground text-sm">
-                            This field can reference only issues from the same project.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                                <div className="space-y-2">
+                                  <Label>Type</Label>
+                                  <Select
+                                    value={field.type}
+                                    onValueChange={(value) =>
+                                      updateField(field.id, (current) =>
+                                        switchFieldType(
+                                          current,
+                                          value as CustomFieldType,
+                                          draft.roles
+                                        )
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {FIELD_TYPE_OPTIONS.map((type) => (
+                                        <SelectItem key={type} value={type}>
+                                          {formatFieldTypeLabel(type)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="flex items-end justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => deleteField(field.id)}
+                                  >
+                                    <Trash data-icon="inline-start" />
+                                    Delete
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <label className="mt-4 flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={field.required}
+                                  onChange={(event) =>
+                                    updateField(field.id, (current) => ({
+                                      ...current,
+                                      required: event.target.checked,
+                                    }))
+                                  }
+                                />
+                                <span>Required field</span>
+                              </label>
+
+                              <div className="mt-4">
+                                {field.type === 'text' && (
+                                  <div className="space-y-2">
+                                    <Label>Max length</Label>
+                                    <Input
+                                      type="number"
+                                      value={field.config.maxLength ?? ''}
+                                      onChange={(event) =>
+                                        updateField(field.id, (current) =>
+                                          current.type === 'text'
+                                            ? {
+                                                ...current,
+                                                config: {
+                                                  maxLength:
+                                                    event.target.value === ''
+                                                      ? undefined
+                                                      : Number(event.target.value),
+                                                },
+                                              }
+                                            : current
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                )}
+
+                                {field.type === 'number' && (
+                                  <div className="grid gap-3 md:grid-cols-3">
+                                    <div className="space-y-2">
+                                      <Label>Min</Label>
+                                      <Input
+                                        type="number"
+                                        value={field.config.min ?? ''}
+                                        onChange={(event) =>
+                                          updateField(field.id, (current) =>
+                                            current.type === 'number'
+                                              ? {
+                                                  ...current,
+                                                  config: {
+                                                    ...current.config,
+                                                    min:
+                                                      event.target.value === ''
+                                                        ? undefined
+                                                        : Number(event.target.value),
+                                                  },
+                                                }
+                                              : current
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Max</Label>
+                                      <Input
+                                        type="number"
+                                        value={field.config.max ?? ''}
+                                        onChange={(event) =>
+                                          updateField(field.id, (current) =>
+                                            current.type === 'number'
+                                              ? {
+                                                  ...current,
+                                                  config: {
+                                                    ...current.config,
+                                                    max:
+                                                      event.target.value === ''
+                                                        ? undefined
+                                                        : Number(event.target.value),
+                                                  },
+                                                }
+                                              : current
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <label className="flex items-end gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(field.config.isInteger)}
+                                        onChange={(event) =>
+                                          updateField(field.id, (current) =>
+                                            current.type === 'number'
+                                              ? {
+                                                  ...current,
+                                                  config: {
+                                                    ...current.config,
+                                                    isInteger: event.target.checked,
+                                                  },
+                                                }
+                                              : current
+                                          )
+                                        }
+                                      />
+                                      <span>Integer only</span>
+                                    </label>
+                                  </div>
+                                )}
+
+                                {field.type === 'user_reference' && (
+                                  <div className="space-y-2">
+                                    <Label>Allowed roles</Label>
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                      {draft.roles.map((projectRole) => (
+                                        <label
+                                          key={projectRole.id}
+                                          className="flex items-center gap-2 text-sm"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={field.config.allowedRoleIds.includes(
+                                              projectRole.id
+                                            )}
+                                            onChange={(event) =>
+                                              updateField(field.id, (current) =>
+                                                current.type === 'user_reference'
+                                                  ? {
+                                                      ...current,
+                                                      config: {
+                                                        allowedRoleIds:
+                                                          event.target.checked
+                                                            ? [
+                                                                ...current.config
+                                                                  .allowedRoleIds,
+                                                                projectRole.id,
+                                                              ]
+                                                            : current.config.allowedRoleIds.filter(
+                                                                (item) =>
+                                                                  item !==
+                                                                  projectRole.id
+                                                              ),
+                                                      },
+                                                    }
+                                                  : current
+                                              )
+                                            }
+                                          />
+                                          <span>{projectRole.name}</span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {field.type === 'issue_reference' && (
+                                  <div className="text-muted-foreground text-sm">
+                                    This field can reference only issues from the same project.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </SortableSettingsRow>
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
           </SettingsSection>
         </TabsContent>
 

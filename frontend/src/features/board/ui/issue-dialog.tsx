@@ -21,6 +21,7 @@ import { AttachmentImage } from '@/features/board/ui/attachment-image.tsx';
 import { AttachmentRow } from '@/features/board/ui/attachment-row.tsx';
 import {
   formatCustomFieldValue,
+  getOrderedCustomFields,
   getStatusLabel,
 } from '@/features/project-config/model';
 
@@ -48,7 +49,7 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
-  const customDialogFields = projectConfig?.customFields ?? [];
+  const customDialogFields = getOrderedCustomFields(projectConfig);
 
   const [assignees, setAssignees] = useState<UserProfileWithRole[]>([]);
   const [author, setAuthor] = useState<UserProfileWithRole | null>(null);

@@ -9,6 +9,7 @@ export type SystemIssueFieldId =
   | 'type'
   | 'priority'
   | 'assignee'
+  | 'author'
   | 'startDate'
   | 'dueDate'
   | 'attachments';
@@ -105,6 +106,7 @@ export interface ProjectConfig {
   roles: CustomRole[];
   lifecycle: LifecycleConfig;
   customFields: CustomFieldDefinition[];
+  fieldOrder: string[];
   updatedAt: string;
 }
 
@@ -150,6 +152,7 @@ export const SYSTEM_ISSUE_FIELDS: Array<{
   { id: 'type', label: 'Type' },
   { id: 'priority', label: 'Priority' },
   { id: 'assignee', label: 'Assignee' },
+  { id: 'author', label: 'Author' },
   { id: 'startDate', label: 'Start date' },
   { id: 'dueDate', label: 'Due date' },
   { id: 'attachments', label: 'Attachments' },

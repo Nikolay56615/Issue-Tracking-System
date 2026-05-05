@@ -127,6 +127,23 @@ const createField = (projectId, slug, name, type, required, config) => ({
   config: structuredClone(config),
 });
 
+const SYSTEM_FIELD_IDS = [
+  'name',
+  'description',
+  'type',
+  'priority',
+  'assignee',
+  'author',
+  'startDate',
+  'dueDate',
+  'attachments',
+];
+
+const createFieldOrder = (customFields) => [
+  ...SYSTEM_FIELD_IDS,
+  ...customFields.map((field) => field.id),
+];
+
 const createTransition = (projectId, slug, fromStatusId, toStatusId, conditions) => ({
   id: `project-${projectId}-transition-${slug}`,
   fromStatusId,
@@ -203,6 +220,7 @@ const createDefaultProjectConfig = (projectId) => {
       ],
     },
     customFields: [],
+    fieldOrder: createFieldOrder([]),
     updatedAt: new Date().toISOString(),
   };
 };
@@ -304,6 +322,7 @@ const createQaVisionProjectConfig = (projectId) => {
       ],
     },
     customFields: [environment, storyPoints, qaEngineer, blockedBy],
+    fieldOrder: createFieldOrder([environment, storyPoints, qaEngineer, blockedBy]),
     updatedAt: new Date().toISOString(),
   };
 };
@@ -374,6 +393,7 @@ const createProductTemplateConfig = (projectId) => {
       ],
     },
     customFields: [uxOwner, estimate, releaseNotes],
+    fieldOrder: createFieldOrder([uxOwner, estimate, releaseNotes]),
     updatedAt: new Date().toISOString(),
   };
 };
@@ -635,6 +655,7 @@ const normalizeTemplateConfig = (config) => ({
     ),
   },
   customFields: config.customFields.map((field) => structuredClone(field)),
+  fieldOrder: [...(config.fieldOrder ?? createFieldOrder(config.customFields))],
 });
 
 const cloneConfigForProject = (projectId, templateConfig) => {
@@ -726,6 +747,14 @@ const cloneConfigForProject = (projectId, templateConfig) => {
     };
   });
 
+  const fieldOrder = (templateConfig.fieldOrder ?? createFieldOrder(templateConfig.customFields))
+    .map((fieldId) => fieldIdMap.get(fieldId) ?? fieldId)
+    .filter(
+      (fieldId, index, array) =>
+        array.indexOf(fieldId) === index &&
+        (SYSTEM_FIELD_IDS.includes(fieldId) || customFields.some((field) => field.id === fieldId))
+    );
+
   const transitions = templateConfig.lifecycle.transitions.map(
     (transition, index) => ({
       id: `project-${projectId}-transition-${slugify(transition.id || `transition-${index + 1}`)}`,
@@ -761,6 +790,7 @@ const cloneConfigForProject = (projectId, templateConfig) => {
       transitions,
     },
     customFields,
+    fieldOrder,
     updatedAt: new Date().toISOString(),
   };
 };
@@ -1029,6 +1059,8 @@ const validateProjectConfig = (projectId, config) => {
   const customFieldsById = new Map(
     config.customFields.map((field) => [field.id, field])
   );
+  const expectedFieldOrder = createFieldOrder(config.customFields);
+  const expectedFieldIds = new Set(expectedFieldOrder);
 
   if (
     config.lifecycle.statuses.filter((status) => status.isInitial).length !== 1
@@ -1056,6 +1088,23 @@ const validateProjectConfig = (projectId, config) => {
     ) {
       return `${field.name} references a missing role`;
     }
+  }
+
+  if (!Array.isArray(config.fieldOrder)) {
+    return 'Field order must be present';
+  }
+
+  if (config.fieldOrder.length !== expectedFieldOrder.length) {
+    return 'Field order must include every system and custom field exactly once';
+  }
+
+  if (
+    config.fieldOrder.some(
+      (fieldId, index) =>
+        !expectedFieldIds.has(fieldId) || config.fieldOrder.indexOf(fieldId) !== index
+    )
+  ) {
+    return 'Field order contains an invalid or duplicated field';
   }
 
   for (const transition of config.lifecycle.transitions) {

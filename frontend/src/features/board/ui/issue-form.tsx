@@ -58,6 +58,7 @@ import type { CustomFieldDefinition } from '@/features/project-config/model/proj
 import {
   formatCustomFieldValue,
   getAssignableMembersForField,
+  getOrderedCustomFields,
 } from '@/features/project-config/model';
 import { UsersRequests } from '@/features/users/api';
 import type { UserProfileWithRole } from '@/features/profile';
@@ -78,7 +79,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
     (state) => state.projectConfig
   );
 
-  const customFields = projectConfig?.customFields ?? [];
+  const customFields = getOrderedCustomFields(projectConfig);
   const [name, setName] = useState(issue?.name ?? '');
   const [type, setType] = useState<IssueType>(issue?.type ?? 'TASK');
   const [priority, setPriority] = useState<IssuePriority>(

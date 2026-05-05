@@ -9,7 +9,7 @@ import type { Issue } from '@/features/board/model';
 import { TypeBadge } from '@/features/board/ui/type-badge.tsx';
 import { PriorityBadge } from '@/features/board/ui/priority-badge.tsx';
 import { Button } from '@/components/ui/button.tsx';
-import { Trash, User } from 'lucide-react';
+import { Trash } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { deleteIssue } from '@/features/board/model/board.actions.ts';
 import { useEffect, useState } from 'react';
@@ -26,6 +26,7 @@ import {
   getStatusLabel,
 } from '@/features/project-config/model';
 import { StatusBadge } from '@/features/board/ui/status-badge.tsx';
+import { UserValueCard } from '@/features/board/ui/user-field.tsx';
 
 interface IssueDialogProps {
   issue: Issue;
@@ -54,7 +55,7 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
   const customDialogFields = getOrderedCustomFields(projectConfig);
   const statusMeta = getStatusById(projectConfig, status);
 
-  const [assignees, setAssignees] = useState<UserProfileWithRole[]>([]);
+  const [assignee, setAssignee] = useState<UserProfileWithRole | null>(null);
   const [author, setAuthor] = useState<UserProfileWithRole | null>(null);
   const [projectMembers, setProjectMembers] = useState<UserProfileWithRole[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -72,10 +73,9 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
         setAuthor(authorData || null);
 
         // Находим assignees
-        const assigneesData = projectMembers.filter((u) =>
-          assigneeIds.includes(u.id)
-        );
-        setAssignees(assigneesData);
+        const assigneeData =
+          projectMembers.find((u) => assigneeIds.includes(u.id)) ?? null;
+        setAssignee(assigneeData);
       } catch (error) {
         console.error('Failed to fetch users:', error);
       } finally {
@@ -130,56 +130,21 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
 
             <div>
               <span className="mb-1 block text-sm font-medium">Author</span>
-              {loadingUsers ? (
-                <div className="text-muted-foreground text-sm">Loading...</div>
-              ) : author ? (
-                <div
-                  className="flex items-center gap-2 rounded border px-3 py-2
-                    text-sm"
-                >
-                  <User className="text-muted-foreground h-4 w-4" />
-                  <div className="flex flex-col">
-                    <span className="font-medium">{author.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {author.email}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-muted-foreground text-sm">Unknown</div>
-              )}
+              <UserValueCard
+                member={author}
+                loading={loadingUsers}
+                emptyLabel="Unknown author"
+              />
             </div>
 
-            {assigneeIds.length > 0 && (
-              <div>
-                <span className="mb-2 block text-sm font-medium">
-                  Assignees
-                </span>
-                {loadingUsers ? (
-                  <div className="text-muted-foreground text-sm">
-                    Loading...
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {assignees.map((assignee) => (
-                      <div
-                        key={assignee.id}
-                        className="flex items-center gap-2 rounded border px-3
-                          py-2 text-sm"
-                      >
-                        <User className="text-muted-foreground h-4 w-4" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{assignee.name}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {assignee.email}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <div>
+              <span className="mb-1 block text-sm font-medium">Assignee</span>
+              <UserValueCard
+                member={assignee}
+                loading={loadingUsers}
+                emptyLabel="Not set"
+              />
+            </div>
 
             {description && (
               <div>
@@ -210,12 +175,23 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
                   <span className="mb-1 block text-sm font-medium">
                     {field.name}
                   </span>
-                  <span className="text-muted-foreground text-sm">
-                    {formatCustomFieldValue(field, value, {
-                      issues: boardIssues,
-                      members: projectMembers,
-                    })}
-                  </span>
+                  {field.type === 'user_reference' ? (
+                    <UserValueCard
+                      member={
+                        projectMembers.find((member) => member.id === value) ??
+                        null
+                      }
+                      loading={loadingUsers}
+                      emptyLabel="Not set"
+                    />
+                  ) : (
+                    <span className="text-muted-foreground text-sm">
+                      {formatCustomFieldValue(field, value, {
+                        issues: boardIssues,
+                        members: projectMembers,
+                      })}
+                    </span>
+                  )}
                 </div>
               );
             })}

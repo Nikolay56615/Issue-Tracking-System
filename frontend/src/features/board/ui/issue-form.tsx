@@ -62,6 +62,10 @@ import {
 } from '@/features/project-config/model';
 import { UsersRequests } from '@/features/users/api';
 import type { UserProfileWithRole } from '@/features/profile';
+import {
+  UserSelectField,
+  UserValueCard,
+} from '@/features/board/ui/user-field.tsx';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
@@ -154,6 +158,11 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
     () => issues.filter((item) => item.projectId === projectId && item.id !== issue?.id),
     [issues, projectId, issue?.id]
   );
+  const authorMember = useMemo(
+    () =>
+      projectMembers.find((member) => member.id === issue?.authorId) ?? null,
+    [issue?.authorId, projectMembers]
+  );
 
   const resetState = () => {
     setName(issue?.name ?? '');
@@ -244,24 +253,14 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       const availableMembers = getAssignableMembersForField(field, projectMembers);
 
       return (
-        <Select
-          value={value == null ? 'none' : String(value)}
-          onValueChange={(nextValue) =>
-            setFieldValue(field.id, nextValue === 'none' ? null : Number(nextValue))
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder={field.name} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Not set</SelectItem>
-            {availableMembers.map((member) => (
-              <SelectItem key={member.id} value={String(member.id)}>
-                {member.name} ({member.roleName})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <UserSelectField
+          members={availableMembers}
+          value={typeof value === 'number' ? value : null}
+          onChange={(nextValue) => setFieldValue(field.id, nextValue)}
+          placeholder={field.name}
+          emptyLabel="Not set"
+          disabled={membersLoading}
+        />
       );
     }
 
@@ -466,6 +465,17 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             </div>
           </div>
 
+          {mode === 'edit' && (
+            <div className="flex flex-col gap-3">
+              <Label>Author</Label>
+              <UserValueCard
+                member={authorMember}
+                loading={membersLoading}
+                emptyLabel="Unknown author"
+              />
+            </div>
+          )}
+
           <div className="flex flex-col gap-3">
             <Label>Assignee</Label>
             {membersLoading ? (
@@ -474,24 +484,13 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
                 <span>Loading members...</span>
               </div>
             ) : (
-              <Select
-                value={assigneeId == null ? 'none' : String(assigneeId)}
-                onValueChange={(value) =>
-                  setAssigneeId(value === 'none' ? null : Number(value))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Not set</SelectItem>
-                  {projectMembers.map((member) => (
-                    <SelectItem key={member.id} value={String(member.id)}>
-                      {member.name} ({member.roleName})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <UserSelectField
+                members={projectMembers}
+                value={assigneeId}
+                onChange={setAssigneeId}
+                placeholder="Assignee"
+                emptyLabel="Not set"
+              />
             )}
           </div>
 

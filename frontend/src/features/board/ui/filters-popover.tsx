@@ -34,6 +34,7 @@ import {
 } from '@/features/project-config/model';
 import { UsersRequests } from '@/features/users';
 import type { UserProfileWithRole } from '@/features/profile';
+import { UserSelectField } from '@/features/board/ui/user-field.tsx';
 
 const TYPES = ['TASK', 'BUG', 'FEATURE', 'SEARCH'] as const;
 const PRIORITIES = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'] as const;
@@ -179,27 +180,19 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
       const allowedMembers = getAssignableMembersForField(field, projectMembers);
 
       return (
-        <Select
-          value={value == null ? 'all' : String(value)}
-          onValueChange={(nextValue) =>
+        <UserSelectField
+          members={allowedMembers}
+          value={typeof value === 'number' ? value : null}
+          onChange={(nextValue) =>
             setLocalCustomFilters((prev) => ({
               ...prev,
-              [field.id]: nextValue === 'all' ? null : Number(nextValue),
+              [field.id]: nextValue,
             }))
           }
-        >
-          <SelectTrigger>
-            <SelectValue placeholder={field.name} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Any member</SelectItem>
-            {allowedMembers.map((member) => (
-              <SelectItem key={member.id} value={String(member.id)}>
-                {member.name} ({member.roleName})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder={field.name}
+          emptyLabel="Any member"
+          disabled={membersLoading}
+        />
       );
     }
 
@@ -294,24 +287,13 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
                 <span>Loading members...</span>
               </div>
             ) : (
-              <Select
-                value={localAssigneeId == null ? 'all' : String(localAssigneeId)}
-                onValueChange={(value) =>
-                  setLocalAssigneeId(value === 'all' ? undefined : Number(value))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Any assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any assignee</SelectItem>
-                  {projectMembers.map((member) => (
-                    <SelectItem key={member.id} value={String(member.id)}>
-                      {member.name} ({member.roleName})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <UserSelectField
+                members={projectMembers}
+                value={localAssigneeId}
+                onChange={(value) => setLocalAssigneeId(value ?? undefined)}
+                placeholder="Any assignee"
+                emptyLabel="Any assignee"
+              />
             )}
           </div>
 

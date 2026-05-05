@@ -73,12 +73,10 @@ const FIELD_TYPE_OPTIONS: CustomFieldType[] = [
   'issue_reference',
 ];
 
-const CONDITION_OPTIONS: Array<TransitionCondition['type']> = [
-  'role',
-  'author',
-  'assignee',
-  'field_user_reference',
-];
+const CONDITION_EDITOR_OPTIONS = [
+  { value: 'role', label: 'Role' },
+  { value: 'user_source', label: 'User source' },
+] as const;
 
 const formatFieldTypeLabel = (type: CustomFieldType) =>
   type.replace('_', ' ');
@@ -218,6 +216,40 @@ const createCondition = (
   }
 
   return { type };
+};
+
+const getConditionEditorKind = (condition: TransitionCondition) =>
+  condition.type === 'role' ? 'role' : 'user_source';
+
+const getUserSourceValue = (condition: TransitionCondition) => {
+  if (condition.type === 'field_user_reference') {
+    return `field:${condition.customFieldId}`;
+  }
+
+  return condition.type;
+};
+
+const createConditionFromUserSource = (
+  value: string,
+  config: ProjectConfig
+): TransitionCondition => {
+  if (value === 'author') {
+    return { type: 'author' };
+  }
+
+  if (value === 'assignee') {
+    return { type: 'assignee' };
+  }
+
+  const fallbackField = config.customFields.find(
+    (field) => field.type === 'user_reference'
+  );
+
+  return {
+    type: 'field_user_reference',
+    customFieldId:
+      value.replace(/^field:/, '') || fallbackField?.id || '',
+  };
 };
 
 const getStatusName = (config: ProjectConfig, statusId: string) =>
@@ -1247,52 +1279,23 @@ export const ProjectSettingsPage = () => {
                           <div
                             key={`${transition.id}-${condition.type}-${index}`}
                             className="grid gap-3 rounded-md border p-3 md:grid-cols-[180px_1fr_auto]"
-                          >
-                            <div className="space-y-2">
-                              <Label>Condition</Label>
-                              <Select
-                                value={condition.type}
-                                onValueChange={(value) =>
-                                  updateTransition(transition.id, (current) => ({
-                                    ...current,
-                                    conditions: current.conditions.map(
-                                      (item, itemIndex) =>
-                                        itemIndex === index
-                                          ? createCondition(
-                                              value as TransitionCondition['type'],
-                                              draft
-                                            )
-                                          : item
-                                    ),
-                                  }))
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {CONDITION_OPTIONS.map((type) => (
-                                    <SelectItem key={type} value={type}>
-                                      {formatConditionLabel(type)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>Rule</Label>
-                              {condition.type === 'role' ? (
+                            >
+                              <div className="space-y-2">
+                                <Label>Condition</Label>
                                 <Select
-                                  value={condition.roleId}
+                                  value={getConditionEditorKind(condition)}
                                   onValueChange={(value) =>
                                     updateTransition(transition.id, (current) => ({
                                       ...current,
                                       conditions: current.conditions.map(
                                         (item, itemIndex) =>
-                                          itemIndex === index &&
-                                          item.type === 'role'
-                                            ? { ...item, roleId: value }
+                                          itemIndex === index
+                                            ? value === 'role'
+                                              ? createCondition('role', draft)
+                                              : createConditionFromUserSource(
+                                                  'assignee',
+                                                  draft
+                                                )
                                             : item
                                       ),
                                     }))
@@ -1302,50 +1305,94 @@ export const ProjectSettingsPage = () => {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {draft.roles.map((projectRole) => (
+                                    {CONDITION_EDITOR_OPTIONS.map((option) => (
                                       <SelectItem
-                                        key={projectRole.id}
-                                        value={projectRole.id}
+                                        key={option.value}
+                                        value={option.value}
                                       >
-                                        {projectRole.name}
+                                        {option.label}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
-                              ) : condition.type === 'field_user_reference' ? (
-                                <Select
-                                  value={condition.customFieldId}
-                                  onValueChange={(value) =>
-                                    updateTransition(transition.id, (current) => ({
-                                      ...current,
-                                      conditions: current.conditions.map(
-                                        (item, itemIndex) =>
-                                          itemIndex === index &&
-                                          item.type === 'field_user_reference'
-                                            ? { ...item, customFieldId: value }
-                                            : item
-                                      ),
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Choose field" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {userReferenceFields.map((field) => (
-                                      <SelectItem key={field.id} value={field.id}>
-                                        {field.name}
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>
+                                  {condition.type === 'role'
+                                    ? 'Role'
+                                    : 'User source'}
+                                </Label>
+                                {condition.type === 'role' ? (
+                                  <Select
+                                    value={condition.roleId}
+                                    onValueChange={(value) =>
+                                      updateTransition(transition.id, (current) => ({
+                                        ...current,
+                                        conditions: current.conditions.map(
+                                          (item, itemIndex) =>
+                                            itemIndex === index &&
+                                            item.type === 'role'
+                                              ? { ...item, roleId: value }
+                                              : item
+                                        ),
+                                      }))
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {draft.roles.map((projectRole) => (
+                                        <SelectItem
+                                          key={projectRole.id}
+                                          value={projectRole.id}
+                                        >
+                                          {projectRole.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Select
+                                    value={getUserSourceValue(condition)}
+                                    onValueChange={(value) =>
+                                      updateTransition(transition.id, (current) => ({
+                                        ...current,
+                                        conditions: current.conditions.map(
+                                          (item, itemIndex) =>
+                                            itemIndex === index
+                                              ? createConditionFromUserSource(
+                                                  value,
+                                                  draft
+                                                )
+                                              : item
+                                        ),
+                                      }))
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Choose source" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="author">
+                                        Author
                                       </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <div className="text-muted-foreground rounded-md border px-3 py-2 text-sm">
-                                  {formatConditionLabel(condition.type)} can
-                                  trigger this transition.
-                                </div>
-                              )}
-                            </div>
+                                      <SelectItem value="assignee">
+                                        Assignee
+                                      </SelectItem>
+                                      {userReferenceFields.map((field) => (
+                                        <SelectItem
+                                          key={field.id}
+                                          value={`field:${field.id}`}
+                                        >
+                                          {field.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              </div>
 
                             <div className="flex items-end justify-end">
                               <Button

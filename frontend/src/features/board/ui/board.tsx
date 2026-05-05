@@ -271,6 +271,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
                 key={status.id}
                 status={status.id}
                 title={status.name}
+                color={status.color}
                 issues={statusIssues}
                 canDrag={canDrag}
               />

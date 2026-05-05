@@ -21,9 +21,11 @@ import { AttachmentImage } from '@/features/board/ui/attachment-image.tsx';
 import { AttachmentRow } from '@/features/board/ui/attachment-row.tsx';
 import {
   formatCustomFieldValue,
+  getStatusById,
   getOrderedCustomFields,
   getStatusLabel,
 } from '@/features/project-config/model';
+import { StatusBadge } from '@/features/board/ui/status-badge.tsx';
 
 interface IssueDialogProps {
   issue: Issue;
@@ -50,6 +52,7 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
     (state) => state.projectConfig
   );
   const customDialogFields = getOrderedCustomFields(projectConfig);
+  const statusMeta = getStatusById(projectConfig, status);
 
   const [assignees, setAssignees] = useState<UserProfileWithRole[]>([]);
   const [author, setAuthor] = useState<UserProfileWithRole | null>(null);
@@ -119,9 +122,10 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
             <div className="flex gap-2">
               <TypeBadge type={type} />
               <PriorityBadge priority={priority} />
-              <span className="rounded-md border px-2 py-1 text-xs">
-                {getStatusLabel(projectConfig, status)}
-              </span>
+              <StatusBadge
+                label={getStatusLabel(projectConfig, status)}
+                color={statusMeta?.color ?? '#64748b'}
+              />
             </div>
 
             <div>

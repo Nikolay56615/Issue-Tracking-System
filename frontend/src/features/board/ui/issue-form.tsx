@@ -60,12 +60,11 @@ import {
   getAssignableMembersForField,
   getOrderedCustomFields,
 } from '@/features/project-config/model';
-import { UsersRequests } from '@/features/users/api';
-import type { UserProfileWithRole } from '@/features/profile';
 import {
   UserSelectField,
   UserValueCard,
 } from '@/features/board/ui/user-field.tsx';
+import { getProjectUsers } from '@/features/users/model/users.actions.ts';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
@@ -79,6 +78,11 @@ const ISSUE_PRIORITIES: IssuePriority[] = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'];
 export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
   const dispatch = useAppDispatch();
   const { issues, loading } = useAppSelector((state) => state.board);
+  const {
+    users,
+    loading: usersLoading,
+    projectId: usersProjectId,
+  } = useAppSelector((state) => state.users);
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
@@ -96,8 +100,6 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
   const [assigneeId, setAssigneeId] = useState<number | null>(
     issue?.assigneeIds[0] ?? null
   );
-  const [projectMembers, setProjectMembers] = useState<UserProfileWithRole[]>([]);
-  const [membersLoading, setMembersLoading] = useState(false);
   const [dueDate, setDueDate] = useState(
     issue?.dueDate ? issue.dueDate.split('T')[0] : ''
   );
@@ -126,33 +128,15 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       return;
     }
 
-    let cancelled = false;
+    dispatch(getProjectUsers(projectId));
+  }, [dispatch, open, projectId]);
 
-    const loadMembers = async () => {
-      setMembersLoading(true);
-      try {
-        const data = await UsersRequests.getProjectUsers(projectId);
-        if (!cancelled) {
-          setProjectMembers(data);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Failed to load project members:', error);
-          setProjectMembers([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setMembersLoading(false);
-        }
-      }
-    };
-
-    loadMembers();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, projectId]);
+  const projectMembers = useMemo(
+    () => (usersProjectId === projectId ? users : []),
+    [projectId, users, usersProjectId]
+  );
+  const membersLoading =
+    open && (usersLoading === 'pending' || usersProjectId !== projectId);
 
   const issueReferenceOptions = useMemo(
     () => issues.filter((item) => item.projectId === projectId && item.id !== issue?.id),

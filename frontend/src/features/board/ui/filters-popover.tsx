@@ -22,7 +22,6 @@ import type {
 import { BadgeButton } from '@/features/board/ui/badge-button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { getBoard } from '@/features/board/model/board.actions.ts';
 import {
   resetFilters,
   setFilters,
@@ -32,9 +31,8 @@ import {
   getOrderedCustomFields,
   type CustomFieldDefinition,
 } from '@/features/project-config/model';
-import { UsersRequests } from '@/features/users';
-import type { UserProfileWithRole } from '@/features/profile';
 import { UserSelectField } from '@/features/board/ui/user-field.tsx';
+import { getProjectUsers } from '@/features/users/model/users.actions.ts';
 
 const TYPES = ['TASK', 'BUG', 'FEATURE', 'SEARCH'] as const;
 const PRIORITIES = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'] as const;
@@ -49,6 +47,11 @@ const getStringValue = (value: IssueCustomFieldValue) =>
 export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
   const dispatch = useAppDispatch();
   const { filters, issues } = useAppSelector((state) => state.board);
+  const {
+    users,
+    loading: usersLoading,
+    projectId: usersProjectId,
+  } = useAppSelector((state) => state.users);
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
@@ -66,8 +69,6 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
     from: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
     to: filters.dateTo ? new Date(filters.dateTo) : undefined,
   });
-  const [projectMembers, setProjectMembers] = useState<UserProfileWithRole[]>([]);
-  const [membersLoading, setMembersLoading] = useState(false);
   const [localAssigneeId, setLocalAssigneeId] = useState<number | undefined>(
     filters.assigneeId
   );
@@ -78,33 +79,12 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
   useEffect(() => {
     if (!open) return;
 
-    let cancelled = false;
+    dispatch(getProjectUsers(projectId));
+  }, [dispatch, open, projectId]);
 
-    const loadMembers = async () => {
-      setMembersLoading(true);
-      try {
-        const data = await UsersRequests.getProjectUsers(projectId);
-        if (!cancelled) {
-          setProjectMembers(data);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Failed to load members for filters:', error);
-          setProjectMembers([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setMembersLoading(false);
-        }
-      }
-    };
-
-    loadMembers();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, projectId]);
+  const projectMembers = usersProjectId === projectId ? users : [];
+  const membersLoading =
+    open && (usersLoading === 'pending' || usersProjectId !== projectId);
 
   const issueReferenceOptions = useMemo(
     () => issues.filter((issue) => issue.projectId === projectId),
@@ -132,12 +112,6 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
     };
 
     dispatch(setFilters(nextFilters));
-    dispatch(
-      getBoard({
-        projectId,
-        filters: nextFilters,
-      })
-    );
     setOpen(false);
   };
 

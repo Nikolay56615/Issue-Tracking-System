@@ -12,11 +12,8 @@ import { Button } from '@/components/ui/button.tsx';
 import { Trash } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { deleteIssue } from '@/features/board/model/board.actions.ts';
-import { useEffect, useState } from 'react';
-import type { UserProfileWithRole } from '@/features/profile';
 import { IssueForm } from '@/features/board/ui/issue-form.tsx';
 import ReactMarkdown from 'react-markdown';
-import { UsersRequests } from '@/features/users';
 import { AttachmentImage } from '@/features/board/ui/attachment-image.tsx';
 import { AttachmentRow } from '@/features/board/ui/attachment-row.tsx';
 import {
@@ -49,42 +46,22 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
   const dispatch = useAppDispatch();
   const { deleteIssueStatus } = useAppSelector((state) => state.board);
   const boardIssues = useAppSelector((state) => state.board.issues);
+  const {
+    users: projectMembers,
+    loading: usersLoading,
+    projectId: usersProjectId,
+  } = useAppSelector((state) => state.users);
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
   const customDialogFields = getOrderedCustomFields(projectConfig);
   const statusMeta = getStatusById(projectConfig, status);
-
-  const [assignee, setAssignee] = useState<UserProfileWithRole | null>(null);
-  const [author, setAuthor] = useState<UserProfileWithRole | null>(null);
-  const [projectMembers, setProjectMembers] = useState<UserProfileWithRole[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      setLoadingUsers(true);
-      try {
-        // Загружаем всех участников проекта
-        const projectMembers = await UsersRequests.getProjectUsers(projectId);
-        setProjectMembers(projectMembers);
-
-        // Находим автора
-        const authorData = projectMembers.find((u) => u.id === authorId);
-        setAuthor(authorData || null);
-
-        // Находим assignees
-        const assigneeData =
-          projectMembers.find((u) => assigneeIds.includes(u.id)) ?? null;
-        setAssignee(assigneeData);
-      } catch (error) {
-        console.error('Failed to fetch users:', error);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-
-    fetchUsers();
-  }, [projectId, authorId, assigneeIds]);
+  const members = usersProjectId === projectId ? projectMembers : [];
+  const loadingUsers =
+    usersLoading === 'pending' || usersProjectId !== projectId;
+  const author = members.find((member) => member.id === authorId) ?? null;
+  const assignee =
+    members.find((member) => assigneeIds.includes(member.id)) ?? null;
 
   const isImage = (filename: string): boolean => {
     const ext = filename.toLowerCase().split('.').pop();
@@ -178,7 +155,7 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
                   {field.type === 'user_reference' ? (
                     <UserValueCard
                       member={
-                        projectMembers.find((member) => member.id === value) ??
+                        members.find((member) => member.id === value) ??
                         null
                       }
                       loading={loadingUsers}
@@ -188,7 +165,7 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
                     <span className="text-muted-foreground text-sm">
                       {formatCustomFieldValue(field, value, {
                         issues: boardIssues,
-                        members: projectMembers,
+                        members,
                       })}
                     </span>
                   )}

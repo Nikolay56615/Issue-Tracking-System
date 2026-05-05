@@ -15,10 +15,7 @@ import {
 } from '@dnd-kit/core';
 import { useEffect, useState } from 'react';
 import { StatusColumn } from './status-column.tsx';
-import {
-  changeIssueStatus,
-  getBoard,
-} from '@/features/board/model/board.actions.ts';
+import { changeIssueStatus } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch, useAppSelector } from '@/store';
 import type { CustomRole, UserProfile } from '@/features/profile';
 import { toast } from 'sonner';
@@ -27,7 +24,6 @@ import { ProfileRequests } from '@/features/profile';
 import { Loader2 } from 'lucide-react';
 import { getApiErrorMessage } from '@/api/get-error-message.ts';
 import {
-  fetchProjectConfig,
   getOrderedStatuses,
   getStatusLabel,
   isTransitionAllowedForIssue,
@@ -141,11 +137,6 @@ export const Board = ({ projectId }: { projectId: number }) => {
   const statusIds = statuses.map((status) => status.id);
   const transitions = projectConfig?.lifecycle.transitions ?? [];
   const transitionRulesEnabled = isTransitionRulesEnabled(projectConfig);
-
-  useEffect(() => {
-    dispatch(getBoard({ projectId }));
-    dispatch(fetchProjectConfig(projectId));
-  }, [dispatch, projectId]);
 
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
 

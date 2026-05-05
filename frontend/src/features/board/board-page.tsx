@@ -18,8 +18,12 @@ export const BoardPage = () => {
   const filters = useAppSelector((state) => state.board.filters);
 
   const debounceTimeout = useRef<number | null>(null);
+  const loadedProjectId = useRef<number | null>(null);
 
   useEffect(() => {
+    if (loadedProjectId.current === projectId) return;
+
+    loadedProjectId.current = projectId;
     dispatch(fetchProjectConfig(projectId));
     dispatch(getProjectUsers(projectId));
   }, [dispatch, projectId]);

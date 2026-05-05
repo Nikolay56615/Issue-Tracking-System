@@ -1,6 +1,7 @@
 package issue.tracking.system.issuetrackingsystem.issue.api;
 
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Set;
 
 public record IssueFilterDto(
@@ -9,5 +10,6 @@ public record IssueFilterDto(
     Long assigneeId,            // Filter by assignee
     String nameQuery,           // Search by name
     LocalDate dateFrom,         // Date range filter
-    LocalDate dateTo
+    LocalDate dateTo,
+    Map<String, Object> customFields
 ) {}

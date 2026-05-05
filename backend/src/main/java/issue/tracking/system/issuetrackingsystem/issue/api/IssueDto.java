@@ -1,9 +1,8 @@
 package issue.tracking.system.issuetrackingsystem.issue.api;
 
-import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
-
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 public record IssueDto(
     Long id,
@@ -12,10 +11,11 @@ public record IssueDto(
     String description,
     IssueType type,
     IssuePriority priority,
-    IssueStatus status,
+    String status,
     List<Long> assigneeIds,
     Long authorId,
     LocalDate startDate,
     LocalDate dueDate,
-    List<AttachmentDto> attachments
+    List<AttachmentDto> attachments,
+    Map<String, Object> customFields
 ) {}

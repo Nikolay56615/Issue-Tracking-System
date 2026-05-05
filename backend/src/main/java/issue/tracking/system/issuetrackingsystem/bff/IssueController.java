@@ -52,7 +52,8 @@ public class IssueController {
             request.description(),
             request.assigneeIds(),
             attachments,
-            request.dueDate()
+            request.dueDate(),
+            request.customFields()
         );
     }
 
@@ -77,7 +78,9 @@ public class IssueController {
             request.type(),
             request.status(),
             request.assigneeIds(),
-            attachments
+            attachments,
+            request.dueDate(),
+            request.customFields()
         );
 
         return queryApi.getById(id);

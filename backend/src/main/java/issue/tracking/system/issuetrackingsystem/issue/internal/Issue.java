@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssuePriority;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueType;
-import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,9 +35,8 @@ public class Issue {
     @Column(nullable = false)
     private IssuePriority priority;
 
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private IssueStatus status;
+    private String status;
 
     @Column(name = "project_id", nullable = false)
     private Long projectId;
@@ -56,6 +54,9 @@ public class Issue {
 
     @Column(name = "due_date")
     private LocalDate dueDate;
+
+    @Column(name = "custom_fields_json", columnDefinition = "TEXT")
+    private String customFieldsJson;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

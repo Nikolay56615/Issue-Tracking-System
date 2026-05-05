@@ -31,6 +31,7 @@ import {
   getOrderedStatuses,
   getStatusLabel,
   isTransitionAllowedForIssue,
+  isTransitionRulesEnabled,
 } from '@/features/project-config/model';
 
 const isTransitionAllowed = (
@@ -38,8 +39,13 @@ const isTransitionAllowed = (
   to: IssueStatus,
   currentUserId: number | null,
   currentRoleId: string | null,
-  transitions: LifecycleTransition[]
+  transitions: LifecycleTransition[],
+  transitionRulesEnabled: boolean
 ): boolean => {
+  if (!transitionRulesEnabled) {
+    return true;
+  }
+
   return transitions.some((transition) => {
     if (
       transition.fromStatusId !== issue.status ||
@@ -134,6 +140,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
   const statuses = getOrderedStatuses(projectConfig);
   const statusIds = statuses.map((status) => status.id);
   const transitions = projectConfig?.lifecycle.transitions ?? [];
+  const transitionRulesEnabled = isTransitionRulesEnabled(projectConfig);
 
   useEffect(() => {
     dispatch(getBoard({ projectId }));
@@ -184,7 +191,8 @@ export const Board = ({ projectId }: { projectId: number }) => {
         overStatus,
         currentUser?.id ?? null,
         role.id,
-        transitions
+        transitions,
+        transitionRulesEnabled
       )
     ) {
       toast.error('Transition not allowed', {
@@ -219,6 +227,10 @@ export const Board = ({ projectId }: { projectId: number }) => {
 
   const canDrag = (issue: Issue): boolean => {
     if (projectConfig === null || role === null) return false;
+
+    if (!transitionRulesEnabled) {
+      return true;
+    }
 
     return transitions.some((transition) => {
       return (

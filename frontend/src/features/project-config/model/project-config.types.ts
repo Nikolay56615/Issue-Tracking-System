@@ -97,6 +97,7 @@ export interface Transition {
 }
 
 export interface LifecycleConfig {
+  transitionRulesEnabled: boolean;
   statuses: CustomStatus[];
   transitions: Transition[];
 }

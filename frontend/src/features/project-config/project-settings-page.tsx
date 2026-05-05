@@ -588,6 +588,8 @@ export const ProjectSettingsPage = () => {
     return <div className="p-8">Project config is empty.</div>;
   }
 
+  const transitionRulesDisabled = !draft.lifecycle.transitionRulesEnabled;
+
   const updateDraft = (updater: (current: ProjectConfig) => ProjectConfig) => {
     setDraft((current) =>
       current
@@ -746,6 +748,7 @@ export const ProjectSettingsPage = () => {
       return {
         ...current,
         lifecycle: {
+          ...current.lifecycle,
           statuses: nextStatuses,
           transitions: current.lifecycle.transitions.filter(
             (transition) =>
@@ -1171,12 +1174,43 @@ export const ProjectSettingsPage = () => {
             title="Transitions"
             description="Keep transitions readable in a compact list and expand rows only when needed."
             action={
-              <Button size="sm" onClick={addTransition}>
-                <Plus data-icon="inline-start" />
-                Add transition
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={transitionRulesDisabled}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        lifecycle: {
+                          ...current.lifecycle,
+                          transitionRulesEnabled: !event.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  <span>Disable transition rules</span>
+                </label>
+                <Button
+                  size="sm"
+                  onClick={addTransition}
+                  disabled={transitionRulesDisabled}
+                >
+                  <Plus data-icon="inline-start" />
+                  Add transition
+                </Button>
+              </div>
             }
           >
+            {transitionRulesDisabled ? (
+              <div
+                className="bg-muted/20 text-muted-foreground rounded-lg border
+                  px-3 py-2 text-sm"
+              >
+                Transition graph stays saved, but any project member can move an
+                issue from any status to any status while rules are disabled.
+              </div>
+            ) : null}
             {draft.lifecycle.transitions.map((transition) => {
               const isOpen = expandedTransitionId === transition.id;
               const conditionSummary = transition.conditions
@@ -1203,82 +1237,89 @@ export const ProjectSettingsPage = () => {
                   />
                   {isOpen && (
                     <div className="border-t px-3 py-3">
-                      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                        <div className="space-y-2">
-                          <Label>From</Label>
-                          <Select
-                            value={transition.fromStatusId}
-                            onValueChange={(value) =>
-                              updateTransition(transition.id, (current) => ({
-                                ...current,
-                                fromStatusId: value,
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sortedStatuses.map((status) => (
-                                <SelectItem key={status.id} value={status.id}>
-                                  {status.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      <fieldset
+                        disabled={transitionRulesDisabled}
+                        className={cn(
+                          'space-y-4',
+                          transitionRulesDisabled && 'opacity-60'
+                        )}
+                      >
+                        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                          <div className="space-y-2">
+                            <Label>From</Label>
+                            <Select
+                              value={transition.fromStatusId}
+                              onValueChange={(value) =>
+                                updateTransition(transition.id, (current) => ({
+                                  ...current,
+                                  fromStatusId: value,
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sortedStatuses.map((status) => (
+                                  <SelectItem key={status.id} value={status.id}>
+                                    {status.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>To</Label>
+                            <Select
+                              value={transition.toStatusId}
+                              onValueChange={(value) =>
+                                updateTransition(transition.id, (current) => ({
+                                  ...current,
+                                  toStatusId: value,
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sortedStatuses.map((status) => (
+                                  <SelectItem key={status.id} value={status.id}>
+                                    {status.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="flex items-end justify-end">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                updateDraft((current) => ({
+                                  ...current,
+                                  lifecycle: {
+                                    ...current.lifecycle,
+                                    transitions: current.lifecycle.transitions.filter(
+                                      (item) => item.id !== transition.id
+                                    ),
+                                  },
+                                }))
+                              }
+                            >
+                              <Trash data-icon="inline-start" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <Label>To</Label>
-                          <Select
-                            value={transition.toStatusId}
-                            onValueChange={(value) =>
-                              updateTransition(transition.id, (current) => ({
-                                ...current,
-                                toStatusId: value,
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sortedStatuses.map((status) => (
-                                <SelectItem key={status.id} value={status.id}>
-                                  {status.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex items-end justify-end">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              updateDraft((current) => ({
-                                ...current,
-                                lifecycle: {
-                                  ...current.lifecycle,
-                                  transitions: current.lifecycle.transitions.filter(
-                                    (item) => item.id !== transition.id
-                                  ),
-                                },
-                              }))
-                            }
-                          >
-                            <Trash data-icon="inline-start" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 space-y-3">
-                        {transition.conditions.map((condition, index) => (
-                          <div
-                            key={`${transition.id}-${condition.type}-${index}`}
-                            className="grid gap-3 rounded-md border p-3 md:grid-cols-[180px_1fr_auto]"
+                        <div className="space-y-3">
+                          {transition.conditions.map((condition, index) => (
+                            <div
+                              key={`${transition.id}-${condition.type}-${index}`}
+                              className="grid gap-3 rounded-md border p-3 md:grid-cols-[180px_1fr_auto]"
                             >
                               <div className="space-y-2">
                                 <Label>Condition</Label>
@@ -1394,7 +1435,7 @@ export const ProjectSettingsPage = () => {
                                 )}
                               </div>
 
-                            <div className="flex items-end justify-end">
+                              <div className="flex items-end justify-end">
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -1410,27 +1451,28 @@ export const ProjectSettingsPage = () => {
                                 <Trash data-icon="inline-start" />
                                 Delete
                               </Button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
 
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            updateTransition(transition.id, (current) => ({
-                              ...current,
-                              conditions: [
-                                ...current.conditions,
-                                createCondition('role', draft),
-                              ],
-                            }))
-                          }
-                        >
-                          <Plus data-icon="inline-start" />
-                          Add condition
-                        </Button>
-                      </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              updateTransition(transition.id, (current) => ({
+                                ...current,
+                                conditions: [
+                                  ...current.conditions,
+                                  createCondition('role', draft),
+                                ],
+                              }))
+                            }
+                          >
+                            <Plus data-icon="inline-start" />
+                            Add condition
+                          </Button>
+                        </div>
+                      </fieldset>
                     </div>
                   )}
                 </div>

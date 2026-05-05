@@ -192,6 +192,7 @@ const createDefaultProjectConfig = (projectId) => {
     projectId,
     roles: [owner, admin, worker, reviewer],
     lifecycle: {
+      transitionRulesEnabled: true,
       statuses: [backlog, inProgress, review, done],
       transitions: [
         createTransition(projectId, 'backlog-to-in-progress', backlog.id, inProgress.id, [
@@ -282,6 +283,7 @@ const createQaVisionProjectConfig = (projectId) => {
     projectId,
     roles: [owner, admin, developer, qa, qaLead],
     lifecycle: {
+      transitionRulesEnabled: true,
       statuses: [backlog, inProgress, review, qaStatus, done],
       transitions: [
         createTransition(projectId, 'backlog-to-in-progress', backlog.id, inProgress.id, [
@@ -368,6 +370,7 @@ const createProductTemplateConfig = (projectId) => {
     projectId,
     roles: [owner, admin, worker, reviewer, designer].filter(Boolean),
     lifecycle: {
+      transitionRulesEnabled: true,
       statuses: [discovery, planned, build, review, release],
       transitions: [
         createTransition(projectId, 'discovery-to-planned', discovery.id, planned.id, [
@@ -649,6 +652,7 @@ const getInitialStatusId = (config) => {
 const normalizeTemplateConfig = (config) => ({
   roles: config.roles.map((role) => structuredClone(role)),
   lifecycle: {
+    transitionRulesEnabled: config.lifecycle.transitionRulesEnabled !== false,
     statuses: config.lifecycle.statuses.map((status) => structuredClone(status)),
     transitions: config.lifecycle.transitions.map((transition) =>
       structuredClone(transition)
@@ -786,6 +790,8 @@ const cloneConfigForProject = (projectId, templateConfig) => {
     projectId,
     roles,
     lifecycle: {
+      transitionRulesEnabled:
+        templateConfig.lifecycle.transitionRulesEnabled !== false,
       statuses,
       transitions,
     },
@@ -1052,6 +1058,9 @@ const validateProjectConfig = (projectId, config) => {
   }
   if (!config.lifecycle?.statuses?.length) {
     return 'Project must have at least one status';
+  }
+  if (typeof config.lifecycle.transitionRulesEnabled !== 'boolean') {
+    return 'Lifecycle transitionRulesEnabled must be boolean';
   }
 
   const roleIds = new Set(config.roles.map((role) => role.id));
@@ -1587,10 +1596,26 @@ const config = [
         const issue = issues.find((item) => item.id === getId(request));
         if (!issue) return error(404, 'Issue not found');
 
-        const access = ensureProjectAccess(request, issue.projectId, 'issue.edit');
+        const access = ensureProjectAccess(request, issue.projectId);
         if (access.response) return access.response;
 
         const nextStatus = String(request.body.newStatus);
+        const statusExists = access.config.lifecycle.statuses.some(
+          (status) => status.id === nextStatus
+        );
+        if (!statusExists) {
+          return error(400, 'Target status does not exist');
+        }
+
+        if (access.config.lifecycle.transitionRulesEnabled === false) {
+          issue.status = nextStatus;
+          return noContent();
+        }
+
+        if (!hasPermission(access.role, 'issue.edit')) {
+          return error(403, 'Insufficient permissions');
+        }
+
         const transition = access.config.lifecycle.transitions.find(
           (item) =>
             item.fromStatusId === issue.status && item.toStatusId === nextStatus

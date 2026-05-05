@@ -33,6 +33,10 @@ const initialState: ProjectConfigState = {
 
 const normalizeConfig = (config: ProjectConfig): ProjectConfig => ({
   ...config,
+  lifecycle: {
+    ...config.lifecycle,
+    transitionRulesEnabled: config.lifecycle.transitionRulesEnabled !== false,
+  },
   fieldOrder: getNormalizedFieldOrder(config),
 });
 

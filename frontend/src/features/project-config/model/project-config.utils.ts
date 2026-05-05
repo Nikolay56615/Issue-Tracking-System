@@ -108,6 +108,9 @@ export const getOrderedStatuses = (config: ProjectConfig | null): CustomStatus[]
     (left, right) => left.displayOrder - right.displayOrder
   );
 
+export const isTransitionRulesEnabled = (config: ProjectConfig | null) =>
+  config?.lifecycle.transitionRulesEnabled !== false;
+
 export const getStatusById = (config: ProjectConfig | null, statusId: string) =>
   config?.lifecycle.statuses.find((status) => status.id === statusId);
 

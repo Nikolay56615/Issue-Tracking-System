@@ -4,11 +4,27 @@ import { toast } from 'sonner';
 import {
   ChevronDown,
   Download,
+  GripVertical,
   Plus,
   Save,
   Sparkles,
   Trash,
 } from 'lucide-react';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
@@ -238,6 +254,7 @@ const RowToggleButton = ({
   open,
   onClick,
   accent,
+  draggable,
 }: {
   title: string;
   subtitle?: string;
@@ -245,30 +262,49 @@ const RowToggleButton = ({
   open: boolean;
   onClick: () => void;
   accent?: ReactNode;
+  draggable?: {
+    attributes: object;
+    listeners: object | undefined;
+    setActivatorNodeRef: (element: HTMLElement | null) => void;
+  };
 }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="hover:bg-muted/40 flex w-full items-center gap-3 rounded-lg px-3
-      py-2.5 text-left transition-colors"
-  >
-    {accent}
-    <div className="min-w-0 flex-1">
-      <div className="truncate text-sm font-medium">{title}</div>
-      {(subtitle || meta) && (
-        <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-          {subtitle ? <span>{subtitle}</span> : null}
-          {meta ? <span>{meta}</span> : null}
-        </div>
-      )}
-    </div>
-    <ChevronDown
-      className={cn(
-        'text-muted-foreground h-4 w-4 shrink-0 transition-transform',
-        open && 'rotate-180'
-      )}
-    />
-  </button>
+  <div className="flex items-center gap-2 px-2 py-1.5">
+    {draggable ? (
+      <button
+        type="button"
+        className="text-muted-foreground hover:bg-muted inline-flex size-8 shrink-0
+          cursor-grab items-center justify-center rounded-md active:cursor-grabbing"
+        ref={draggable.setActivatorNodeRef}
+        {...draggable.attributes}
+        {...draggable.listeners}
+      >
+        <GripVertical className="size-4" />
+      </button>
+    ) : null}
+    <button
+      type="button"
+      onClick={onClick}
+      className="hover:bg-muted/40 flex min-w-0 flex-1 items-center gap-3
+        rounded-lg px-2 py-2.5 text-left transition-colors"
+    >
+      {accent}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">{title}</div>
+        {(subtitle || meta) && (
+          <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {subtitle ? <span>{subtitle}</span> : null}
+            {meta ? <span>{meta}</span> : null}
+          </div>
+        )}
+      </div>
+      <ChevronDown
+        className={cn(
+          'text-muted-foreground h-4 w-4 shrink-0 transition-transform',
+          open && 'rotate-180'
+        )}
+      />
+    </button>
+  </div>
 );
 
 const SettingsSection = ({
@@ -309,6 +345,51 @@ const SectionPlaceholder = ({ text }: { text: string }) => (
     {text}
   </div>
 );
+
+const SortableSettingsRow = ({
+  id,
+  children,
+}: {
+  id: string;
+  children: (params: {
+    draggable: {
+      attributes: object;
+      listeners: object | undefined;
+      setActivatorNodeRef: (element: HTMLElement | null) => void;
+    };
+    isDragging: boolean;
+  }) => ReactNode;
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={cn(isDragging && 'z-10')}
+    >
+      {children({
+        draggable: {
+          attributes,
+          listeners,
+          setActivatorNodeRef,
+        },
+        isDragging,
+      })}
+    </div>
+  );
+};
 
 export const ProjectSettingsPage = () => {
   const params = useParams();
@@ -403,6 +484,9 @@ export const ProjectSettingsPage = () => {
       draft?.customFields.filter((field) => field.type === 'user_reference') ??
       [],
     [draft]
+  );
+  const statusSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
   if (loading === 'pending' || roleLoading) {
@@ -684,6 +768,43 @@ export const ProjectSettingsPage = () => {
     }
   };
 
+  const handleStatusDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    updateDraft((current) => {
+      const orderedStatuses = [...current.lifecycle.statuses].sort(
+        (left, right) => left.displayOrder - right.displayOrder
+      );
+      const oldIndex = orderedStatuses.findIndex(
+        (status) => status.id === active.id
+      );
+      const newIndex = orderedStatuses.findIndex(
+        (status) => status.id === over.id
+      );
+
+      if (oldIndex === -1 || newIndex === -1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        lifecycle: {
+          ...current.lifecycle,
+          statuses: arrayMove(orderedStatuses, oldIndex, newIndex).map(
+            (status, index) => ({
+              ...status,
+              displayOrder: index + 1,
+            })
+          ),
+        },
+      };
+    });
+  };
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -824,104 +945,118 @@ export const ProjectSettingsPage = () => {
               </Button>
             }
           >
-            {sortedStatuses.map((status) => {
-              const isOpen = expandedStatusId === status.id;
+            <DndContext
+              sensors={statusSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleStatusDragEnd}
+            >
+              <SortableContext
+                items={sortedStatuses.map((status) => status.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {sortedStatuses.map((status) => {
+                  const isOpen = expandedStatusId === status.id;
 
-              return (
-                <div key={status.id} className="rounded-lg border">
-                  <RowToggleButton
-                    title={status.name}
-                    subtitle={status.isInitial ? 'Initial status' : 'Lifecycle status'}
-                    meta={`${getIssueCountForStatus(issues, status.id)} issues`}
-                    open={isOpen}
-                    onClick={() =>
-                      setExpandedStatusId(isOpen ? null : status.id)
-                    }
-                    accent={
-                      <span
-                        className="h-3 w-3 shrink-0 rounded-full border"
-                        style={{ backgroundColor: status.color }}
-                      />
-                    }
-                  />
-                  {isOpen && (
-                    <div className="border-t px-3 py-3">
-                      <div className="grid gap-3 md:grid-cols-[1fr_140px_120px_auto]">
-                        <div className="space-y-2">
-                          <Label>Name</Label>
-                          <Input
-                            value={status.name}
-                            onChange={(event) =>
-                              updateStatus(status.id, (current) => ({
-                                ...current,
-                                name: event.target.value,
-                              }))
+                  return (
+                    <SortableSettingsRow key={status.id} id={status.id}>
+                      {({ draggable, isDragging }) => (
+                        <div
+                          className={cn(
+                            'rounded-lg border bg-background',
+                            isDragging && 'shadow-sm'
+                          )}
+                        >
+                          <RowToggleButton
+                            title={status.name}
+                            subtitle={
+                              status.isInitial
+                                ? 'Initial status'
+                                : 'Lifecycle status'
                             }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Color</Label>
-                          <Input
-                            type="color"
-                            value={status.color}
-                            onChange={(event) =>
-                              updateStatus(status.id, (current) => ({
-                                ...current,
-                                color: event.target.value,
-                              }))
+                            meta={`${getIssueCountForStatus(issues, status.id)} issues`}
+                            open={isOpen}
+                            onClick={() =>
+                              setExpandedStatusId(isOpen ? null : status.id)
                             }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Order</Label>
-                          <Input
-                            type="number"
-                            value={status.displayOrder}
-                            onChange={(event) =>
-                              updateStatus(status.id, (current) => ({
-                                ...current,
-                                displayOrder: Number(event.target.value) || 1,
-                              }))
+                            accent={
+                              <span
+                                className="h-3 w-3 shrink-0 rounded-full border"
+                                style={{ backgroundColor: status.color }}
+                              />
                             }
+                            draggable={draggable}
                           />
-                        </div>
-                        <div className="flex items-end justify-end">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteStatus(status.id)}
-                          >
-                            <Trash data-icon="inline-start" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
+                          {isOpen && (
+                            <div className="border-t px-3 py-3">
+                              <div className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
+                                <div className="space-y-2">
+                                  <Label>Name</Label>
+                                  <Input
+                                    value={status.name}
+                                    onChange={(event) =>
+                                      updateStatus(status.id, (current) => ({
+                                        ...current,
+                                        name: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Color</Label>
+                                  <Input
+                                    type="color"
+                                    value={status.color}
+                                    onChange={(event) =>
+                                      updateStatus(status.id, (current) => ({
+                                        ...current,
+                                        color: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div className="flex items-end justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => deleteStatus(status.id)}
+                                  >
+                                    <Trash data-icon="inline-start" />
+                                    Delete
+                                  </Button>
+                                </div>
+                              </div>
 
-                      <label className="mt-4 flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          checked={Boolean(status.isInitial)}
-                          onChange={() =>
-                            updateDraft((current) => ({
-                              ...current,
-                              lifecycle: {
-                                ...current.lifecycle,
-                                statuses: current.lifecycle.statuses.map((item) => ({
-                                  ...item,
-                                  isInitial:
-                                    item.id === status.id ? true : undefined,
-                                })),
-                              },
-                            }))
-                          }
-                        />
-                        <span>Initial status</span>
-                      </label>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                              <label className="mt-4 flex items-center gap-2 text-sm">
+                                <input
+                                  type="radio"
+                                  checked={Boolean(status.isInitial)}
+                                  onChange={() =>
+                                    updateDraft((current) => ({
+                                      ...current,
+                                      lifecycle: {
+                                        ...current.lifecycle,
+                                        statuses: current.lifecycle.statuses.map((item) => ({
+                                          ...item,
+                                          isInitial:
+                                            item.id === status.id
+                                              ? true
+                                              : undefined,
+                                        })),
+                                      },
+                                    }))
+                                  }
+                                />
+                                <span>Initial status</span>
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </SortableSettingsRow>
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
           </SettingsSection>
 
           <SettingsSection

@@ -13,14 +13,11 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StatusColumn } from './status-column.tsx';
 import { changeIssueStatus } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch, useAppSelector } from '@/store';
-import type { CustomRole, UserProfile } from '@/features/profile';
 import { toast } from 'sonner';
-import { getMyRole } from '@/features/board/api/api.board.ts';
-import { ProfileRequests } from '@/features/profile';
 import { Loader2 } from 'lucide-react';
 import { getApiErrorMessage } from '@/api/get-error-message.ts';
 import {
@@ -60,78 +57,21 @@ const isTransitionAllowed = (
 };
 
 export const Board = ({ projectId }: { projectId: number }) => {
-  const [role, setRole] = useState<CustomRole | null>(null);
-  const [roleError, setRoleError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!projectId || Number.isNaN(projectId)) return;
-
-    let cancelled = false;
-
-    const fetchRole = async () => {
-      setRole(null);
-      setRoleError(null);
-
-      try {
-        const response = await getMyRole(projectId);
-        if (!cancelled) {
-          setRole(response.role);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          const message = getApiErrorMessage(
-            error,
-            'Failed to load project role'
-          );
-          console.error('Failed to fetch role:', error);
-          setRole(null);
-          setRoleError(message);
-          toast.error('Failed to load project role', {
-            description: message,
-          });
-        }
-      }
-    };
-
-    fetchRole();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
-
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchCurrentUser = async () => {
-      try {
-        const user = await ProfileRequests.getCurrentUser();
-        if (!cancelled) {
-          setCurrentUser(user);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Failed to fetch current user:', error);
-          setCurrentUser(null);
-        }
-      }
-    };
-
-    fetchCurrentUser();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const dispatch = useAppDispatch();
   const { issues, boardLoading, boardError, statusChangeLoading } =
     useAppSelector((state) => state.board);
-  const { config: projectConfig, loading: configLoading } = useAppSelector(
-    (state) => state.projectConfig
-  );
+  const {
+    config: projectConfig,
+    loading: configLoading,
+    currentRole,
+    currentRoleProjectId,
+    currentRoleError,
+  } = useAppSelector((state) => state.projectConfig);
+  const currentUser = useAppSelector((state) => state.profile.profile);
+  const role = currentRoleProjectId === projectId ? currentRole : null;
+  const roleError =
+    currentRoleProjectId === projectId ? currentRoleError : null;
+  const currentUserId = currentUser.id > 0 ? currentUser.id : null;
 
   const statuses = getOrderedStatuses(projectConfig);
   const statusIds = statuses.map((status) => status.id);
@@ -180,7 +120,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
       !isTransitionAllowed(
         draggedIssue,
         overStatus,
-        currentUser?.id ?? null,
+        currentUserId,
         role.id,
         transitions,
         transitionRulesEnabled
@@ -229,7 +169,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
         isTransitionAllowedForIssue({
           transition,
           issue,
-          currentUserId: currentUser?.id ?? null,
+          currentUserId,
           currentRoleId: role.id,
         })
       );

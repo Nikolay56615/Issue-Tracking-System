@@ -42,12 +42,12 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs.tsx';
 import { cn } from '@/lib/utils.ts';
-import { getMyRole } from '@/features/board/api/api.board.ts';
 import { getBoard } from '@/features/board/model/board.actions.ts';
 import type { Issue } from '@/features/board/model';
 import {
   applyProjectTemplate,
   exportProjectTemplate,
+  fetchCurrentProjectRole,
   fetchProjectConfig,
   getNormalizedFieldOrder,
   getOrderedIssueFields,
@@ -484,13 +484,14 @@ export const ProjectSettingsPage = () => {
     templateLoading,
     templateError,
     exportedTemplate,
+    currentRole,
+    currentRoleProjectId,
+    currentRoleLoading,
   } = useAppSelector((state) => state.projectConfig);
   const { issues } = useAppSelector((state) => state.board);
   const { users } = useAppSelector((state) => state.users);
   const { projects } = useAppSelector((state) => state.profile);
 
-  const [role, setRole] = useState<CustomRole | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
   const [draft, setDraft] = useState<ProjectConfig | null>(null);
   const [selectedTemplateProjectId, setSelectedTemplateProjectId] = useState('');
   const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
@@ -504,43 +505,19 @@ export const ProjectSettingsPage = () => {
     if (!projectId || Number.isNaN(projectId)) return;
 
     dispatch(fetchProjectConfig(projectId));
+    dispatch(fetchCurrentProjectRole(projectId));
     dispatch(getBoard({ projectId }));
     dispatch(getProjectUsers(projectId));
     dispatch(fetchProjects());
   }, [dispatch, projectId]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const loadRole = async () => {
-      setRoleLoading(true);
-      try {
-        const response = await getMyRole(projectId);
-        if (!cancelled) {
-          setRole(response.role);
-        }
-      } catch {
-        if (!cancelled) {
-          setRole(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setRoleLoading(false);
-        }
-      }
-    };
-
-    loadRole();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
-
-  useEffect(() => {
     setDraft(config ? cloneConfig(config) : null);
   }, [config]);
 
+  const role = currentRoleProjectId === projectId ? currentRole : null;
+  const roleLoading =
+    currentRoleProjectId !== projectId || currentRoleLoading === 'pending';
   const canManageSettings = hasPermission(role, 'settings.manage');
 
   const sourceProjects = useMemo(

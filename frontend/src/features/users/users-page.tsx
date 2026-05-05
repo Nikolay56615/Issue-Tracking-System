@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useParams } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,9 +9,11 @@ import {
   removeProjectUser,
   updateProjectUserRole,
 } from '@/features/users/model/users.actions.ts';
-import { fetchProjectConfig, hasPermission } from '@/features/project-config/model';
-import { getMyRole } from '@/features/board/api/api.board.ts';
-import type { CustomRole } from '@/features/profile';
+import {
+  fetchCurrentProjectRole,
+  fetchProjectConfig,
+  hasPermission,
+} from '@/features/project-config/model';
 
 export const UsersPage = () => {
   const params = useParams();
@@ -19,48 +21,25 @@ export const UsersPage = () => {
   const dispatch = useAppDispatch();
   const { users, loading, roleUpdateLoadingByUserId, removingByUserId, error } =
     useAppSelector((state) => state.users);
-  const { config: projectConfig } = useAppSelector(
-    (state) => state.projectConfig
-  );
-  const [currentRole, setCurrentRole] = useState<CustomRole | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
+  const {
+    config: projectConfig,
+    currentRole,
+    currentRoleProjectId,
+    currentRoleLoading,
+  } = useAppSelector((state) => state.projectConfig);
 
   useEffect(() => {
     dispatch(getProjectUsers(projectId));
     dispatch(fetchProjectConfig(projectId));
+    dispatch(fetchCurrentProjectRole(projectId));
   }, [dispatch, projectId]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadRole = async () => {
-      setRoleLoading(true);
-      try {
-        const response = await getMyRole(projectId);
-        if (!cancelled) {
-          setCurrentRole(response.role);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          console.error('Failed to load current role:', loadError);
-          setCurrentRole(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setRoleLoading(false);
-        }
-      }
-    };
-
-    loadRole();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
-
-  const canManageRoles = hasPermission(currentRole, 'members.assignRole');
-  const canRemove = hasPermission(currentRole, 'members.remove');
+  const projectRole =
+    currentRoleProjectId === projectId ? currentRole : null;
+  const roleLoading =
+    currentRoleProjectId !== projectId || currentRoleLoading === 'pending';
+  const canManageRoles = hasPermission(projectRole, 'members.assignRole');
+  const canRemove = hasPermission(projectRole, 'members.remove');
   const availableRoles = projectConfig?.roles ?? [];
 
   if (loading === 'pending' || roleLoading) {

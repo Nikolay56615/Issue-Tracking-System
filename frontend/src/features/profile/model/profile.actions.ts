@@ -7,6 +7,7 @@ import type {
   UserProfile,
 } from '@/features/profile/model/profile.types.ts';
 import { AxiosError } from 'axios';
+import type { RootState } from '@/store/types.ts';
 
 export const fetchProjects = createAsyncThunk<
   Project[],
@@ -24,13 +25,22 @@ export const getCurrentUser = createAsyncThunk<
   UserProfile,
   void,
   { rejectValue: string }
->('currentUser', async (_, { rejectWithValue }) => {
-  try {
-    return await ProfileRequests.getCurrentUser();
-  } catch (error: unknown) {
-    return rejectWithValue(getApiErrorMessage(error));
+>(
+  'currentUser',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await ProfileRequests.getCurrentUser();
+    } catch (error: unknown) {
+      return rejectWithValue(getApiErrorMessage(error));
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { profile } = getState() as RootState;
+      return profile.profileLoading !== 'pending';
+    },
   }
-});
+);
 
 export const createProject = createAsyncThunk<
   Project,

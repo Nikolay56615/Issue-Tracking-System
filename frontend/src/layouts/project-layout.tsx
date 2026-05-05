@@ -3,38 +3,34 @@ import { Routes } from '@/shared/constants/routes.ts';
 import { Button } from '@/components/ui/button.tsx';
 import { cn } from '@/lib/utils.ts';
 import { LogoutButton } from '@/components/logout-button.tsx';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import type { CustomRole } from '@/features/profile';
-import { getMyRole } from '@/features/board/api/api.board.ts';
-import { hasPermission } from '@/features/project-config/model';
+import {
+  fetchCurrentProjectRole,
+  hasPermission,
+} from '@/features/project-config/model';
+import { useAppDispatch, useAppSelector } from '@/store';
+import { getCurrentUser } from '@/features/profile/model/profile.actions.ts';
 
 const canOpenSettings = (role: CustomRole | null) =>
   hasPermission(role, 'settings.manage');
 
 export const ProjectLayout = () => {
   const { projectId } = useParams();
-  const [role, setRole] = useState<CustomRole | null>(null);
+  const dispatch = useAppDispatch();
+  const { currentRole: role, currentRoleProjectId } = useAppSelector(
+    (state) => state.projectConfig
+  );
+  const numericProjectId = Number(projectId);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || Number.isNaN(numericProjectId)) return;
 
-    let cancelled = false;
+    dispatch(getCurrentUser());
+    dispatch(fetchCurrentProjectRole(numericProjectId));
+  }, [dispatch, numericProjectId, projectId]);
 
-    const loadRole = async () => {
-      try {
-        const response = await getMyRole(Number(projectId));
-        if (!cancelled) setRole(response.role);
-      } catch {
-        if (!cancelled) setRole(null);
-      }
-    };
-
-    loadRole();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
+  const projectRole = currentRoleProjectId === numericProjectId ? role : null;
 
   return (
     <>
@@ -77,7 +73,7 @@ export const ProjectLayout = () => {
               Trash
             </Button>
           </NavLink>
-          {canOpenSettings(role) && (
+          {canOpenSettings(projectRole) && (
             <NavLink
               to={generatePath(Routes.SETTINGS, { projectId })}
               className={({ isActive }) =>

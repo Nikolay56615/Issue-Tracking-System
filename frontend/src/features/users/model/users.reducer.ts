@@ -8,6 +8,7 @@ import type { UserProfileWithRole } from '@/features/profile';
 
 interface UsersState {
   users: UserProfileWithRole[];
+  projectId: number | null;
   loading: 'idle' | 'pending' | 'succeeded' | 'failed';
   roleUpdateLoadingByUserId: Record<number, boolean>;
   removingByUserId: Record<number, boolean>;
@@ -16,6 +17,7 @@ interface UsersState {
 
 const initialState: UsersState = {
   users: [],
+  projectId: null,
   loading: 'idle',
   roleUpdateLoadingByUserId: {},
   removingByUserId: {},
@@ -28,16 +30,19 @@ const usersSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(getProjectUsers.pending, (state) => {
+      .addCase(getProjectUsers.pending, (state, action) => {
         state.loading = 'pending';
+        state.projectId = action.meta.arg;
         state.error = null;
       })
       .addCase(getProjectUsers.fulfilled, (state, action) => {
         state.loading = 'succeeded';
+        state.projectId = action.meta.arg;
         state.users = action.payload;
       })
       .addCase(getProjectUsers.rejected, (state, action) => {
         state.loading = 'failed';
+        state.projectId = action.meta.arg;
         state.error = action.payload ?? 'Failed to fetch users';
       })
       .addCase(updateProjectUserRole.pending, (state, action) => {

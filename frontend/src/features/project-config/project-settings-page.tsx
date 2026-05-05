@@ -84,6 +84,9 @@ const formatFieldTypeLabel = (type: CustomFieldType) =>
 const formatConditionLabel = (type: TransitionCondition['type']) =>
   type.replace(/_/g, ' ');
 
+const formatPermissionLabel = (permission: string) =>
+  permission.replace(/^[^.]+\./, '');
+
 const cloneConfig = (config: ProjectConfig) => structuredClone(config);
 
 const getInitialRole = (config: ProjectConfig) =>
@@ -954,7 +957,6 @@ export const ProjectSettingsPage = () => {
         <TabsContent value="roles" className="mt-0 space-y-4">
           <SettingsSection
             title="Project Roles"
-            description="Compact overview of each role, its permissions, and assigned members."
             action={
               <Button size="sm" onClick={addRole}>
                 <Plus data-icon="inline-start" />
@@ -1031,7 +1033,7 @@ export const ProjectSettingsPage = () => {
                                         }))
                                       }
                                     />
-                                    <span>{permission}</span>
+                                    <span>{formatPermissionLabel(permission)}</span>
                                   </label>
                                 );
                               })}
@@ -1050,7 +1052,6 @@ export const ProjectSettingsPage = () => {
         <TabsContent value="lifecycle" className="mt-0 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <SettingsSection
             title="Statuses"
-            description="Status summary stays visible; expand a row to edit details."
             action={
               <Button size="sm" onClick={addStatus}>
                 <Plus data-icon="inline-start" />
@@ -1174,7 +1175,6 @@ export const ProjectSettingsPage = () => {
 
           <SettingsSection
             title="Transitions"
-            description="Keep transitions readable in a compact list and expand rows only when needed."
             action={
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex items-center gap-2 text-sm">
@@ -1486,7 +1486,6 @@ export const ProjectSettingsPage = () => {
         <TabsContent value="fields" className="mt-0 space-y-4">
           <SettingsSection
             title="Issue Fields"
-            description="System and custom fields share one ordered list. Drag rows to control field order."
             action={
               <Button size="sm" onClick={addField}>
                 <Plus data-icon="inline-start" />
@@ -1767,7 +1766,6 @@ export const ProjectSettingsPage = () => {
         <TabsContent value="templates" className="mt-0 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <SettingsSection
             title="Export Template"
-            description="Export the current project configuration as reusable JSON."
             action={
               <Button
                 size="sm"
@@ -1792,7 +1790,6 @@ export const ProjectSettingsPage = () => {
 
           <SettingsSection
             title="Apply Existing Template"
-            description="Replace roles, lifecycle, and custom fields from another accessible project."
             action={
               <Button
                 size="sm"

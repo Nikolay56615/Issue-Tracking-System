@@ -1,47 +1,48 @@
 package issue.tracking.system.issuetrackingsystem.lifecycle.internal;
 
-import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
-import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.TransitionDto;
-
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
 
 @Component
 @Order(0)
 public class GraphTransitionRule implements TransitionRule {
 
-    private static final Map<IssueStatus, Set<IssueStatus>> ALLOWED_TRANSITIONS = Map.of(
-        IssueStatus.BACKLOG, Set.of(IssueStatus.IN_PROGRESS),
-        IssueStatus.IN_PROGRESS, Set.of(IssueStatus.REVIEW, IssueStatus.BACKLOG),
-        IssueStatus.REVIEW, Set.of(IssueStatus.DONE, IssueStatus.IN_PROGRESS),
-        IssueStatus.DONE, Set.of(IssueStatus.BACKLOG)
+    static final List<String> DEFAULT_STATUS_IDS = List.of(
+        "BACKLOG",
+        "IN_PROGRESS",
+        "REVIEW",
+        "DONE"
     );
 
     @Override
-    public boolean check(IssueStatus from, IssueStatus to, String role, boolean isAssignee, boolean isAuthor) {
-        if (from == to) return true;
-        Set<IssueStatus> targets = ALLOWED_TRANSITIONS.getOrDefault(from, Set.of());
-        return targets.contains(to);
+    public boolean check(String from, String to, String role, boolean isAssignee, boolean isAuthor) {
+        if (from == null || from.isBlank() || to == null || to.isBlank()) {
+            return false;
+        }
+        if (from.equals(to)) {
+            return true;
+        }
+
+        return describeTransitions().stream()
+            .anyMatch(transition -> from.equals(transition.from()) && to.equals(transition.to()));
     }
 
     @Override
     public List<TransitionDto> describeTransitions() {
         List<TransitionDto> result = new ArrayList<>();
-        for (var entry : ALLOWED_TRANSITIONS.entrySet()) {
-            for (var to : entry.getValue()) {
-                result.add(new TransitionDto(
-                    entry.getKey(),
-                    to,
-                    List.of(),
-                    false,
-                    false
-                ));
-            }
-        }
+        result.add(transition("BACKLOG", "IN_PROGRESS", List.of("WORKER", "REVIEWER", "ADMIN", "OWNER")));
+        result.add(transition("IN_PROGRESS", "REVIEW", List.of("WORKER", "REVIEWER", "ADMIN", "OWNER")));
+        result.add(transition("REVIEW", "DONE", List.of("REVIEWER", "ADMIN", "OWNER")));
+        result.add(transition("IN_PROGRESS", "BACKLOG", List.of("REVIEWER", "ADMIN", "OWNER")));
+        result.add(transition("REVIEW", "IN_PROGRESS", List.of("REVIEWER", "ADMIN", "OWNER")));
+        result.add(transition("DONE", "BACKLOG", List.of("REVIEWER", "ADMIN", "OWNER")));
         return result;
+    }
+
+    private TransitionDto transition(String from, String to, List<String> roles) {
+        return new TransitionDto(from, to, roles, false, roles.contains("WORKER"));
     }
 }

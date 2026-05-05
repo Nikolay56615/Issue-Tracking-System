@@ -1,6 +1,5 @@
 package issue.tracking.system.issuetrackingsystem.lifecycle.internal;
 
-import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
 import issue.tracking.system.issuetrackingsystem.lifecycle.api.TransitionDto;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,57 +9,29 @@ import org.springframework.stereotype.Component;
 @Component
 class RoleTransitionRule implements TransitionRule {
 
-    private static final Set<String> PRIVILEGED_ROLES = Set.of("REVIEWER", "ADMIN", "OWNER");
+    private static final Set<String> DEFAULT_ROLES = Set.of("WORKER", "REVIEWER", "ADMIN", "OWNER");
 
     @Override
-    public boolean check(IssueStatus from, IssueStatus to, String userRole, boolean isAssignee,
-        boolean isAuthor) {
-        if (PRIVILEGED_ROLES.contains(userRole)) {
-            return true;
-        }
-
-        if ("WORKER".equals(userRole)) {
-            if (isAssignee && from == IssueStatus.BACKLOG && to == IssueStatus.IN_PROGRESS) {
-                return true;
-            }
-            return isAssignee && from == IssueStatus.IN_PROGRESS && to == IssueStatus.REVIEW;
-        }
-
-        return false;
+    public boolean check(String from, String to, String userRole, boolean isAssignee, boolean isAuthor) {
+        return DEFAULT_ROLES.contains(userRole) || isAssignee || isAuthor;
     }
 
     @Override
     public List<TransitionDto> describeTransitions() {
         List<TransitionDto> result = new ArrayList<>();
-        // REVIEWER, ADMIN, OWNER — любые переходы
-        for (var from : IssueStatus.values()) {
-            for (var to : IssueStatus.values()) {
-                if (from != to) {
+        for (String from : GraphTransitionRule.DEFAULT_STATUS_IDS) {
+            for (String to : GraphTransitionRule.DEFAULT_STATUS_IDS) {
+                if (!from.equals(to)) {
                     result.add(new TransitionDto(
                         from,
                         to,
-                        List.of("REVIEWER", "ADMIN", "OWNER"),
-                        false,
-                        false
+                        List.copyOf(DEFAULT_ROLES),
+                        true,
+                        true
                     ));
                 }
             }
         }
-        // WORKER — только определённые переходы
-        result.add(new TransitionDto(
-            IssueStatus.BACKLOG,
-            IssueStatus.IN_PROGRESS,
-            List.of("WORKER"),
-            false,
-            true
-        ));
-        result.add(new TransitionDto(
-            IssueStatus.IN_PROGRESS,
-            IssueStatus.REVIEW,
-            List.of("WORKER"),
-            false,
-            true
-        ));
         return result;
     }
 }

@@ -18,14 +18,17 @@ import { StatusColumn } from './status-column.tsx';
 import { changeIssueStatus } from '@/features/board/model/board.actions.ts';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
 import { getApiErrorMessage } from '@/api/get-error-message.ts';
 import {
+  type CustomStatus,
   getOrderedStatuses,
   getStatusLabel,
   isTransitionAllowedForIssue,
   isTransitionRulesEnabled,
 } from '@/features/project-config/model';
+import { Card, CardContent, CardHeader } from '@/components/ui/card.tsx';
+import { Separator } from '@/components/ui/separator.tsx';
+import { Skeleton } from '@/components/ui/skeleton.tsx';
 
 const isTransitionAllowed = (
   issue: Issue,
@@ -54,6 +57,75 @@ const isTransitionAllowed = (
       currentRoleId,
     });
   });
+};
+
+const fallbackSkeletonStatuses: Array<
+  Pick<CustomStatus, 'id' | 'name' | 'color'>
+> = [
+  { id: 'skeleton-backlog', name: 'Backlog', color: '#64748b' },
+  { id: 'skeleton-progress', name: 'In Progress', color: '#64748b' },
+  { id: 'skeleton-review', name: 'Review', color: '#64748b' },
+  { id: 'skeleton-done', name: 'Done', color: '#64748b' },
+];
+
+const BoardSkeleton = ({ statuses }: { statuses: CustomStatus[] }) => {
+  const skeletonStatuses = statuses.length ? statuses : fallbackSkeletonStatuses;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div
+        className="flex min-h-0 flex-1 flex-row gap-4 overflow-x-auto rounded-lg
+          px-8 py-4"
+      >
+        {skeletonStatuses.map((status, columnIndex) => (
+          <Card
+            key={status.id}
+            className="flex w-80 flex-col gap-0 py-4"
+          >
+            <CardHeader className="gap-0 px-4 pb-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: status.color }}
+                  />
+                  <h2 className="truncate font-medium">{status.name}</h2>
+                </div>
+                <Skeleton className="h-4 w-6" />
+              </div>
+            </CardHeader>
+            <Separator />
+            <CardContent
+              className="flex h-full flex-col gap-4 overflow-y-auto px-4 pt-4"
+            >
+              {Array.from({ length: columnIndex % 2 === 0 ? 3 : 2 }).map(
+                (_, cardIndex) => (
+                  <div
+                    key={`${status.id}-${cardIndex}`}
+                    className="rounded-lg border bg-card p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <Skeleton className="h-5 w-36" />
+                      <Skeleton className="size-8" />
+                    </div>
+                    <div className="mt-4 flex flex-col gap-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-11/12" />
+                      <Skeleton className="h-4 w-2/3" />
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                      <Skeleton className="h-6 w-14 rounded-full" />
+                    </div>
+                  </div>
+                )
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 export const Board = ({ projectId }: { projectId: number }) => {
@@ -177,11 +249,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
   };
 
   if (boardLoading === 'pending' || configLoading === 'pending') {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <BoardSkeleton statuses={statuses} />;
   }
 
   if (boardError) {

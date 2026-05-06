@@ -1,475 +1,49 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { toast } from 'sonner';
-import {
-  ChevronDown,
-  Download,
-  GripVertical,
-  Plus,
-  Save,
-  Sparkles,
-  Trash,
-} from 'lucide-react';
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  arrayMove,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { Save } from 'lucide-react';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { arrayMove } from '@dnd-kit/sortable';
 import { Button } from '@/components/ui/button.tsx';
-import { Input } from '@/components/ui/input.tsx';
-import { Label } from '@/components/ui/label.tsx';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select.tsx';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs.tsx';
-import { cn } from '@/lib/utils.ts';
 import { getBoard } from '@/features/board/model/board.actions.ts';
-import type { Issue } from '@/features/board/model';
 import {
   applyProjectTemplate,
+  cloneConfig,
+  createFieldDraft,
+  createRoleDraft,
+  createStatusDraft,
+  createTransitionDraft,
   exportProjectTemplate,
   fetchCurrentProjectRole,
   fetchProjectConfig,
+  getIssueCountForStatus,
   getNormalizedFieldOrder,
   getOrderedIssueFields,
+  getOrderedStatuses,
   hasPermission,
-  PERMISSION_GROUPS,
+  hasValuesForField,
   saveProjectConfig,
+  switchFieldType,
   type CustomFieldDefinition,
-  type CustomFieldType,
-  type OrderedIssueFieldEntry,
   type ProjectConfig,
   type Transition,
-  type TransitionCondition,
 } from '@/features/project-config/model';
+import {
+  FieldsTab,
+  LifecycleTab,
+  RolesTab,
+  TemplatesTab,
+} from '@/features/project-config/ui';
 import type { CustomRole } from '@/features/profile';
 import { fetchProjects } from '@/features/profile/model/profile.actions.ts';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { getProjectUsers } from '@/features/users/model/users.actions.ts';
-
-const FIELD_TYPE_OPTIONS: CustomFieldType[] = [
-  'text',
-  'number',
-  'user_reference',
-  'issue_reference',
-];
-
-const CONDITION_EDITOR_OPTIONS = [
-  { value: 'role', label: 'Role' },
-  { value: 'user_source', label: 'User source' },
-] as const;
-
-const formatFieldTypeLabel = (type: CustomFieldType) =>
-  type.replace('_', ' ');
-
-const formatConditionLabel = (type: TransitionCondition['type']) =>
-  type.replace(/_/g, ' ');
-
-const formatPermissionLabel = (permission: string) =>
-  permission.replace(/^[^.]+\./, '');
-
-const cloneConfig = (config: ProjectConfig) => structuredClone(config);
-
-const getInitialRole = (config: ProjectConfig) =>
-  config.roles.find((role) => role.permissions.includes('settings.manage')) ??
-  config.roles[0];
-
-const createRoleDraft = (projectId: number): CustomRole => ({
-  id: `project-${projectId}-role-${Date.now()}`,
-  projectId,
-  name: 'New Role',
-  permissions: ['issue.view'],
-});
-
-const createStatusDraft = (projectId: number, displayOrder: number) => ({
-  id: `project-${projectId}-status-${Date.now()}`,
-  projectId,
-  name: `Status ${displayOrder}`,
-  displayOrder,
-  color: '#64748b',
-});
-
-const createFieldDraft = (projectId: number): CustomFieldDefinition => ({
-  id: `project-${projectId}-field-${Date.now()}`,
-  projectId,
-  name: 'New Field',
-  type: 'text',
-  required: false,
-  config: {
-    maxLength: 80,
-  },
-});
-
-const createTransitionDraft = (config: ProjectConfig): Transition | null => {
-  if (config.lifecycle.statuses.length < 2 || config.roles.length === 0) {
-    return null;
-  }
-
-  return {
-    id: `project-${config.projectId}-transition-${Date.now()}`,
-    fromStatusId: config.lifecycle.statuses[0].id,
-    toStatusId: config.lifecycle.statuses[1].id,
-    conditions: [
-      {
-        type: 'role',
-        roleId: getInitialRole(config).id,
-      },
-    ],
-  };
-};
-
-const getIssueCountForStatus = (issues: Issue[], statusId: string) =>
-  issues.filter((issue) => issue.status === statusId).length;
-
-const hasValuesForField = (issues: Issue[], fieldId: string) =>
-  issues.some((issue) => {
-    const value = issue.customFields?.[fieldId];
-    return value !== null && value !== undefined && value !== '';
-  });
-
-const toTextConfig = (field: CustomFieldDefinition) => ({
-  ...field,
-  type: 'text' as const,
-  config: {
-    maxLength: field.type === 'text' ? field.config.maxLength : 80,
-  },
-});
-
-const toNumberConfig = (field: CustomFieldDefinition) => ({
-  ...field,
-  type: 'number' as const,
-  config: {
-    min: field.type === 'number' ? field.config.min : 1,
-    max: field.type === 'number' ? field.config.max : 100,
-    isInteger: field.type === 'number' ? field.config.isInteger ?? true : true,
-  },
-});
-
-const toUserReferenceConfig = (
-  field: CustomFieldDefinition,
-  roles: CustomRole[]
-) => ({
-  ...field,
-  type: 'user_reference' as const,
-  config: {
-    allowedRoleIds:
-      field.type === 'user_reference'
-        ? field.config.allowedRoleIds
-        : roles[0]
-          ? [roles[0].id]
-          : [],
-  },
-});
-
-const toIssueReferenceConfig = (field: CustomFieldDefinition) => ({
-  ...field,
-  type: 'issue_reference' as const,
-  config: {},
-});
-
-const switchFieldType = (
-  field: CustomFieldDefinition,
-  type: CustomFieldType,
-  roles: CustomRole[]
-): CustomFieldDefinition => {
-  if (type === 'text') return toTextConfig(field);
-  if (type === 'number') return toNumberConfig(field);
-  if (type === 'user_reference') return toUserReferenceConfig(field, roles);
-  return toIssueReferenceConfig(field);
-};
-
-const createCondition = (
-  type: TransitionCondition['type'],
-  config: ProjectConfig
-): TransitionCondition => {
-  if (type === 'role') {
-    return {
-      type,
-      roleId: getInitialRole(config).id,
-    };
-  }
-
-  if (type === 'field_user_reference') {
-    const field = config.customFields.find(
-      (item) => item.type === 'user_reference'
-    );
-    return {
-      type,
-      customFieldId: field?.id ?? '',
-    };
-  }
-
-  return { type };
-};
-
-const getConditionEditorKind = (condition: TransitionCondition) =>
-  condition.type === 'role' ? 'role' : 'user_source';
-
-const getUserSourceValue = (condition: TransitionCondition) => {
-  if (condition.type === 'field_user_reference') {
-    return `field:${condition.customFieldId}`;
-  }
-
-  return condition.type;
-};
-
-const createConditionFromUserSource = (
-  value: string,
-  config: ProjectConfig
-): TransitionCondition => {
-  if (value === 'author') {
-    return { type: 'author' };
-  }
-
-  if (value === 'assignee') {
-    return { type: 'assignee' };
-  }
-
-  const fallbackField = config.customFields.find(
-    (field) => field.type === 'user_reference'
-  );
-
-  return {
-    type: 'field_user_reference',
-    customFieldId:
-      value.replace(/^field:/, '') || fallbackField?.id || '',
-  };
-};
-
-const getStatusName = (config: ProjectConfig, statusId: string) =>
-  config.lifecycle.statuses.find((status) => status.id === statusId)?.name ??
-  statusId;
-
-const getRoleMemberCount = (
-  users: Array<{ roleId: string }>,
-  roleId: string
-) => users.filter((user) => user.roleId === roleId).length;
-
-const describeTransitionCondition = (
-  condition: TransitionCondition,
-  config: ProjectConfig
-) => {
-  if (condition.type === 'role') {
-    return (
-      config.roles.find((role) => role.id === condition.roleId)?.name ?? 'Role'
-    );
-  }
-
-  if (condition.type === 'field_user_reference') {
-    return (
-      config.customFields.find((field) => field.id === condition.customFieldId)
-        ?.name ?? 'User field'
-    );
-  }
-
-  return formatConditionLabel(condition.type);
-};
-
-const getFieldEntryMeta = (
-  fieldEntry: OrderedIssueFieldEntry,
-  issues: Issue[]
-) => {
-  if (fieldEntry.kind === 'system') {
-    if (fieldEntry.systemFieldId === 'author') {
-      return 'System field · read only';
-    }
-
-    return 'System field';
-  }
-
-  const customField = fieldEntry.customField;
-  if (!customField) {
-    return 'Custom field';
-  }
-
-  if (hasValuesForField(issues, customField.id)) {
-    return 'Has issue values';
-  }
-
-  return customField.required ? 'Required' : 'Optional';
-};
-
-const RowToggleButton = ({
-  title,
-  subtitle,
-  meta,
-  open,
-  onClick,
-  accent,
-  draggable,
-  expandable = true,
-}: {
-  title: string;
-  subtitle?: string;
-  meta?: string;
-  open: boolean;
-  onClick?: () => void;
-  accent?: ReactNode;
-  draggable?: {
-    attributes: object;
-    listeners: object | undefined;
-    setActivatorNodeRef: (element: HTMLElement | null) => void;
-  };
-  expandable?: boolean;
-}) => (
-  <div className="flex items-center gap-2 px-2 py-1.5">
-    {draggable ? (
-      <button
-        type="button"
-        className="text-muted-foreground hover:bg-muted inline-flex size-8 shrink-0
-          cursor-grab items-center justify-center rounded-md active:cursor-grabbing"
-        ref={draggable.setActivatorNodeRef}
-        {...draggable.attributes}
-        {...draggable.listeners}
-      >
-        <GripVertical className="size-4" />
-      </button>
-    ) : null}
-    {expandable ? (
-      <button
-        type="button"
-        onClick={onClick}
-        className="hover:bg-muted/40 flex min-w-0 flex-1 items-center gap-3
-          rounded-lg px-2 py-2.5 text-left transition-colors"
-      >
-        {accent}
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{title}</div>
-          {(subtitle || meta) && (
-            <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-              {subtitle ? <span>{subtitle}</span> : null}
-              {meta ? <span>{meta}</span> : null}
-            </div>
-          )}
-        </div>
-        <ChevronDown
-          className={cn(
-            'text-muted-foreground h-4 w-4 shrink-0 transition-transform',
-            open && 'rotate-180'
-          )}
-        />
-      </button>
-    ) : (
-      <div
-        className="flex min-w-0 flex-1 items-center justify-between gap-3
-          rounded-lg px-2 py-2.5"
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          {accent}
-          <div className="truncate text-sm font-medium">{title}</div>
-        </div>
-        {meta || subtitle ? (
-          <span className="text-muted-foreground shrink-0 text-xs">
-            {meta ?? subtitle}
-          </span>
-        ) : null}
-      </div>
-    )}
-  </div>
-);
-
-const SettingsSection = ({
-  title,
-  description,
-  action,
-  children,
-  className,
-}: {
-  title: string;
-  description?: string;
-  action?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) => (
-  <section className={cn('rounded-xl border bg-background', className)}>
-    <div
-      className="flex min-h-15 flex-wrap justify-between gap-3 border-b px-4
-        py-3"
-    >
-      <div className="min-w-0 flex-1 space-y-1">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {description ? (
-          <p className="text-muted-foreground text-sm">{description}</p>
-        ) : null}
-      </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
-    </div>
-    <div className="space-y-2 p-3">{children}</div>
-  </section>
-);
-
-const SectionPlaceholder = ({ text }: { text: string }) => (
-  <div
-    className="text-muted-foreground bg-muted/20 rounded-lg border border-dashed
-      px-3 py-4 text-sm"
-  >
-    {text}
-  </div>
-);
-
-const SortableSettingsRow = ({
-  id,
-  children,
-}: {
-  id: string;
-  children: (params: {
-    draggable: {
-      attributes: object;
-      listeners: object | undefined;
-      setActivatorNodeRef: (element: HTMLElement | null) => void;
-    };
-    isDragging: boolean;
-  }) => ReactNode;
-}) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
-      className={cn(isDragging && 'z-10')}
-    >
-      {children({
-        draggable: {
-          attributes,
-          listeners,
-          setActivatorNodeRef,
-        },
-        isDragging,
-      })}
-    </div>
-  );
-};
 
 export const ProjectSettingsPage = () => {
   const params = useParams();
@@ -493,12 +67,13 @@ export const ProjectSettingsPage = () => {
   const { projects } = useAppSelector((state) => state.profile);
 
   const [draft, setDraft] = useState<ProjectConfig | null>(null);
-  const [selectedTemplateProjectId, setSelectedTemplateProjectId] = useState('');
+  const [selectedTemplateProjectId, setSelectedTemplateProjectId] =
+    useState('');
   const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
   const [expandedStatusId, setExpandedStatusId] = useState<string | null>(null);
-  const [expandedTransitionId, setExpandedTransitionId] = useState<string | null>(
-    null
-  );
+  const [expandedTransitionId, setExpandedTransitionId] = useState<
+    string | null
+  >(null);
   const [expandedFieldId, setExpandedFieldId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -528,27 +103,8 @@ export const ProjectSettingsPage = () => {
     [projectId, projects]
   );
 
-  const sortedStatuses = useMemo(
-    () =>
-      [...(draft?.lifecycle.statuses ?? [])].sort(
-        (left, right) => left.displayOrder - right.displayOrder
-      ),
-    [draft]
-  );
-
-  const userReferenceFields = useMemo(
-    () =>
-      draft?.customFields.filter((field) => field.type === 'user_reference') ??
-      [],
-    [draft]
-  );
+  const sortedStatuses = useMemo(() => getOrderedStatuses(draft), [draft]);
   const fieldEntries = useMemo(() => getOrderedIssueFields(draft), [draft]);
-  const statusSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  );
-  const fieldSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  );
 
   if (loading === 'pending' || roleLoading) {
     return <div className="p-8">Loading settings...</div>;
@@ -612,6 +168,19 @@ export const ProjectSettingsPage = () => {
     }));
   };
 
+  const setInitialStatus = (statusId: string) => {
+    updateDraft((current) => ({
+      ...current,
+      lifecycle: {
+        ...current.lifecycle,
+        statuses: current.lifecycle.statuses.map((item) => ({
+          ...item,
+          isInitial: item.id === statusId ? true : undefined,
+        })),
+      },
+    }));
+  };
+
   const updateField = (
     fieldId: string,
     updater: (field: CustomFieldDefinition) => CustomFieldDefinition
@@ -634,6 +203,18 @@ export const ProjectSettingsPage = () => {
         ...current.lifecycle,
         transitions: current.lifecycle.transitions.map((item) =>
           item.id === transitionId ? updater(item) : item
+        ),
+      },
+    }));
+  };
+
+  const removeTransition = (transitionId: string) => {
+    updateDraft((current) => ({
+      ...current,
+      lifecycle: {
+        ...current.lifecycle,
+        transitions: current.lifecycle.transitions.filter(
+          (item) => item.id !== transitionId
         ),
       },
     }));
@@ -683,6 +264,7 @@ export const ProjectSettingsPage = () => {
         })),
       },
     }));
+
     if (expandedRoleId === roleId) {
       setExpandedRoleId(null);
     }
@@ -695,10 +277,7 @@ export const ProjectSettingsPage = () => {
         ...current.lifecycle,
         statuses: [
           ...current.lifecycle.statuses,
-          createStatusDraft(
-            current.projectId,
-            current.lifecycle.statuses.length + 1
-          ),
+          createStatusDraft(current.projectId, current.lifecycle.statuses.length + 1),
         ],
       },
     }));
@@ -723,8 +302,11 @@ export const ProjectSettingsPage = () => {
       const nextStatuses = remainingStatuses.map((status, index) => ({
         ...status,
         displayOrder: index + 1,
-        isInitial:
-          hasInitial ? status.isInitial : index === 0 ? true : undefined,
+        isInitial: hasInitial
+          ? status.isInitial
+          : index === 0
+            ? true
+            : undefined,
       }));
 
       return {
@@ -740,6 +322,7 @@ export const ProjectSettingsPage = () => {
         },
       };
     });
+
     if (expandedStatusId === statusId) {
       setExpandedStatusId(null);
     }
@@ -782,7 +365,9 @@ export const ProjectSettingsPage = () => {
     updateDraft((current) => ({
       ...current,
       customFields: current.customFields.filter((field) => field.id !== fieldId),
-      fieldOrder: getNormalizedFieldOrder(current).filter((item) => item !== fieldId),
+      fieldOrder: getNormalizedFieldOrder(current).filter(
+        (item) => item !== fieldId
+      ),
       lifecycle: {
         ...current.lifecycle,
         transitions: current.lifecycle.transitions.map((transition) => ({
@@ -795,6 +380,7 @@ export const ProjectSettingsPage = () => {
         })),
       },
     }));
+
     if (expandedFieldId === fieldId) {
       setExpandedFieldId(null);
     }
@@ -884,7 +470,9 @@ export const ProjectSettingsPage = () => {
 
     updateDraft((current) => {
       const orderedFields = getNormalizedFieldOrder(current);
-      const oldIndex = orderedFields.findIndex((fieldId) => fieldId === active.id);
+      const oldIndex = orderedFields.findIndex(
+        (fieldId) => fieldId === active.id
+      );
       const newIndex = orderedFields.findIndex((fieldId) => fieldId === over.id);
 
       if (oldIndex === -1 || newIndex === -1) {
@@ -904,11 +492,15 @@ export const ProjectSettingsPage = () => {
         <div>
           <h1 className="text-2xl font-semibold">Project Settings</h1>
           <p className="text-muted-foreground text-sm">
-            Configure roles, lifecycle, fields, and reusable project templates
-            in one place.
+            Configure roles, lifecycle, fields, and reusable project templates in
+            one place.
           </p>
         </div>
-        <Button className="min-w-30" onClick={save} disabled={saving === 'pending'}>
+        <Button
+          className="min-w-30"
+          onClick={save}
+          disabled={saving === 'pending'}
+        >
           <Save data-icon="inline-start" />
           {saving === 'pending' ? 'Saving...' : 'Save'}
         </Button>
@@ -932,875 +524,80 @@ export const ProjectSettingsPage = () => {
         </TabsList>
 
         <TabsContent value="roles" className="mt-0 space-y-4">
-          <SettingsSection
-            title="Project Roles"
-            action={
-              <Button size="sm" onClick={addRole}>
-                <Plus data-icon="inline-start" />
-                Add role
-              </Button>
-            }
-          >
-            {draft.roles.map((projectRole) => {
-              const isOpen = expandedRoleId === projectRole.id;
-
-              return (
-                <div key={projectRole.id} className="rounded-lg border">
-                  <RowToggleButton
-                    title={projectRole.name}
-                    subtitle={`${projectRole.permissions.length} permissions`}
-                    meta={`${getRoleMemberCount(users, projectRole.id)} members`}
-                    open={isOpen}
-                    onClick={() =>
-                      setExpandedRoleId(isOpen ? null : projectRole.id)
-                    }
-                  />
-                  {isOpen && (
-                    <div className="border-t px-3 py-3">
-                      <div className="mb-4 flex items-end gap-3">
-                        <div className="flex-1 space-y-2">
-                          <Label>Role name</Label>
-                          <Input
-                            value={projectRole.name}
-                            onChange={(event) =>
-                              updateRole(projectRole.id, (current) => ({
-                                ...current,
-                                name: event.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteRole(projectRole.id)}
-                        >
-                          <Trash data-icon="inline-start" />
-                          Delete
-                        </Button>
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        {PERMISSION_GROUPS.map((group) => (
-                          <div key={group.label} className="rounded-md border p-3">
-                            <div className="mb-2 text-sm font-medium">
-                              {group.label}
-                            </div>
-                            <div className="space-y-2">
-                              {group.permissions.map((permission) => {
-                                const checked =
-                                  projectRole.permissions.includes(permission);
-
-                                return (
-                                  <label
-                                    key={permission}
-                                    className="flex items-center gap-2 text-sm"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={(event) =>
-                                        updateRole(projectRole.id, (current) => ({
-                                          ...current,
-                                          permissions: event.target.checked
-                                            ? [...current.permissions, permission]
-                                            : current.permissions.filter(
-                                                (item) => item !== permission
-                                              ),
-                                        }))
-                                      }
-                                    />
-                                    <span>{formatPermissionLabel(permission)}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </SettingsSection>
+          <RolesTab
+            draft={draft}
+            users={users}
+            expandedRoleId={expandedRoleId}
+            setExpandedRoleId={setExpandedRoleId}
+            addRole={addRole}
+            deleteRole={deleteRole}
+            updateRole={updateRole}
+          />
         </TabsContent>
 
-        <TabsContent value="lifecycle" className="mt-0 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-          <SettingsSection
-            title="Statuses"
-            action={
-              <Button size="sm" onClick={addStatus}>
-                <Plus data-icon="inline-start" />
-                Add status
-              </Button>
+        <TabsContent
+          value="lifecycle"
+          className="mt-0 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]"
+        >
+          <LifecycleTab
+            draft={draft}
+            sortedStatuses={sortedStatuses}
+            expandedStatusId={expandedStatusId}
+            setExpandedStatusId={setExpandedStatusId}
+            expandedTransitionId={expandedTransitionId}
+            setExpandedTransitionId={setExpandedTransitionId}
+            transitionRulesDisabled={transitionRulesDisabled}
+            getIssueCountForStatus={(statusId: string) =>
+              getIssueCountForStatus(issues, statusId)
             }
-          >
-            <DndContext
-              sensors={statusSensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleStatusDragEnd}
-            >
-              <SortableContext
-                items={sortedStatuses.map((status) => status.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {sortedStatuses.map((status) => {
-                  const isOpen = expandedStatusId === status.id;
-
-                  return (
-                    <SortableSettingsRow key={status.id} id={status.id}>
-                      {({ draggable, isDragging }) => (
-                        <div
-                          className={cn(
-                            'rounded-lg border bg-background',
-                            isDragging && 'shadow-sm'
-                          )}
-                        >
-                          <RowToggleButton
-                            title={status.name}
-                            subtitle={
-                              status.isInitial
-                                ? 'Initial status'
-                                : 'Lifecycle status'
-                            }
-                            meta={`${getIssueCountForStatus(issues, status.id)} issues`}
-                            open={isOpen}
-                            onClick={() =>
-                              setExpandedStatusId(isOpen ? null : status.id)
-                            }
-                            accent={
-                              <span
-                                className="h-3 w-3 shrink-0 rounded-full border"
-                                style={{ backgroundColor: status.color }}
-                              />
-                            }
-                            draggable={draggable}
-                          />
-                          {isOpen && (
-                            <div className="border-t px-3 py-3">
-                              <div className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
-                                <div className="space-y-2">
-                                  <Label>Name</Label>
-                                  <Input
-                                    value={status.name}
-                                    onChange={(event) =>
-                                      updateStatus(status.id, (current) => ({
-                                        ...current,
-                                        name: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Color</Label>
-                                  <Input
-                                    type="color"
-                                    value={status.color}
-                                    onChange={(event) =>
-                                      updateStatus(status.id, (current) => ({
-                                        ...current,
-                                        color: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-                                <div className="flex items-end justify-end">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => deleteStatus(status.id)}
-                                  >
-                                    <Trash data-icon="inline-start" />
-                                    Delete
-                                  </Button>
-                                </div>
-                              </div>
-
-                              <label className="mt-4 flex items-center gap-2 text-sm">
-                                <input
-                                  type="radio"
-                                  checked={Boolean(status.isInitial)}
-                                  onChange={() =>
-                                    updateDraft((current) => ({
-                                      ...current,
-                                      lifecycle: {
-                                        ...current.lifecycle,
-                                        statuses: current.lifecycle.statuses.map((item) => ({
-                                          ...item,
-                                          isInitial:
-                                            item.id === status.id
-                                              ? true
-                                              : undefined,
-                                        })),
-                                      },
-                                    }))
-                                  }
-                                />
-                                <span>Initial status</span>
-                              </label>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </SortableSettingsRow>
-                  );
-                })}
-              </SortableContext>
-            </DndContext>
-          </SettingsSection>
-
-          <SettingsSection
-            title="Transitions"
-            action={
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={transitionRulesDisabled}
-                    onChange={(event) =>
-                      updateDraft((current) => ({
-                        ...current,
-                        lifecycle: {
-                          ...current.lifecycle,
-                          transitionRulesEnabled: !event.target.checked,
-                        },
-                      }))
-                    }
-                  />
-                  <span>Disable transition rules</span>
-                </label>
-                <Button
-                  size="sm"
-                  onClick={addTransition}
-                  disabled={transitionRulesDisabled}
-                >
-                  <Plus data-icon="inline-start" />
-                  Add transition
-                </Button>
-              </div>
+            addStatus={addStatus}
+            deleteStatus={deleteStatus}
+            updateStatus={updateStatus}
+            addTransition={addTransition}
+            updateTransition={updateTransition}
+            removeTransition={removeTransition}
+            handleStatusDragEnd={handleStatusDragEnd}
+            setTransitionRulesDisabled={(disabled) =>
+              updateDraft((current) => ({
+                ...current,
+                lifecycle: {
+                  ...current.lifecycle,
+                  transitionRulesEnabled: !disabled,
+                },
+              }))
             }
-          >
-            {transitionRulesDisabled ? (
-              <div
-                className="bg-muted/20 text-muted-foreground rounded-lg border
-                  px-3 py-2 text-sm"
-              >
-                Transition graph stays saved, but any project member can move an
-                issue from any status to any status while rules are disabled.
-              </div>
-            ) : null}
-            {draft.lifecycle.transitions.map((transition) => {
-              const isOpen = expandedTransitionId === transition.id;
-              const conditionSummary = transition.conditions
-                .map((condition) =>
-                  describeTransitionCondition(condition, draft)
-                )
-                .join(', ');
-
-              return (
-                <div key={transition.id} className="rounded-lg border">
-                  <RowToggleButton
-                    title={`${getStatusName(
-                      draft,
-                      transition.fromStatusId
-                    )} -> ${getStatusName(draft, transition.toStatusId)}`}
-                    subtitle={`${transition.conditions.length} conditions`}
-                    meta={conditionSummary || 'No conditions yet'}
-                    open={isOpen}
-                    onClick={() =>
-                      setExpandedTransitionId(
-                        isOpen ? null : transition.id
-                      )
-                    }
-                  />
-                  {isOpen && (
-                    <div className="border-t px-3 py-3">
-                      <fieldset
-                        disabled={transitionRulesDisabled}
-                        className={cn(
-                          'space-y-4',
-                          transitionRulesDisabled && 'opacity-60'
-                        )}
-                      >
-                        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                          <div className="space-y-2">
-                            <Label>From</Label>
-                            <Select
-                              value={transition.fromStatusId}
-                              onValueChange={(value) =>
-                                updateTransition(transition.id, (current) => ({
-                                  ...current,
-                                  fromStatusId: value,
-                                }))
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {sortedStatuses.map((status) => (
-                                  <SelectItem key={status.id} value={status.id}>
-                                    {status.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>To</Label>
-                            <Select
-                              value={transition.toStatusId}
-                              onValueChange={(value) =>
-                                updateTransition(transition.id, (current) => ({
-                                  ...current,
-                                  toStatusId: value,
-                                }))
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {sortedStatuses.map((status) => (
-                                  <SelectItem key={status.id} value={status.id}>
-                                    {status.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="flex items-end justify-end">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() =>
-                                updateDraft((current) => ({
-                                  ...current,
-                                  lifecycle: {
-                                    ...current.lifecycle,
-                                    transitions: current.lifecycle.transitions.filter(
-                                      (item) => item.id !== transition.id
-                                    ),
-                                  },
-                                }))
-                              }
-                            >
-                              <Trash data-icon="inline-start" />
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          {transition.conditions.map((condition, index) => (
-                            <div
-                              key={`${transition.id}-${condition.type}-${index}`}
-                              className="grid gap-3 rounded-md border p-3 md:grid-cols-[180px_1fr_auto]"
-                            >
-                              <div className="space-y-2">
-                                <Label>Condition</Label>
-                                <Select
-                                  value={getConditionEditorKind(condition)}
-                                  onValueChange={(value) =>
-                                    updateTransition(transition.id, (current) => ({
-                                      ...current,
-                                      conditions: current.conditions.map(
-                                        (item, itemIndex) =>
-                                          itemIndex === index
-                                            ? value === 'role'
-                                              ? createCondition('role', draft)
-                                              : createConditionFromUserSource(
-                                                  'assignee',
-                                                  draft
-                                                )
-                                            : item
-                                      ),
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {CONDITION_EDITOR_OPTIONS.map((option) => (
-                                      <SelectItem
-                                        key={option.value}
-                                        value={option.value}
-                                      >
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label>
-                                  {condition.type === 'role'
-                                    ? 'Role'
-                                    : 'User source'}
-                                </Label>
-                                {condition.type === 'role' ? (
-                                  <Select
-                                    value={condition.roleId}
-                                    onValueChange={(value) =>
-                                      updateTransition(transition.id, (current) => ({
-                                        ...current,
-                                        conditions: current.conditions.map(
-                                          (item, itemIndex) =>
-                                            itemIndex === index &&
-                                            item.type === 'role'
-                                              ? { ...item, roleId: value }
-                                              : item
-                                        ),
-                                      }))
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {draft.roles.map((projectRole) => (
-                                        <SelectItem
-                                          key={projectRole.id}
-                                          value={projectRole.id}
-                                        >
-                                          {projectRole.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <Select
-                                    value={getUserSourceValue(condition)}
-                                    onValueChange={(value) =>
-                                      updateTransition(transition.id, (current) => ({
-                                        ...current,
-                                        conditions: current.conditions.map(
-                                          (item, itemIndex) =>
-                                            itemIndex === index
-                                              ? createConditionFromUserSource(
-                                                  value,
-                                                  draft
-                                                )
-                                              : item
-                                        ),
-                                      }))
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Choose source" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="author">
-                                        Author
-                                      </SelectItem>
-                                      <SelectItem value="assignee">
-                                        Assignee
-                                      </SelectItem>
-                                      {userReferenceFields.map((field) => (
-                                        <SelectItem
-                                          key={field.id}
-                                          value={`field:${field.id}`}
-                                        >
-                                          {field.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                )}
-                              </div>
-
-                              <div className="flex items-end justify-end">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() =>
-                                  updateTransition(transition.id, (current) => ({
-                                    ...current,
-                                    conditions: current.conditions.filter(
-                                      (_, itemIndex) => itemIndex !== index
-                                    ),
-                                  }))
-                                }
-                              >
-                                <Trash data-icon="inline-start" />
-                                Delete
-                              </Button>
-                              </div>
-                            </div>
-                          ))}
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              updateTransition(transition.id, (current) => ({
-                                ...current,
-                                conditions: [
-                                  ...current.conditions,
-                                  createCondition('role', draft),
-                                ],
-                              }))
-                            }
-                          >
-                            <Plus data-icon="inline-start" />
-                            Add condition
-                          </Button>
-                        </div>
-                      </fieldset>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </SettingsSection>
+            setInitialStatus={setInitialStatus}
+          />
         </TabsContent>
 
         <TabsContent value="fields" className="mt-0 space-y-4">
-          <SettingsSection
-            title="Issue Fields"
-            action={
-              <Button size="sm" onClick={addField}>
-                <Plus data-icon="inline-start" />
-                Add field
-              </Button>
-            }
-          >
-            <DndContext
-              sensors={fieldSensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleFieldDragEnd}
-            >
-              <SortableContext
-                items={fieldEntries.map((fieldEntry) => fieldEntry.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {fieldEntries.map((fieldEntry) => {
-                  const isCustomField = fieldEntry.kind === 'custom';
-                  const field = fieldEntry.customField;
-                  const isOpen = field != null && expandedFieldId === field.id;
-
-                  return (
-                    <SortableSettingsRow key={fieldEntry.id} id={fieldEntry.id}>
-                      {({ draggable, isDragging }) => (
-                        <div
-                          className={cn(
-                            'rounded-lg border bg-background',
-                            isDragging && 'shadow-sm'
-                          )}
-                        >
-                          <RowToggleButton
-                            title={fieldEntry.label}
-                            subtitle={
-                              isCustomField && field
-                                ? formatFieldTypeLabel(field.type)
-                                : undefined
-                            }
-                            meta={getFieldEntryMeta(fieldEntry, issues)}
-                            open={isOpen}
-                            onClick={
-                              field
-                                ? () =>
-                                    setExpandedFieldId(isOpen ? null : field.id)
-                                : undefined
-                            }
-                            draggable={draggable}
-                            expandable={Boolean(field)}
-                          />
-                          {field && isOpen && (
-                            <div className="border-t px-3 py-3">
-                              <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-                                <div className="space-y-2">
-                                  <Label>Name</Label>
-                                  <Input
-                                    value={field.name}
-                                    onChange={(event) =>
-                                      updateField(field.id, (current) => ({
-                                        ...current,
-                                        name: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label>Type</Label>
-                                  <Select
-                                    value={field.type}
-                                    onValueChange={(value) =>
-                                      updateField(field.id, (current) =>
-                                        switchFieldType(
-                                          current,
-                                          value as CustomFieldType,
-                                          draft.roles
-                                        )
-                                      )
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {FIELD_TYPE_OPTIONS.map((type) => (
-                                        <SelectItem key={type} value={type}>
-                                          {formatFieldTypeLabel(type)}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                <div className="flex items-end justify-end">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => deleteField(field.id)}
-                                  >
-                                    <Trash data-icon="inline-start" />
-                                    Delete
-                                  </Button>
-                                </div>
-                              </div>
-
-                              <label className="mt-4 flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={field.required}
-                                  onChange={(event) =>
-                                    updateField(field.id, (current) => ({
-                                      ...current,
-                                      required: event.target.checked,
-                                    }))
-                                  }
-                                />
-                                <span>Required field</span>
-                              </label>
-
-                              <div className="mt-4">
-                                {field.type === 'text' && (
-                                  <div className="space-y-2">
-                                    <Label>Max length</Label>
-                                    <Input
-                                      type="number"
-                                      value={field.config.maxLength ?? ''}
-                                      onChange={(event) =>
-                                        updateField(field.id, (current) =>
-                                          current.type === 'text'
-                                            ? {
-                                                ...current,
-                                                config: {
-                                                  maxLength:
-                                                    event.target.value === ''
-                                                      ? undefined
-                                                      : Number(event.target.value),
-                                                },
-                                              }
-                                            : current
-                                        )
-                                      }
-                                    />
-                                  </div>
-                                )}
-
-                                {field.type === 'number' && (
-                                  <div className="grid gap-3 md:grid-cols-3">
-                                    <div className="space-y-2">
-                                      <Label>Min</Label>
-                                      <Input
-                                        type="number"
-                                        value={field.config.min ?? ''}
-                                        onChange={(event) =>
-                                          updateField(field.id, (current) =>
-                                            current.type === 'number'
-                                              ? {
-                                                  ...current,
-                                                  config: {
-                                                    ...current.config,
-                                                    min:
-                                                      event.target.value === ''
-                                                        ? undefined
-                                                        : Number(event.target.value),
-                                                  },
-                                                }
-                                              : current
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>Max</Label>
-                                      <Input
-                                        type="number"
-                                        value={field.config.max ?? ''}
-                                        onChange={(event) =>
-                                          updateField(field.id, (current) =>
-                                            current.type === 'number'
-                                              ? {
-                                                  ...current,
-                                                  config: {
-                                                    ...current.config,
-                                                    max:
-                                                      event.target.value === ''
-                                                        ? undefined
-                                                        : Number(event.target.value),
-                                                  },
-                                                }
-                                              : current
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <label className="flex items-end gap-2 text-sm">
-                                      <input
-                                        type="checkbox"
-                                        checked={Boolean(field.config.isInteger)}
-                                        onChange={(event) =>
-                                          updateField(field.id, (current) =>
-                                            current.type === 'number'
-                                              ? {
-                                                  ...current,
-                                                  config: {
-                                                    ...current.config,
-                                                    isInteger: event.target.checked,
-                                                  },
-                                                }
-                                              : current
-                                          )
-                                        }
-                                      />
-                                      <span>Integer only</span>
-                                    </label>
-                                  </div>
-                                )}
-
-                                {field.type === 'user_reference' && (
-                                  <div className="space-y-2">
-                                    <Label>Allowed roles</Label>
-                                    <div className="grid gap-2 md:grid-cols-2">
-                                      {draft.roles.map((projectRole) => (
-                                        <label
-                                          key={projectRole.id}
-                                          className="flex items-center gap-2 text-sm"
-                                        >
-                                          <input
-                                            type="checkbox"
-                                            checked={field.config.allowedRoleIds.includes(
-                                              projectRole.id
-                                            )}
-                                            onChange={(event) =>
-                                              updateField(field.id, (current) =>
-                                                current.type === 'user_reference'
-                                                  ? {
-                                                      ...current,
-                                                      config: {
-                                                        allowedRoleIds:
-                                                          event.target.checked
-                                                            ? [
-                                                                ...current.config
-                                                                  .allowedRoleIds,
-                                                                projectRole.id,
-                                                              ]
-                                                            : current.config.allowedRoleIds.filter(
-                                                                (item) =>
-                                                                  item !==
-                                                                  projectRole.id
-                                                              ),
-                                                      },
-                                                    }
-                                                  : current
-                                              )
-                                            }
-                                          />
-                                          <span>{projectRole.name}</span>
-                                        </label>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {field.type === 'issue_reference' && (
-                                  <div className="text-muted-foreground text-sm">
-                                    This field can reference only issues from the same project.
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </SortableSettingsRow>
-                  );
-                })}
-              </SortableContext>
-            </DndContext>
-          </SettingsSection>
+          <FieldsTab
+            draft={draft}
+            fieldEntries={fieldEntries}
+            expandedFieldId={expandedFieldId}
+            setExpandedFieldId={setExpandedFieldId}
+            addField={addField}
+            deleteField={deleteField}
+            updateField={updateField}
+            switchFieldType={switchFieldType}
+            handleFieldDragEnd={handleFieldDragEnd}
+            issues={issues}
+          />
         </TabsContent>
 
-        <TabsContent value="templates" className="mt-0 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-          <SettingsSection
-            title="Export Template"
-            action={
-              <Button
-                size="sm"
-                onClick={handleExportTemplate}
-                disabled={templateLoading === 'pending'}
-              >
-                <Download data-icon="inline-start" />
-                Export
-              </Button>
-            }
-          >
-            {exportedTemplate ? (
-              <pre
-                className="bg-muted max-h-96 overflow-auto rounded-lg border p-3 text-xs"
-              >
-                {JSON.stringify(exportedTemplate, null, 2)}
-              </pre>
-            ) : (
-              <SectionPlaceholder text="Exported template JSON will appear here." />
-            )}
-          </SettingsSection>
-
-          <SettingsSection
-            title="Apply Existing Template"
-            action={
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleApplyTemplate}
-                disabled={templateLoading === 'pending'}
-              >
-                <Sparkles data-icon="inline-start" />
-                Apply
-              </Button>
-            }
-          >
-            <div className="space-y-2">
-              <Label>Source project</Label>
-              <Select
-                value={selectedTemplateProjectId}
-                onValueChange={setSelectedTemplateProjectId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a project template" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sourceProjects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {!sourceProjects.length ? (
-              <SectionPlaceholder text="No other active projects are available as template sources." />
-            ) : null}
-          </SettingsSection>
+        <TabsContent
+          value="templates"
+          className="mt-0 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]"
+        >
+          <TemplatesTab
+            exportedTemplate={exportedTemplate}
+            templateLoading={templateLoading}
+            selectedTemplateProjectId={selectedTemplateProjectId}
+            setSelectedTemplateProjectId={setSelectedTemplateProjectId}
+            sourceProjects={sourceProjects}
+            handleExportTemplate={handleExportTemplate}
+            handleApplyTemplate={handleApplyTemplate}
+          />
         </TabsContent>
       </Tabs>
     </main>

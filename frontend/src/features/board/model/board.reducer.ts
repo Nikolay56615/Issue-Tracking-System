@@ -15,12 +15,18 @@ import {
   getLifecycleGraph,
   updateIssue,
 } from '@/features/board/model/board.actions.ts';
+import { getIssueFiltersKey } from './board.utils.ts';
 
 interface IssuesState {
   issues: Issue[];
   loading: 'idle' | 'pending' | 'succeeded' | 'failed';
   error: string | null;
   boardLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
+  boardProjectId: number | null;
+  boardFiltersKey: string | null;
+  pendingBoardProjectId: number | null;
+  pendingBoardFiltersKey: string | null;
+  pendingBoardRequestId: string | null;
   boardError: string | null;
   statusChangeLoading: Record<number, boolean>;
   statusChangeError: Record<number, string | null>;
@@ -45,6 +51,11 @@ const initialState: IssuesState = {
   loading: 'idle',
   error: null,
   boardLoading: 'idle',
+  boardProjectId: null,
+  boardFiltersKey: null,
+  pendingBoardProjectId: null,
+  pendingBoardFiltersKey: null,
+  pendingBoardRequestId: null,
   boardError: null,
   statusChangeLoading: {},
   statusChangeError: {},
@@ -133,17 +144,40 @@ const boardSlice = createSlice({
         state.deleteIssueStatus.error =
           action.payload || action.error.message || 'Error happened';
       })
-      .addCase(getBoard.pending, (state) => {
+      .addCase(getBoard.pending, (state, action) => {
         state.boardLoading = 'pending';
+        state.pendingBoardProjectId = action.meta.arg.projectId;
+        state.pendingBoardFiltersKey = getIssueFiltersKey(
+          action.meta.arg.filters
+        );
+        state.pendingBoardRequestId = action.meta.requestId;
         state.boardError = null;
       })
-      .addCase(getBoard.fulfilled, (state, action: PayloadAction<Issue[]>) => {
+      .addCase(getBoard.fulfilled, (state, action) => {
+        if (state.pendingBoardRequestId !== action.meta.requestId) {
+          return;
+        }
+
         state.boardLoading = 'succeeded';
         state.issues = action.payload;
+        state.boardProjectId = action.meta.arg.projectId;
+        state.boardFiltersKey = getIssueFiltersKey(action.meta.arg.filters);
+        state.pendingBoardProjectId = null;
+        state.pendingBoardFiltersKey = null;
+        state.pendingBoardRequestId = null;
       })
       .addCase(getBoard.rejected, (state, action) => {
+        if (state.pendingBoardRequestId !== action.meta.requestId) {
+          return;
+        }
+
         state.boardLoading = 'failed';
+        state.pendingBoardProjectId = action.meta.arg.projectId;
+        state.pendingBoardFiltersKey = getIssueFiltersKey(
+          action.meta.arg.filters
+        );
         state.boardError = action.payload ?? 'Failed to load board';
+        state.pendingBoardRequestId = null;
       })
       .addCase(changeIssueStatus.pending, (state, action) => {
         const { id, newStatus } = action.meta.arg;

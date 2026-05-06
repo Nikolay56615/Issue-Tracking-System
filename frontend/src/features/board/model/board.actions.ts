@@ -12,6 +12,8 @@ import type {
 } from '@/features/board/model/board.types.ts';
 import { BoardRequests } from '@/features/board/api';
 import { AxiosError } from 'axios';
+import type { RootState } from '@/store/types.ts';
+import { getIssueFiltersKey } from './board.utils.ts';
 
 export const createIssue = createAsyncThunk<
   Issue,
@@ -32,18 +34,33 @@ export const createIssue = createAsyncThunk<
 export const getBoard = createAsyncThunk<
   Issue[],
   GetBoardRequest,
-  { rejectValue: string }
->('board', async (request, { rejectWithValue }) => {
-  try {
-    return await BoardRequests.getBoard(request);
-  } catch (e) {
-    if (e instanceof AxiosError) {
-      return rejectWithValue(e.response?.data?.message || 'Error happened');
-    }
+  { rejectValue: string; state: RootState }
+>(
+  'board',
+  async (request, { rejectWithValue }) => {
+    try {
+      return await BoardRequests.getBoard(request);
+    } catch (e) {
+      if (e instanceof AxiosError) {
+        return rejectWithValue(e.response?.data?.message || 'Error happened');
+      }
 
-    return rejectWithValue('Error happened');
+      return rejectWithValue('Error happened');
+    }
+  },
+  {
+    condition: (request, { getState }) => {
+      const state = getState();
+      const filtersKey = getIssueFiltersKey(request.filters);
+
+      return !(
+        state.board.boardLoading === 'pending' &&
+        state.board.pendingBoardProjectId === request.projectId &&
+        state.board.pendingBoardFiltersKey === filtersKey
+      );
+    },
   }
-});
+);
 
 export const changeIssueStatus = createAsyncThunk<
   void,

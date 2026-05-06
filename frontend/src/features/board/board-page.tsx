@@ -3,10 +3,11 @@ import { useParams } from 'react-router';
 import { IssueForm } from '@/features/board/ui/issue-form.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { FiltersPopover } from '@/features/board/ui/filters-popover.tsx';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { getBoard } from '@/features/board/model/board.actions.ts';
 import { setNameQuery } from '@/features/board/model/board.reducer.ts';
+import { getIssueFiltersKey } from '@/features/board/model';
 import { fetchProjectConfig } from '@/features/project-config/model';
 import { getProjectUsers } from '@/features/users';
 
@@ -19,6 +20,15 @@ export const BoardPage = () => {
 
   const debounceTimeout = useRef<number | null>(null);
   const loadedProjectId = useRef<number | null>(null);
+  const lastImmediateBoardKey = useRef<string | null>(null);
+
+  const immediateBoardKey = useMemo(
+    () =>
+      `${projectId}:${getIssueFiltersKey(filters, {
+        includeNameQuery: false,
+      })}`,
+    [filters, projectId]
+  );
 
   useEffect(() => {
     if (loadedProjectId.current === projectId) return;
@@ -29,8 +39,24 @@ export const BoardPage = () => {
   }, [dispatch, projectId]);
 
   useEffect(() => {
+    if (!projectId || Number.isNaN(projectId)) return;
+
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
+    }
+
+    const shouldLoadImmediately =
+      lastImmediateBoardKey.current !== immediateBoardKey;
+    lastImmediateBoardKey.current = immediateBoardKey;
+
+    if (shouldLoadImmediately) {
+      dispatch(
+        getBoard({
+          projectId,
+          filters,
+        })
+      );
+      return;
     }
 
     debounceTimeout.current = setTimeout(() => {
@@ -47,7 +73,7 @@ export const BoardPage = () => {
         clearTimeout(debounceTimeout.current);
       }
     };
-  }, [filters.nameQuery, dispatch, projectId, filters]);
+  }, [dispatch, filters, immediateBoardKey, projectId]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

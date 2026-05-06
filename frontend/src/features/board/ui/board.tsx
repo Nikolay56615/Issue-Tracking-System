@@ -26,6 +26,7 @@ import {
   isTransitionAllowedForIssue,
   isTransitionRulesEnabled,
 } from '@/features/project-config/model';
+import { getIssueFiltersKey } from '@/features/board/model';
 import { Card, CardContent, CardHeader } from '@/components/ui/card.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
@@ -130,10 +131,20 @@ const BoardSkeleton = ({ statuses }: { statuses: CustomStatus[] }) => {
 
 export const Board = ({ projectId }: { projectId: number }) => {
   const dispatch = useAppDispatch();
-  const { issues, boardLoading, boardError, statusChangeLoading } =
-    useAppSelector((state) => state.board);
+  const {
+    issues,
+    filters,
+    boardLoading,
+    boardProjectId,
+    boardFiltersKey,
+    pendingBoardProjectId,
+    pendingBoardFiltersKey,
+    boardError,
+    statusChangeLoading,
+  } = useAppSelector((state) => state.board);
   const {
     config: projectConfig,
+    configProjectId,
     loading: configLoading,
     currentRole,
     currentRoleProjectId,
@@ -144,11 +155,24 @@ export const Board = ({ projectId }: { projectId: number }) => {
   const roleError =
     currentRoleProjectId === projectId ? currentRoleError : null;
   const currentUserId = currentUser.id > 0 ? currentUser.id : null;
+  const currentFiltersKey = getIssueFiltersKey(filters);
+  const hasCurrentBoard =
+    boardProjectId === projectId && boardFiltersKey === currentFiltersKey;
+  const currentBoardError =
+    !hasCurrentBoard &&
+    boardLoading === 'failed' &&
+    pendingBoardProjectId === projectId &&
+    pendingBoardFiltersKey === currentFiltersKey
+      ? boardError
+      : null;
+  const activeProjectConfig =
+    configProjectId === projectId ? projectConfig : null;
+  const displayIssues = hasCurrentBoard ? issues : [];
 
-  const statuses = getOrderedStatuses(projectConfig);
+  const statuses = getOrderedStatuses(activeProjectConfig);
   const statusIds = statuses.map((status) => status.id);
-  const transitions = projectConfig?.lifecycle.transitions ?? [];
-  const transitionRulesEnabled = isTransitionRulesEnabled(projectConfig);
+  const transitions = activeProjectConfig?.lifecycle.transitions ?? [];
+  const transitionRulesEnabled = isTransitionRulesEnabled(activeProjectConfig);
 
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
 
@@ -158,7 +182,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const issue = issues.find((i) => i.id === active.id) ?? null;
+    const issue = displayIssues.find((i) => i.id === active.id) ?? null;
     setActiveIssue(issue);
   };
 
@@ -168,7 +192,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
 
     if (!over) return;
 
-    const draggedIssue = issues.find((i) => i.id === active.id);
+    const draggedIssue = displayIssues.find((i) => i.id === active.id);
     if (!draggedIssue) return;
 
     if (statusChangeLoading[draggedIssue.id]) return;
@@ -179,7 +203,7 @@ export const Board = ({ projectId }: { projectId: number }) => {
       return;
     }
 
-    if (projectConfig == null) return;
+    if (activeProjectConfig == null) return;
 
     if (role == null) {
       toast.error('Project role is not loaded', {
@@ -200,9 +224,9 @@ export const Board = ({ projectId }: { projectId: number }) => {
     ) {
       toast.error('Transition not allowed', {
         description: `Cannot move from ${getStatusLabel(
-          projectConfig,
+          activeProjectConfig,
           draggedIssue.status
-        )} to ${getStatusLabel(projectConfig, overStatus)}`,
+        )} to ${getStatusLabel(activeProjectConfig, overStatus)}`,
       });
       return;
     }
@@ -216,20 +240,22 @@ export const Board = ({ projectId }: { projectId: number }) => {
         })
       ).unwrap();
 
-      toast.success(`Status changed to ${getStatusLabel(projectConfig, overStatus)}`);
+      toast.success(
+        `Status changed to ${getStatusLabel(activeProjectConfig, overStatus)}`
+      );
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, 'Failed to change status'));
     }
   };
 
-  const grouped = issues.reduce((map, issue) => {
+  const grouped = displayIssues.reduce((map, issue) => {
     const statusIssues = map.get(issue.status) || [];
     map.set(issue.status, [...statusIssues, issue]);
     return map;
   }, new Map<IssueStatus, Issue[]>());
 
   const canDrag = (issue: Issue): boolean => {
-    if (projectConfig === null || role === null) return false;
+    if (activeProjectConfig === null || role === null) return false;
 
     if (!transitionRulesEnabled) {
       return true;
@@ -248,12 +274,12 @@ export const Board = ({ projectId }: { projectId: number }) => {
     });
   };
 
-  if (boardLoading === 'pending' || configLoading === 'pending') {
-    return <BoardSkeleton statuses={statuses} />;
+  if (currentBoardError) {
+    return <div>Error: {currentBoardError}</div>;
   }
 
-  if (boardError) {
-    return <div>Error: {boardError}</div>;
+  if (configLoading === 'pending' || !hasCurrentBoard) {
+    return <BoardSkeleton statuses={statuses} />;
   }
 
   return (

@@ -26,6 +26,7 @@ export interface OrderedIssueFieldEntry {
 export const FIELD_TYPE_OPTIONS: CustomFieldType[] = [
   'text',
   'number',
+  'date',
   'user_reference',
   'issue_reference',
 ];
@@ -318,6 +319,12 @@ export const toNumberConfig = (field: CustomFieldDefinition) => ({
   },
 });
 
+export const toDateConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'date' as const,
+  config: {},
+});
+
 export const toUserReferenceConfig = (
   field: CustomFieldDefinition,
   roles: CustomRole[]
@@ -347,6 +354,7 @@ export const switchFieldType = (
 ): CustomFieldDefinition => {
   if (type === 'text') return toTextConfig(field);
   if (type === 'number') return toNumberConfig(field);
+  if (type === 'date') return toDateConfig(field);
   if (type === 'user_reference') return toUserReferenceConfig(field, roles);
   return toIssueReferenceConfig(field);
 };

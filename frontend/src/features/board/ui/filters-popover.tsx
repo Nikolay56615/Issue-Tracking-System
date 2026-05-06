@@ -150,6 +150,21 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
       );
     }
 
+    if (field.type === 'date') {
+      return (
+        <Input
+          type="date"
+          value={getStringValue(value)}
+          onChange={(event) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]: event.target.value || null,
+            }))
+          }
+        />
+      );
+    }
+
     if (field.type === 'user_reference') {
       const allowedMembers = getAssignableMembersForField(field, projectMembers);
 

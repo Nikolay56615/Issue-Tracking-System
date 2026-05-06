@@ -17,6 +17,7 @@ export type SystemIssueFieldId =
 export type CustomFieldType =
   | 'text'
   | 'number'
+  | 'date'
   | 'user_reference'
   | 'issue_reference';
 
@@ -44,6 +45,11 @@ export interface NumberFieldDefinition extends BaseCustomFieldDefinition {
   };
 }
 
+export interface DateFieldDefinition extends BaseCustomFieldDefinition {
+  type: 'date';
+  config: Record<string, never>;
+}
+
 export interface UserReferenceFieldDefinition
   extends BaseCustomFieldDefinition {
   type: 'user_reference';
@@ -61,6 +67,7 @@ export interface IssueReferenceFieldDefinition
 export type CustomFieldDefinition =
   | TextFieldDefinition
   | NumberFieldDefinition
+  | DateFieldDefinition
   | UserReferenceFieldDefinition
   | IssueReferenceFieldDefinition;
 

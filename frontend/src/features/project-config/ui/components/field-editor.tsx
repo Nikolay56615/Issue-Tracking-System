@@ -216,6 +216,12 @@ export const FieldEditor = ({
         </div>
       )}
 
+      {field.type === 'date' && (
+        <div className="text-muted-foreground text-sm">
+          This field stores a calendar date.
+        </div>
+      )}
+
       {field.type === 'issue_reference' && (
         <div className="text-muted-foreground text-sm">
           This field can reference only issues from the same project.

@@ -190,6 +190,10 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       }
     }
 
+    if (field.type === 'date' && value != null && typeof value !== 'string') {
+      return `${field.name} must be a date`;
+    }
+
     if (field.type === 'user_reference' && value != null) {
       const availableMembers = getAssignableMembersForField(field, projectMembers);
       if (!availableMembers.some((member) => member.id === value)) {
@@ -228,6 +232,18 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               field.id,
               event.target.value === '' ? null : Number(event.target.value)
             )
+          }
+        />
+      );
+    }
+
+    if (field.type === 'date') {
+      return (
+        <Input
+          type="date"
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) =>
+            setFieldValue(field.id, event.target.value || null)
           }
         />
       );

@@ -68,7 +68,15 @@ export interface ChangeIssueStatusRequest {
 
 export interface LifecycleGraph {
   statuses: IssueStatus[];
-  transitions: Transition[];
+  transitions: LifecycleGraphTransition[];
+}
+
+export interface LifecycleGraphTransition {
+  from: IssueStatus;
+  to: IssueStatus;
+  allowedRoles: string[];
+  authorAllowed: boolean;
+  assigneeAllowed: boolean;
 }
 
 export type LifecycleTransition = Transition;
@@ -81,7 +89,6 @@ export interface UpdateIssueRequest {
   status?: IssueStatus;
   assigneeIds?: number[];
   dueDate?: string;
-  attachmentFileNames?: string[];
   attachments?: Attachment[];
   customFields?: Record<string, IssueCustomFieldValue>;
 }

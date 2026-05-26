@@ -39,9 +39,12 @@ export interface Project {
   name: string;
   ownerId: number;
   archived: boolean;
-  currentRoleId?: string;
-  currentRoleName?: string;
-  currentPermissions?: PermissionKey[];
+}
+
+export type ProjectPermissionsById = Record<number, PermissionKey[]>;
+
+export interface CurrentProjectRoleResponse {
+  role: CustomRole;
 }
 
 export interface CreateProjectRequest {

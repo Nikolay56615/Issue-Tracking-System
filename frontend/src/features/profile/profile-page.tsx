@@ -30,6 +30,7 @@ export const ProfilePage = () => {
     profileLoading,
     profileError,
     projects,
+    projectPermissions,
     projectsLoading,
     projectsError,
     archiveProjectLoadingIds,
@@ -83,10 +84,10 @@ export const ProfilePage = () => {
                       {project.name}
                     </span>
                   </Link>
-                  {can(project.currentPermissions, 'members.invite') && (
+                  {can(projectPermissions[project.id], 'members.invite') && (
                     <InviteUserPopover projectId={project.id} />
                   )}
-                  {can(project.currentPermissions, 'project.archive') && (
+                  {can(projectPermissions[project.id], 'project.archive') && (
                     <>
                       <Button
                         disabled={archiveProjectLoadingIds.includes(project.id)}
@@ -119,7 +120,7 @@ export const ProfilePage = () => {
                   <Link to={`/${project.id}/board`}>
                     <span>{project.name}</span>
                   </Link>
-                  {can(project.currentPermissions, 'project.restore') && (
+                  {can(projectPermissions[project.id], 'project.restore') && (
                     <Button
                       size="sm"
                       onClick={() => dispatch(restoreProject(project.id))}

@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router';
+import { useBlocker, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { Save } from 'lucide-react';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { Button } from '@/components/ui/button.tsx';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog.tsx';
 import {
   Tabs,
   TabsContent,
@@ -44,6 +52,22 @@ import type { CustomRole } from '@/features/profile';
 import { fetchProjects } from '@/features/profile/model/profile.actions.ts';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { getProjectUsers } from '@/features/users/model/users.actions.ts';
+
+const omitUpdatedAt = ({ updatedAt: _updatedAt, ...config }: ProjectConfig) =>
+  config;
+
+const areConfigsEqual = (
+  left: ProjectConfig | null,
+  right: ProjectConfig | null
+) => {
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return (
+    JSON.stringify(omitUpdatedAt(left)) === JSON.stringify(omitUpdatedAt(right))
+  );
+};
 
 export const ProjectSettingsPage = () => {
   const params = useParams();
@@ -105,6 +129,11 @@ export const ProjectSettingsPage = () => {
 
   const sortedStatuses = useMemo(() => getOrderedStatuses(draft), [draft]);
   const fieldEntries = useMemo(() => getOrderedIssueFields(draft), [draft]);
+  const hasUnsavedChanges = useMemo(
+    () => Boolean(draft && config && !areConfigsEqual(draft, config)),
+    [config, draft]
+  );
+  const navigationBlocker = useBlocker(hasUnsavedChanges);
 
   if (loading === 'pending' || roleLoading) {
     return <div className="p-8">Loading settings...</div>;
@@ -487,119 +516,153 @@ export const ProjectSettingsPage = () => {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Project Settings</h1>
-          <p className="text-muted-foreground text-sm">
-            Configure roles, lifecycle, fields, and reusable project templates in
-            one place.
-          </p>
+    <>
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold">Project Settings</h1>
+            <p className="text-muted-foreground text-sm">
+              Configure roles, lifecycle, fields, and reusable project templates
+              in one place.
+            </p>
+          </div>
+          <Button
+            className="min-w-30"
+            onClick={save}
+            disabled={saving === 'pending'}
+          >
+            <Save data-icon="inline-start" />
+            {saving === 'pending' ? 'Saving...' : 'Save'}
+          </Button>
         </div>
-        <Button
-          className="min-w-30"
-          onClick={save}
-          disabled={saving === 'pending'}
+
+        {(saveError || templateError) && (
+          <div
+            className="text-destructive bg-destructive/10 border-destructive/20
+              rounded-lg border px-3 py-2 text-sm"
+          >
+            {saveError || templateError}
+          </div>
+        )}
+
+        <Tabs defaultValue="roles" className="flex flex-col gap-4">
+          <TabsList className="grid w-full max-w-3xl grid-cols-4">
+            <TabsTrigger value="roles">Roles</TabsTrigger>
+            <TabsTrigger value="lifecycle">Lifecycle</TabsTrigger>
+            <TabsTrigger value="fields">Fields</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="roles" className="mt-0 space-y-4">
+            <RolesTab
+              draft={draft}
+              users={users}
+              expandedRoleId={expandedRoleId}
+              setExpandedRoleId={setExpandedRoleId}
+              addRole={addRole}
+              deleteRole={deleteRole}
+              updateRole={updateRole}
+            />
+          </TabsContent>
+
+          <TabsContent
+            value="lifecycle"
+            className="mt-0 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]"
+          >
+            <LifecycleTab
+              draft={draft}
+              sortedStatuses={sortedStatuses}
+              expandedStatusId={expandedStatusId}
+              setExpandedStatusId={setExpandedStatusId}
+              expandedTransitionId={expandedTransitionId}
+              setExpandedTransitionId={setExpandedTransitionId}
+              transitionRulesDisabled={transitionRulesDisabled}
+              getIssueCountForStatus={(statusId: string) =>
+                getIssueCountForStatus(issues, statusId)
+              }
+              addStatus={addStatus}
+              deleteStatus={deleteStatus}
+              updateStatus={updateStatus}
+              addTransition={addTransition}
+              updateTransition={updateTransition}
+              removeTransition={removeTransition}
+              handleStatusDragEnd={handleStatusDragEnd}
+              setTransitionRulesDisabled={(disabled) =>
+                updateDraft((current) => ({
+                  ...current,
+                  lifecycle: {
+                    ...current.lifecycle,
+                    transitionRulesEnabled: !disabled,
+                  },
+                }))
+              }
+              setInitialStatus={setInitialStatus}
+            />
+          </TabsContent>
+
+          <TabsContent value="fields" className="mt-0 space-y-4">
+            <FieldsTab
+              draft={draft}
+              fieldEntries={fieldEntries}
+              expandedFieldId={expandedFieldId}
+              setExpandedFieldId={setExpandedFieldId}
+              addField={addField}
+              deleteField={deleteField}
+              updateField={updateField}
+              switchFieldType={switchFieldType}
+              handleFieldDragEnd={handleFieldDragEnd}
+              issues={issues}
+            />
+          </TabsContent>
+
+          <TabsContent
+            value="templates"
+            className="mt-0 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]"
+          >
+            <TemplatesTab
+              exportedTemplate={exportedTemplate}
+              templateLoading={templateLoading}
+              selectedTemplateProjectId={selectedTemplateProjectId}
+              setSelectedTemplateProjectId={setSelectedTemplateProjectId}
+              sourceProjects={sourceProjects}
+              handleExportTemplate={handleExportTemplate}
+              handleApplyTemplate={handleApplyTemplate}
+            />
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      <Dialog open={navigationBlocker.state === 'blocked'}>
+        <DialogContent
+          showCloseButton={false}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
         >
-          <Save data-icon="inline-start" />
-          {saving === 'pending' ? 'Saving...' : 'Save'}
-        </Button>
-      </div>
-
-      {(saveError || templateError) && (
-        <div
-          className="text-destructive bg-destructive/10 border-destructive/20
-            rounded-lg border px-3 py-2 text-sm"
-        >
-          {saveError || templateError}
-        </div>
-      )}
-
-      <Tabs defaultValue="roles" className="flex flex-col gap-4">
-        <TabsList className="grid w-full max-w-3xl grid-cols-4">
-          <TabsTrigger value="roles">Roles</TabsTrigger>
-          <TabsTrigger value="lifecycle">Lifecycle</TabsTrigger>
-          <TabsTrigger value="fields">Fields</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="roles" className="mt-0 space-y-4">
-          <RolesTab
-            draft={draft}
-            users={users}
-            expandedRoleId={expandedRoleId}
-            setExpandedRoleId={setExpandedRoleId}
-            addRole={addRole}
-            deleteRole={deleteRole}
-            updateRole={updateRole}
-          />
-        </TabsContent>
-
-        <TabsContent
-          value="lifecycle"
-          className="mt-0 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]"
-        >
-          <LifecycleTab
-            draft={draft}
-            sortedStatuses={sortedStatuses}
-            expandedStatusId={expandedStatusId}
-            setExpandedStatusId={setExpandedStatusId}
-            expandedTransitionId={expandedTransitionId}
-            setExpandedTransitionId={setExpandedTransitionId}
-            transitionRulesDisabled={transitionRulesDisabled}
-            getIssueCountForStatus={(statusId: string) =>
-              getIssueCountForStatus(issues, statusId)
-            }
-            addStatus={addStatus}
-            deleteStatus={deleteStatus}
-            updateStatus={updateStatus}
-            addTransition={addTransition}
-            updateTransition={updateTransition}
-            removeTransition={removeTransition}
-            handleStatusDragEnd={handleStatusDragEnd}
-            setTransitionRulesDisabled={(disabled) =>
-              updateDraft((current) => ({
-                ...current,
-                lifecycle: {
-                  ...current.lifecycle,
-                  transitionRulesEnabled: !disabled,
-                },
-              }))
-            }
-            setInitialStatus={setInitialStatus}
-          />
-        </TabsContent>
-
-        <TabsContent value="fields" className="mt-0 space-y-4">
-          <FieldsTab
-            draft={draft}
-            fieldEntries={fieldEntries}
-            expandedFieldId={expandedFieldId}
-            setExpandedFieldId={setExpandedFieldId}
-            addField={addField}
-            deleteField={deleteField}
-            updateField={updateField}
-            switchFieldType={switchFieldType}
-            handleFieldDragEnd={handleFieldDragEnd}
-            issues={issues}
-          />
-        </TabsContent>
-
-        <TabsContent
-          value="templates"
-          className="mt-0 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]"
-        >
-          <TemplatesTab
-            exportedTemplate={exportedTemplate}
-            templateLoading={templateLoading}
-            selectedTemplateProjectId={selectedTemplateProjectId}
-            setSelectedTemplateProjectId={setSelectedTemplateProjectId}
-            sourceProjects={sourceProjects}
-            handleExportTemplate={handleExportTemplate}
-            handleApplyTemplate={handleApplyTemplate}
-          />
-        </TabsContent>
-      </Tabs>
-    </main>
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved project settings. If you leave this page, your
+              changes will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => navigationBlocker.proceed?.()}
+            >
+              Leave without saving
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigationBlocker.reset?.()}
+            >
+              Stay on page
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

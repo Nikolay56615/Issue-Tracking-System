@@ -11,14 +11,23 @@ export const RowToggleButton = ({
   accent,
   draggable,
   expandable = true,
+  compact = false,
 }: RowToggleButtonProps) => (
-  <div className="flex items-center gap-2 px-2 py-1.5">
+  <div
+    className={cn(
+      'flex items-center gap-2 px-2',
+      compact ? 'py-1' : 'py-1.5'
+    )}
+  >
     {draggable && (
       <button
         type="button"
-        className="text-muted-foreground hover:bg-muted inline-flex size-8
-          shrink-0 cursor-grab items-center justify-center rounded-md
-          active:cursor-grabbing"
+        className={cn(
+          `text-muted-foreground hover:bg-muted inline-flex shrink-0
+          cursor-grab items-center justify-center rounded-md
+          active:cursor-grabbing`,
+          compact ? 'size-7' : 'size-8'
+        )}
         ref={draggable.setActivatorNodeRef}
         {...draggable.attributes}
         {...draggable.listeners}
@@ -30,8 +39,11 @@ export const RowToggleButton = ({
       <button
         type="button"
         onClick={onClick}
-        className="hover:bg-muted/40 flex min-w-0 flex-1 items-center gap-3
-          rounded-lg px-2 py-2.5 text-left transition-colors"
+        className={cn(
+          `hover:bg-muted/40 flex min-w-0 flex-1 items-center rounded-lg px-2
+          text-left transition-colors`,
+          compact ? 'gap-2 py-2' : 'gap-3 py-2.5'
+        )}
       >
         {accent}
         <div className="min-w-0 flex-1">
@@ -55,8 +67,10 @@ export const RowToggleButton = ({
       </button>
     ) : (
       <div
-        className="flex min-w-0 flex-1 items-center justify-between gap-3
-          rounded-lg px-2 py-2.5"
+        className={cn(
+          `flex min-w-0 flex-1 items-center justify-between rounded-lg px-2`,
+          compact ? 'gap-2 py-2' : 'gap-3 py-2.5'
+        )}
       >
         <div className="flex min-w-0 items-center gap-3">
           {accent}

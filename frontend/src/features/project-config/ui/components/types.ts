@@ -32,6 +32,7 @@ export interface RowToggleButtonProps {
 export interface SettingsSectionProps {
   title: string;
   description?: string;
+  helpText?: string;
   action?: ReactNode;
   children: ReactNode;
   className?: string;

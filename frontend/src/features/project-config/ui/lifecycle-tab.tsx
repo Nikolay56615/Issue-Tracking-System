@@ -1,5 +1,10 @@
-import { Plus } from 'lucide-react';
+import { Info, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button.tsx';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip.tsx';
 import {
   closestCenter,
   DndContext,
@@ -42,6 +47,7 @@ export const LifecycleTab = ({
     <>
       <SettingsSection
         title="Statuses"
+        helpText="Statuses define the issue workflow columns and their order."
         action={
           <Button size="sm" onClick={addStatus}>
             <Plus data-icon="inline-start" />
@@ -80,6 +86,7 @@ export const LifecycleTab = ({
 
       <SettingsSection
         title="Transitions"
+        helpText="Transition rules control who can move issues between statuses."
         action={
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm">
@@ -91,6 +98,23 @@ export const LifecycleTab = ({
                 }
               />
               <span>Disable transition rules</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground
+                      inline-flex size-5 items-center justify-center rounded-sm
+                      transition-colors"
+                    aria-label="Disable transition rules help"
+                  >
+                    <Info className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-64">
+                  When disabled, issues can move between statuses without
+                  checking transition rules.
+                </TooltipContent>
+              </Tooltip>
             </label>
             <Button
               size="sm"

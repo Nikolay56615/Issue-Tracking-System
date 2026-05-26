@@ -30,6 +30,7 @@ export const FieldsTab = ({
   return (
     <SettingsSection
       title="Issue Fields"
+      helpText="Fields define which system and custom fields appear on issues and in what order."
       className="w-full max-w-3xl"
       action={
         <Button size="sm" onClick={addField}>

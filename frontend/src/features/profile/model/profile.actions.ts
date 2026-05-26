@@ -3,19 +3,37 @@ import { getApiErrorMessage } from '@/api/get-error-message.ts';
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import type {
   CreateProjectRequest,
+  PermissionKey,
   Project,
+  ProjectPermissionsById,
   UserProfile,
 } from '@/features/profile/model/profile.types.ts';
 import { AxiosError } from 'axios';
 import type { RootState } from '@/store/types.ts';
 
+const fetchProjectPermissions = async (
+  projects: Project[]
+): Promise<ProjectPermissionsById> => {
+  const entries = await Promise.all(
+    projects.map(async (project) => {
+      const { role } = await ProfileRequests.getMyRole(project.id);
+      return [project.id, role.permissions] as [number, PermissionKey[]];
+    })
+  );
+
+  return Object.fromEntries(entries);
+};
+
 export const fetchProjects = createAsyncThunk<
-  Project[],
+  { projects: Project[]; projectPermissions: ProjectPermissionsById },
   void,
   { rejectValue: string }
 >('projects', async (_, { rejectWithValue }) => {
   try {
-    return await ProfileRequests.fetchProjects();
+    const projects = await ProfileRequests.fetchProjects();
+    const projectPermissions = await fetchProjectPermissions(projects);
+
+    return { projects, projectPermissions };
   } catch (error: unknown) {
     return rejectWithValue(getApiErrorMessage(error));
   }
@@ -43,12 +61,15 @@ export const getCurrentUser = createAsyncThunk<
 );
 
 export const createProject = createAsyncThunk<
-  Project,
+  { project: Project; permissions: PermissionKey[] },
   CreateProjectRequest,
   { rejectValue: string }
 >('createProject', async (createProjectRequest, { rejectWithValue }) => {
   try {
-    return await ProfileRequests.createProject(createProjectRequest);
+    const project = await ProfileRequests.createProject(createProjectRequest);
+    const { role } = await ProfileRequests.getMyRole(project.id);
+
+    return { project, permissions: role.permissions };
   } catch (e) {
     if (e instanceof AxiosError) {
       return rejectWithValue(e.response?.data?.message || 'Error happened');

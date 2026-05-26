@@ -52,6 +52,42 @@ const users = [
     username: 'Roman Orlov',
     password: 'password',
   },
+  {
+    id: 7,
+    email: 'analyst@example.com',
+    username: 'Sofia Ivanova',
+    password: 'password',
+  },
+  {
+    id: 8,
+    email: 'designer@example.com',
+    username: 'Daria Kuznetsova',
+    password: 'password',
+  },
+  {
+    id: 9,
+    email: 'support@example.com',
+    username: 'Mikhail Lebedev',
+    password: 'password',
+  },
+  {
+    id: 10,
+    email: 'devops@example.com',
+    username: 'Kirill Morozov',
+    password: 'password',
+  },
+  {
+    id: 11,
+    email: 'product@example.com',
+    username: 'Elena Fedorova',
+    password: 'password',
+  },
+  {
+    id: 12,
+    email: 'intern@example.com',
+    username: 'Artem Volkov',
+    password: 'password',
+  },
 ];
 
 const projects = [
@@ -527,8 +563,6 @@ const issues = [
 const deletedIssueIds = new Set([104]);
 
 const ok = (body = {}) => ({ statusCode: 200, body });
-const created = (body = {}) => ({ statusCode: 201, body });
-const noContent = () => ({ statusCode: 204, body: {} });
 const error = (statusCode, message) => ({ statusCode, body: { message } });
 
 const getId = (request, name = 'id') => Number(request.params[name]);
@@ -614,14 +648,11 @@ const toProfile = (user) => ({
   username: user.username,
 });
 
-const toProject = (project, member, role) => ({
+const toProject = (project) => ({
   id: project.id,
   name: project.name,
   ownerId: project.ownerId,
   archived: project.archived,
-  currentRoleId: member?.roleId,
-  currentRoleName: role?.name,
-  currentPermissions: role?.permissions ?? [],
 });
 
 const toMemberProfile = (projectId, member) => {
@@ -1052,6 +1083,60 @@ const isTransitionAllowed = (issue, transition, currentUserId, currentRoleId) =>
     return false;
   });
 
+const canTransitionIssue = (issue, toStatus, access) => {
+  if (issue.status === toStatus) return true;
+
+  const statusExists = access.config.lifecycle.statuses.some(
+    (status) => status.id === toStatus
+  );
+  if (!statusExists) return false;
+
+  if (access.config.lifecycle.transitionRulesEnabled === false) {
+    return true;
+  }
+
+  if (!hasPermission(access.role, 'issue.edit')) {
+    return false;
+  }
+
+  const transition = access.config.lifecycle.transitions.find(
+    (item) => item.fromStatusId === issue.status && item.toStatusId === toStatus
+  );
+
+  return transition
+    ? isTransitionAllowed(issue, transition, access.user.id, access.role.id)
+    : false;
+};
+
+const toLifecycleGraph = (lifecycle) => ({
+  statuses: lifecycle.statuses.map((status) => status.id),
+  transitions: lifecycle.transitions.map((transition) => ({
+    from: transition.fromStatusId,
+    to: transition.toStatusId,
+    allowedRoles: transition.conditions
+      .filter((condition) => condition.type === 'role')
+      .map((condition) => condition.roleId),
+    authorAllowed: transition.conditions.some(
+      (condition) => condition.type === 'author'
+    ),
+    assigneeAllowed: transition.conditions.some(
+      (condition) => condition.type === 'assignee'
+    ),
+  })),
+});
+
+const removeProjectMember = (projectId, userId) => {
+  const projectMemberIndex = members.findIndex(
+    (member) => member.projectId === projectId && member.userId === userId
+  );
+  if (projectMemberIndex === -1) {
+    return error(404, 'Member not found');
+  }
+
+  members.splice(projectMemberIndex, 1);
+  return ok();
+};
+
 const validateProjectConfig = (projectId, config) => {
   if (!config.roles?.length) {
     return 'Project must have at least one role';
@@ -1251,7 +1336,7 @@ const config = [
         };
         users.push(user);
 
-        return created(toProfile(user));
+        return ok(toProfile(user));
       }),
       route('/auth/login', 'post', (request) => {
         const { email, password } = request.body;
@@ -1290,9 +1375,7 @@ const config = [
           .filter((member) => member.userId === user.id)
           .map((member) => {
             const project = getProject(member.projectId);
-            const projectConfig = getConfig(member.projectId);
-            const role = getRole(projectConfig, member.roleId);
-            return project ? toProject(project, member, role) : null;
+            return project ? toProject(project) : null;
           })
           .filter(Boolean);
 
@@ -1340,9 +1423,14 @@ const config = [
           roleId: ownerRole.id,
         });
 
-        return created(
-          toProject(project, { projectId, userId: user.id, roleId: ownerRole.id }, ownerRole)
-        );
+        return ok(toProject(project));
+      }),
+      route('/projects/:projectId', 'get', (request) => {
+        const projectId = getId(request, 'projectId');
+        const access = ensureProjectAccess(request, projectId);
+        if (access.response) return access.response;
+
+        return ok(toProject(access.project));
       }),
       route('/projects/:projectId/config', 'get', (request) => {
         const projectId = getId(request, 'projectId');
@@ -1412,6 +1500,27 @@ const config = [
 
         return ok(getProjectMembers(projectId).map((member) => toMemberProfile(projectId, member)));
       }),
+      route('/projects/:projectId/invite-candidates', 'get', (request) => {
+        const projectId = getId(request, 'projectId');
+        const access = ensureProjectAccess(request, projectId, 'members.invite');
+        if (access.response) return access.response;
+
+        const query = String(request.query.query ?? '').toLowerCase();
+        const projectMemberIds = new Set(
+          getProjectMembers(projectId).map((member) => member.userId)
+        );
+
+        return ok(
+          users
+            .filter((user) => !projectMemberIds.has(user.id))
+            .filter(
+              (user) =>
+                user.email.toLowerCase().includes(query) ||
+                user.username.toLowerCase().includes(query)
+            )
+            .map(toProfile)
+        );
+      }),
       route('/projects/:projectId/my-role', 'get', (request) => {
         const projectId = getId(request, 'projectId');
         const access = ensureProjectAccess(request, projectId);
@@ -1474,16 +1583,14 @@ const config = [
         const access = ensureProjectAccess(request, projectId, 'members.remove');
         if (access.response) return access.response;
 
-        const userId = getId(request, 'userId');
-        const projectMemberIndex = members.findIndex(
-          (member) => member.projectId === projectId && member.userId === userId
-        );
-        if (projectMemberIndex === -1) {
-          return error(404, 'Member not found');
-        }
+        return removeProjectMember(projectId, getId(request, 'userId'));
+      }),
+      route('/projects/:projectId/remove-member/:userId', 'post', (request) => {
+        const projectId = getId(request, 'projectId');
+        const access = ensureProjectAccess(request, projectId, 'members.remove');
+        if (access.response) return access.response;
 
-        members.splice(projectMemberIndex, 1);
-        return noContent();
+        return removeProjectMember(projectId, getId(request, 'userId'));
       }),
       route('/projects/:projectId/archive', 'post', (request) => {
         const projectId = getId(request, 'projectId');
@@ -1491,7 +1598,7 @@ const config = [
         if (access.response) return access.response;
 
         access.project.archived = true;
-        return noContent();
+        return ok();
       }),
       route('/projects/:projectId/restore', 'post', (request) => {
         const projectId = getId(request, 'projectId');
@@ -1499,7 +1606,7 @@ const config = [
         if (access.response) return access.response;
 
         access.project.archived = false;
-        return noContent();
+        return ok();
       }),
       route('/issues/board', 'post', (request) => {
         const projectId = Number(request.query.projectId);
@@ -1551,7 +1658,7 @@ const config = [
         };
 
         issues.push(issue);
-        return created(issue);
+        return ok(issue);
       }),
       route('/issues/:id', 'get', (request) => {
         const issue = issues.find((item) => item.id === getId(request));
@@ -1578,15 +1685,27 @@ const config = [
         if (customFieldResult.error) {
           return error(400, customFieldResult.error);
         }
+        if (!request.body.name || !request.body.priority || !request.body.type) {
+          return error(400, 'name, priority and type are required');
+        }
+        if (request.body.status) {
+          const statusExists = access.config.lifecycle.statuses.some(
+            (status) => status.id === request.body.status
+          );
+          if (!statusExists) {
+            return error(400, 'Target status does not exist');
+          }
+        }
 
         Object.assign(issue, {
           name: request.body.name,
           description: request.body.description ?? issue.description,
-          priority: request.body.priority ?? issue.priority,
-          type: request.body.type ?? issue.type,
+          priority: request.body.priority,
+          type: request.body.type,
+          status: request.body.status ?? issue.status,
           assigneeIds: (request.body.assigneeIds ?? issue.assigneeIds).map(Number),
           dueDate: request.body.dueDate ?? issue.dueDate,
-          attachments: normalizeAttachments(request.body),
+          attachments: request.body.attachments ?? issue.attachments,
           customFields: customFieldResult.sanitized,
         });
 
@@ -1609,7 +1728,7 @@ const config = [
 
         if (access.config.lifecycle.transitionRulesEnabled === false) {
           issue.status = nextStatus;
-          return noContent();
+          return ok();
         }
 
         if (!hasPermission(access.role, 'issue.edit')) {
@@ -1629,7 +1748,7 @@ const config = [
         }
 
         issue.status = nextStatus;
-        return noContent();
+        return ok();
       }),
       route('/issues/:id', 'delete', (request) => {
         const issue = issues.find((item) => item.id === getId(request));
@@ -1639,7 +1758,7 @@ const config = [
         if (access.response) return access.response;
 
         deletedIssueIds.add(issue.id);
-        return noContent();
+        return ok();
       }),
       route('/issues/:id/restore', 'post', (request) => {
         const issue = issues.find((item) => item.id === getId(request));
@@ -1649,7 +1768,7 @@ const config = [
         if (access.response) return access.response;
 
         deletedIssueIds.delete(issue.id);
-        return noContent();
+        return ok();
       }),
       route('/issues/:id/attachments', 'delete', (request) => {
         const issue = issues.find((item) => item.id === getId(request));
@@ -1662,7 +1781,7 @@ const config = [
           (attachment) => attachment.url !== request.query.url
         );
 
-        return noContent();
+        return ok();
       }),
       route('/attachments/upload', 'post', () =>
         ok({ url: `/files/mock-${counters.attachment++}.txt` })
@@ -1674,10 +1793,20 @@ const config = [
       })),
       route('/lifecycle/graph', 'get', () => {
         const lifecycle = getConfig(1).lifecycle;
-        return ok({
-          statuses: lifecycle.statuses.map((status) => status.id),
-          transitions: lifecycle.transitions,
-        });
+        return ok(toLifecycleGraph(lifecycle));
+      }),
+      route('/lifecycle/can-transition', 'post', (request) => {
+        const issue = issues.find((item) => item.id === Number(request.body.issueId));
+        if (!issue) return error(404, 'Issue not found');
+
+        const access = ensureProjectAccess(request, issue.projectId);
+        if (access.response) return access.response;
+
+        if (issue.status !== request.body.from) {
+          return ok(false);
+        }
+
+        return ok(canTransitionIssue(issue, String(request.body.to), access));
       }),
     ],
   },

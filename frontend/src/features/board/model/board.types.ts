@@ -23,7 +23,7 @@ export type IssueType = 'TASK' | 'BUG' | 'FEATURE' | 'SEARCH';
 
 export type IssuePriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
 
-export type IssueCustomFieldValue = string | number | null;
+export type IssueCustomFieldValue = string | number | boolean | null;
 
 export interface Attachment {
   originalFileName: string;

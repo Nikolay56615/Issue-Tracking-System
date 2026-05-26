@@ -72,19 +72,21 @@ export const FieldEditor = ({
       </div>
     </div>
 
-    <label className="mt-4 flex items-center gap-2 text-sm">
-      <input
-        type="checkbox"
-        checked={field.required}
-        onChange={(event) =>
-          updateField(field.id, (current) => ({
-            ...current,
-            required: event.target.checked,
-          }))
-        }
-      />
-      <span>Required field</span>
-    </label>
+    {field.type !== 'checkbox' && (
+      <label className="mt-4 flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={field.required}
+          onChange={(event) =>
+            updateField(field.id, (current) => ({
+              ...current,
+              required: event.target.checked,
+            }))
+          }
+        />
+        <span>Required field</span>
+      </label>
+    )}
 
     <div className="mt-4">
       {field.type === 'text' && (
@@ -219,6 +221,12 @@ export const FieldEditor = ({
       {field.type === 'date' && (
         <div className="text-muted-foreground text-sm">
           This field stores a calendar date.
+        </div>
+      )}
+
+      {field.type === 'checkbox' && (
+        <div className="text-muted-foreground text-sm">
+          This field stores a checked or unchecked value.
         </div>
       )}
 

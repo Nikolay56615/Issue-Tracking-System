@@ -155,8 +155,10 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
                   {field.type === 'user_reference' ? (
                     <UserValueCard
                       member={
-                        members.find((member) => member.id === value) ??
-                        null
+                        typeof value === 'number'
+                          ? members.find((member) => member.id === value) ??
+                            null
+                          : null
                       }
                       loading={loadingUsers}
                       emptyLabel="Not set"

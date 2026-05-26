@@ -165,6 +165,32 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
       );
     }
 
+    if (field.type === 'checkbox') {
+      return (
+        <Select
+          value={
+            value === true ? 'checked' : value === false ? 'unchecked' : 'all'
+          }
+          onValueChange={(nextValue) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]:
+                nextValue === 'all' ? null : nextValue === 'checked',
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={field.name} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any</SelectItem>
+            <SelectItem value="checked">Checked</SelectItem>
+            <SelectItem value="unchecked">Unchecked</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
     if (field.type === 'user_reference') {
       const allowedMembers = getAssignableMembersForField(field, projectMembers);
 

@@ -30,6 +30,7 @@ export const FieldsTab = ({
   return (
     <SettingsSection
       title="Issue Fields"
+      className="w-full max-w-3xl"
       action={
         <Button size="sm" onClick={addField}>
           <Plus data-icon="inline-start" />

@@ -41,6 +41,7 @@ export const FieldRow = ({
             onClick={field ? () => setExpandedFieldId(isOpen ? null : field.id) : undefined}
             draggable={draggable}
             expandable={Boolean(field)}
+            compact
           />
           {field && isOpen && (
             <FieldEditor

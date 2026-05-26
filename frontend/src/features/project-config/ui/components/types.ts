@@ -26,6 +26,7 @@ export interface RowToggleButtonProps {
   accent?: ReactNode;
   draggable?: SortableDraggableHandle;
   expandable?: boolean;
+  compact?: boolean;
 }
 
 export interface SettingsSectionProps {

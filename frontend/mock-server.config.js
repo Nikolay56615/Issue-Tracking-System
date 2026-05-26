@@ -757,6 +757,17 @@ const cloneConfigForProject = (projectId, templateConfig) => {
       };
     }
 
+    if (field.type === 'date' || field.type === 'checkbox') {
+      return {
+        id,
+        projectId,
+        name: field.name,
+        type: field.type,
+        required: field.required,
+        config: {},
+      };
+    }
+
     if (field.type === 'user_reference') {
       return {
         id,
@@ -896,6 +907,10 @@ const remapMembersToConfig = (projectId, previousConfig, nextConfig) => {
 
 const validateCustomFieldValue = (projectId, config, field, value, issueId = null) => {
   if (value === undefined || value === null || value === '') {
+    if (field.type === 'checkbox') {
+      return null;
+    }
+
     if (field.required) {
       return `${field.name} is required`;
     }
@@ -927,6 +942,14 @@ const validateCustomFieldValue = (projectId, config, field, value, issueId = nul
     if (field.config.max != null && numericValue > field.config.max) {
       return `${field.name} is above maximum`;
     }
+    return null;
+  }
+
+  if (field.type === 'checkbox') {
+    if (typeof value !== 'boolean') {
+      return `${field.name} must be checked or unchecked`;
+    }
+
     return null;
   }
 
@@ -979,6 +1002,9 @@ const sanitizeCustomFields = (projectId, config, values, issueId = null) => {
     }
 
     if (value === undefined || value === null || value === '') {
+      if (field.type === 'checkbox') {
+        sanitized[field.id] = false;
+      }
       continue;
     }
 
@@ -989,6 +1015,11 @@ const sanitizeCustomFields = (projectId, config, values, issueId = null) => {
 
     if (field.type === 'user_reference' || field.type === 'issue_reference') {
       sanitized[field.id] = Number(value);
+      continue;
+    }
+
+    if (field.type === 'checkbox') {
+      sanitized[field.id] = value;
       continue;
     }
 
@@ -1138,6 +1169,15 @@ const removeProjectMember = (projectId, userId) => {
 };
 
 const validateProjectConfig = (projectId, config) => {
+  const validCustomFieldTypes = new Set([
+    'text',
+    'number',
+    'date',
+    'checkbox',
+    'user_reference',
+    'issue_reference',
+  ]);
+
   if (!config.roles?.length) {
     return 'Project must have at least one role';
   }
@@ -1176,6 +1216,10 @@ const validateProjectConfig = (projectId, config) => {
   }
 
   for (const field of config.customFields) {
+    if (!validCustomFieldTypes.has(field.type)) {
+      return `${field.name} has an unsupported type`;
+    }
+
     if (
       field.type === 'user_reference' &&
       field.config.allowedRoleIds.some((roleId) => !roleIds.has(roleId))
@@ -1227,6 +1271,10 @@ const validateProjectConfig = (projectId, config) => {
 };
 
 const filterIssues = (projectId, filters = {}) => {
+  const customFieldsById = new Map(
+    (getConfig(projectId)?.customFields ?? []).map((field) => [field.id, field])
+  );
+
   return issues.filter((issue) => {
     if (deletedIssueIds.has(issue.id)) return false;
     if (issue.projectId !== projectId) return false;
@@ -1265,6 +1313,11 @@ const filterIssues = (projectId, filters = {}) => {
       }
 
       const issueValue = issue.customFields?.[fieldId];
+      const field = customFieldsById.get(fieldId);
+      if (field?.type === 'checkbox') {
+        return (issueValue ?? false) === value;
+      }
+
       if (typeof issueValue === 'string') {
         return issueValue.toLowerCase().includes(String(value).toLowerCase());
       }

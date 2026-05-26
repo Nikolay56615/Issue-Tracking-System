@@ -165,10 +165,23 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
 
   const getFieldValue = (fieldId: string) => fieldValues[fieldId] ?? null;
 
+  const getNormalizedCustomFields = () => ({
+    ...fieldValues,
+    ...Object.fromEntries(
+      customFields
+        .filter((field) => field.type === 'checkbox')
+        .map((field) => [field.id, fieldValues[field.id] === true])
+    ),
+  });
+
   const validateCustomField = (field: CustomFieldDefinition) => {
     const value = getFieldValue(field.id);
 
-    if (field.required && (value === null || value === '' || value === undefined)) {
+    if (
+      field.type !== 'checkbox' &&
+      field.required &&
+      (value === null || value === '' || value === undefined)
+    ) {
       return `${field.name} is required`;
     }
 
@@ -192,6 +205,10 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
 
     if (field.type === 'date' && value != null && typeof value !== 'string') {
       return `${field.name} must be a date`;
+    }
+
+    if (field.type === 'checkbox' && value != null && typeof value !== 'boolean') {
+      return `${field.name} must be checked or unchecked`;
     }
 
     if (field.type === 'user_reference' && value != null) {
@@ -246,6 +263,19 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             setFieldValue(field.id, event.target.value || null)
           }
         />
+      );
+    }
+
+    if (field.type === 'checkbox') {
+      return (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={value === true}
+            onChange={(event) => setFieldValue(field.id, event.target.checked)}
+          />
+          <span>Checked</span>
+        </label>
       );
     }
 
@@ -315,6 +345,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
 
       const description = editor.api.markdown.serialize();
       const assigneeIds = assigneeId == null ? [] : [assigneeId];
+      const customFieldValues = getNormalizedCustomFields();
 
       if (mode === 'add') {
         await dispatch(
@@ -327,7 +358,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             assigneeIds,
             attachmentFileNames,
             dueDate: dueDate || undefined,
-            customFields: fieldValues,
+            customFields: customFieldValues,
           })
         ).unwrap();
       } else if (issue) {
@@ -347,7 +378,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               description,
               assigneeIds,
               attachments: [...existingAttachments, ...newAttachments],
-              customFields: fieldValues,
+              customFields: customFieldValues,
               dueDate: dueDate || undefined,
             },
           })

@@ -27,6 +27,7 @@ export const FIELD_TYPE_OPTIONS: CustomFieldType[] = [
   'text',
   'number',
   'date',
+  'checkbox',
   'user_reference',
   'issue_reference',
 ];
@@ -166,7 +167,7 @@ export const getAssignableMembersForField = (
 
 export const formatCustomFieldValue = (
   field: CustomFieldDefinition,
-  value: number | string | null | undefined,
+  value: boolean | number | string | null | undefined,
   params: {
     issues?: Issue[];
     members?: UserProfileWithRole[];
@@ -184,6 +185,10 @@ export const formatCustomFieldValue = (
   if (field.type === 'issue_reference') {
     const issue = params.issues?.find((item) => item.id === value);
     return issue?.name ?? `Issue #${value}`;
+  }
+
+  if (field.type === 'checkbox') {
+    return value === true ? 'Checked' : 'Unchecked';
   }
 
   return String(value);
@@ -325,6 +330,12 @@ export const toDateConfig = (field: CustomFieldDefinition) => ({
   config: {},
 });
 
+export const toCheckboxConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'checkbox' as const,
+  config: {},
+});
+
 export const toUserReferenceConfig = (
   field: CustomFieldDefinition,
   roles: CustomRole[]
@@ -355,6 +366,7 @@ export const switchFieldType = (
   if (type === 'text') return toTextConfig(field);
   if (type === 'number') return toNumberConfig(field);
   if (type === 'date') return toDateConfig(field);
+  if (type === 'checkbox') return toCheckboxConfig(field);
   if (type === 'user_reference') return toUserReferenceConfig(field, roles);
   return toIssueReferenceConfig(field);
 };

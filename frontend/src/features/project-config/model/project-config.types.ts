@@ -18,6 +18,7 @@ export type CustomFieldType =
   | 'text'
   | 'number'
   | 'date'
+  | 'checkbox'
   | 'user_reference'
   | 'issue_reference';
 
@@ -50,6 +51,11 @@ export interface DateFieldDefinition extends BaseCustomFieldDefinition {
   config: Record<string, never>;
 }
 
+export interface CheckboxFieldDefinition extends BaseCustomFieldDefinition {
+  type: 'checkbox';
+  config: Record<string, never>;
+}
+
 export interface UserReferenceFieldDefinition
   extends BaseCustomFieldDefinition {
   type: 'user_reference';
@@ -68,6 +74,7 @@ export type CustomFieldDefinition =
   | TextFieldDefinition
   | NumberFieldDefinition
   | DateFieldDefinition
+  | CheckboxFieldDefinition
   | UserReferenceFieldDefinition
   | IssueReferenceFieldDefinition;
 

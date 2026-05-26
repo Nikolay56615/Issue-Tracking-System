@@ -14,6 +14,7 @@ export const RolesTab = ({
 }: RolesTabProps) => (
   <SettingsSection
     title="Project Roles"
+    helpText="Roles control what project members can see and do."
     action={
       <Button size="sm" onClick={addRole}>
         <Plus data-icon="inline-start" />

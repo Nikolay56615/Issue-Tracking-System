@@ -26,6 +26,7 @@ export const TemplatesTab = ({
   <>
     <SettingsSection
       title="Export Template"
+      helpText="Export this project configuration so it can be reused by other projects."
       action={
         <Button
           size="sm"
@@ -51,6 +52,7 @@ export const TemplatesTab = ({
 
     <SettingsSection
       title="Apply Existing Template"
+      helpText="Copy settings from another active project into this one."
       action={
         <Button
           size="sm"

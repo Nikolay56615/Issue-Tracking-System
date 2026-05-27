@@ -8,7 +8,10 @@ import {
   saveProjectConfig,
 } from '@/features/project-config/model/project-config.actions.ts';
 import type { ProjectTemplate } from '@/features/project-config/model/project-config.types.ts';
-import { getNormalizedFieldOrder } from '@/features/project-config/model/project-config.utils.ts';
+import {
+  getNormalizedBoardCardFieldIds,
+  getNormalizedFieldOrder,
+} from '@/features/project-config/model/project-config.utils.ts';
 import type { CustomRole } from '@/features/profile';
 
 interface ProjectConfigState {
@@ -50,6 +53,7 @@ const normalizeConfig = (config: ProjectConfig): ProjectConfig => ({
     transitionRulesEnabled: config.lifecycle.transitionRulesEnabled !== false,
   },
   fieldOrder: getNormalizedFieldOrder(config),
+  boardCardFieldIds: getNormalizedBoardCardFieldIds(config),
 });
 
 const projectConfigSlice = createSlice({

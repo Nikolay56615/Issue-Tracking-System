@@ -180,6 +180,33 @@ const createFieldOrder = (customFields) => [
   ...customFields.map((field) => field.id),
 ];
 
+const DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS = [
+  'description',
+  'dueDate',
+  'type',
+  'priority',
+];
+
+const createBoardCardFieldIds = (customFields) => [
+  ...DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS,
+  ...customFields.map((field) => field.id),
+];
+
+const normalizeBoardCardFieldIds = (config) => {
+  const fallback = createBoardCardFieldIds(config.customFields ?? []);
+  const source = Array.isArray(config.boardCardFieldIds)
+    ? config.boardCardFieldIds
+    : fallback;
+  const validIds = new Set(
+    createFieldOrder(config.customFields ?? []).filter((id) => id !== 'name')
+  );
+
+  return source.filter(
+    (fieldId, index, array) =>
+      validIds.has(fieldId) && array.indexOf(fieldId) === index
+  );
+};
+
 const createTransition = (projectId, slug, fromStatusId, toStatusId, conditions) => ({
   id: `project-${projectId}-transition-${slug}`,
   fromStatusId,
@@ -258,6 +285,7 @@ const createDefaultProjectConfig = (projectId) => {
     },
     customFields: [],
     fieldOrder: createFieldOrder([]),
+    boardCardFieldIds: createBoardCardFieldIds([]),
     updatedAt: new Date().toISOString(),
   };
 };
@@ -361,6 +389,12 @@ const createQaVisionProjectConfig = (projectId) => {
     },
     customFields: [environment, storyPoints, qaEngineer, blockedBy],
     fieldOrder: createFieldOrder([environment, storyPoints, qaEngineer, blockedBy]),
+    boardCardFieldIds: createBoardCardFieldIds([
+      environment,
+      storyPoints,
+      qaEngineer,
+      blockedBy,
+    ]),
     updatedAt: new Date().toISOString(),
   };
 };
@@ -433,6 +467,11 @@ const createProductTemplateConfig = (projectId) => {
     },
     customFields: [uxOwner, estimate, releaseNotes],
     fieldOrder: createFieldOrder([uxOwner, estimate, releaseNotes]),
+    boardCardFieldIds: createBoardCardFieldIds([
+      uxOwner,
+      estimate,
+      releaseNotes,
+    ]),
     updatedAt: new Date().toISOString(),
   };
 };
@@ -591,7 +630,20 @@ const requireUser = (request) => {
 const getProject = (projectId) =>
   projects.find((project) => project.id === projectId) ?? null;
 
-const getConfig = (projectId) => projectConfigs.get(projectId) ?? null;
+const getConfig = (projectId) => {
+  const config = projectConfigs.get(projectId) ?? null;
+  if (!config) {
+    return null;
+  }
+
+  const normalized = {
+    ...config,
+    fieldOrder: config.fieldOrder ?? createFieldOrder(config.customFields ?? []),
+    boardCardFieldIds: normalizeBoardCardFieldIds(config),
+  };
+  projectConfigs.set(projectId, normalized);
+  return normalized;
+};
 
 const getUserById = (userId) => users.find((user) => user.id === userId) ?? null;
 
@@ -691,6 +743,7 @@ const normalizeTemplateConfig = (config) => ({
   },
   customFields: config.customFields.map((field) => structuredClone(field)),
   fieldOrder: [...(config.fieldOrder ?? createFieldOrder(config.customFields))],
+  boardCardFieldIds: normalizeBoardCardFieldIds(config),
 });
 
 const cloneConfigForProject = (projectId, templateConfig) => {
@@ -800,6 +853,14 @@ const cloneConfigForProject = (projectId, templateConfig) => {
         array.indexOf(fieldId) === index &&
         (SYSTEM_FIELD_IDS.includes(fieldId) || customFields.some((field) => field.id === fieldId))
     );
+  const boardCardFieldIds = normalizeBoardCardFieldIds(templateConfig)
+    .map((fieldId) => fieldIdMap.get(fieldId) ?? fieldId)
+    .filter(
+      (fieldId, index, array) =>
+        array.indexOf(fieldId) === index &&
+        fieldId !== 'name' &&
+        (SYSTEM_FIELD_IDS.includes(fieldId) || customFields.some((field) => field.id === fieldId))
+    );
 
   const transitions = templateConfig.lifecycle.transitions.map(
     (transition, index) => ({
@@ -839,6 +900,7 @@ const cloneConfigForProject = (projectId, templateConfig) => {
     },
     customFields,
     fieldOrder,
+    boardCardFieldIds,
     updatedAt: new Date().toISOString(),
   };
 };
@@ -1245,6 +1307,21 @@ const validateProjectConfig = (projectId, config) => {
     return 'Field order contains an invalid or duplicated field';
   }
 
+  if (!Array.isArray(config.boardCardFieldIds)) {
+    return 'Board card field ids must be present';
+  }
+
+  if (
+    config.boardCardFieldIds.some(
+      (fieldId, index) =>
+        fieldId === 'name' ||
+        !expectedFieldIds.has(fieldId) ||
+        config.boardCardFieldIds.indexOf(fieldId) !== index
+    )
+  ) {
+    return 'Board card field ids contain an invalid or duplicated field';
+  }
+
   for (const transition of config.lifecycle.transitions) {
     if (
       !statusIds.has(transition.fromStatusId) ||
@@ -1502,6 +1579,9 @@ const config = [
           projectId,
           updatedAt: new Date().toISOString(),
         };
+        nextConfig.fieldOrder =
+          nextConfig.fieldOrder ?? createFieldOrder(nextConfig.customFields ?? []);
+        nextConfig.boardCardFieldIds = normalizeBoardCardFieldIds(nextConfig);
         const validationError = validateProjectConfig(projectId, nextConfig);
         if (validationError) {
           return error(400, validationError);

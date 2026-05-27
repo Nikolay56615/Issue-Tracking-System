@@ -1,3 +1,4 @@
+export { BoardCardFieldRow } from './board-card-field-row.tsx';
 export { FieldEditor } from './field-editor.tsx';
 export { FieldRow } from './field-row.tsx';
 export { PermissionGroupCard } from './permission-group-card.tsx';

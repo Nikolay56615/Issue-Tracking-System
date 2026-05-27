@@ -144,6 +144,12 @@ export interface FieldRowProps {
   deleteField: (fieldId: string) => void;
 }
 
+export interface BoardCardFieldRowProps {
+  fieldEntry: OrderedIssueFieldEntry;
+  checked: boolean;
+  onToggle: (fieldId: string) => void;
+}
+
 export interface TemplatesContentProps {
   exportedTemplate: unknown;
   templateLoading: 'idle' | 'pending' | 'succeeded' | 'failed';

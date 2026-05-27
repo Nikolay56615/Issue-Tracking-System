@@ -53,6 +53,7 @@ export interface LifecycleTabProps {
 export interface FieldsTabProps {
   draft: ProjectConfig;
   fieldEntries: OrderedIssueFieldEntry[];
+  boardCardFieldIds: string[];
   expandedFieldId: string | null;
   setExpandedFieldId: (value: string | null) => void;
   addField: () => void;
@@ -67,6 +68,7 @@ export interface FieldsTabProps {
     roles: ProjectConfig['roles']
   ) => CustomFieldDefinition;
   handleFieldDragEnd: (event: DragEndEvent) => void;
+  toggleBoardCardField: (fieldId: string) => void;
   issues: Issue[];
 }
 

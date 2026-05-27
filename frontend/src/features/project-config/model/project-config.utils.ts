@@ -48,6 +48,20 @@ export const getDefaultFieldOrder = (
   ...customFields.map((field) => field.id),
 ];
 
+const DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS: SystemIssueFieldId[] = [
+  'description',
+  'dueDate',
+  'type',
+  'priority',
+];
+
+export const getDefaultBoardCardFieldIds = (
+  customFields: CustomFieldDefinition[]
+): string[] => [
+  ...DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS,
+  ...customFields.map((field) => field.id),
+];
+
 export const getNormalizedFieldOrder = (
   config: Pick<ProjectConfig, 'customFields' | 'fieldOrder'> | null | undefined
 ) => {
@@ -62,6 +76,30 @@ export const getNormalizedFieldOrder = (
   const missing = fallback.filter((fieldId) => !ordered.includes(fieldId));
 
   return [...ordered, ...missing];
+};
+
+export const getNormalizedBoardCardFieldIds = (
+  config:
+    | Pick<ProjectConfig, 'customFields' | 'fieldOrder'> & {
+        boardCardFieldIds?: string[];
+      }
+    | null
+    | undefined
+) => {
+  const fallback = getDefaultBoardCardFieldIds(config?.customFields ?? []);
+
+  if (!Array.isArray(config?.boardCardFieldIds)) {
+    return fallback;
+  }
+
+  const validIds = new Set(
+    getNormalizedFieldOrder(config).filter((fieldId) => fieldId !== 'name')
+  );
+
+  return config.boardCardFieldIds.filter(
+    (fieldId, index, array) =>
+      validIds.has(fieldId) && array.indexOf(fieldId) === index
+  );
 };
 
 export const getSystemFieldLabel = (fieldId: SystemIssueFieldId) =>
@@ -117,6 +155,20 @@ export const getOrderedCustomFields = (
     .filter((entry) => entry.kind === 'custom')
     .map((entry) => entry.customField)
     .filter((field): field is CustomFieldDefinition => field != null);
+
+export const getBoardCardFieldEntries = (
+  config: ProjectConfig | null
+): OrderedIssueFieldEntry[] => {
+  if (config == null) {
+    return [];
+  }
+
+  const visibleIds = new Set(getNormalizedBoardCardFieldIds(config));
+
+  return getOrderedIssueFields(config).filter(
+    (entry) => entry.id !== 'name' && visibleIds.has(entry.id)
+  );
+};
 
 export const getOrderedStatuses = (config: ProjectConfig | null): CustomStatus[] =>
   [...(config?.lifecycle.statuses ?? [])].sort(

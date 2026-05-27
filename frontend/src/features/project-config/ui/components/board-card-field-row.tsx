@@ -22,9 +22,9 @@ export const BoardCardFieldRow = ({
     ) : (
       <EyeOff className="text-muted-foreground size-4 shrink-0" />
     )}
-    <span className="min-w-0 flex-1">
-      <span className="block truncate font-medium">{fieldEntry.label}</span>
-      <span className="text-muted-foreground block text-xs">
+    <span className="flex min-w-0 flex-1 items-baseline gap-2">
+      <span className="min-w-0 truncate font-medium">{fieldEntry.label}</span>
+      <span className="text-muted-foreground shrink-0 text-xs">
         {fieldEntry.kind === 'custom' && fieldEntry.customField
           ? formatFieldTypeLabel(fieldEntry.customField.type)
           : 'System field'}

@@ -30,6 +30,7 @@ import {
   exportProjectTemplate,
   fetchCurrentProjectRole,
   fetchProjectConfig,
+  getNormalizedBoardCardFieldIds,
   getIssueCountForStatus,
   getNormalizedFieldOrder,
   getOrderedIssueFields,
@@ -53,8 +54,11 @@ import { fetchProjects } from '@/features/profile/model/profile.actions.ts';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { getProjectUsers } from '@/features/users/model/users.actions.ts';
 
-const omitUpdatedAt = ({ updatedAt: _updatedAt, ...config }: ProjectConfig) =>
-  config;
+const omitUpdatedAt = (config: ProjectConfig) => {
+  const { updatedAt, ...configWithoutUpdatedAt } = config;
+  void updatedAt;
+  return configWithoutUpdatedAt;
+};
 
 const areConfigsEqual = (
   left: ProjectConfig | null,
@@ -129,6 +133,10 @@ export const ProjectSettingsPage = () => {
 
   const sortedStatuses = useMemo(() => getOrderedStatuses(draft), [draft]);
   const fieldEntries = useMemo(() => getOrderedIssueFields(draft), [draft]);
+  const boardCardFieldIds = useMemo(
+    () => getNormalizedBoardCardFieldIds(draft),
+    [draft]
+  );
   const hasUnsavedChanges = useMemo(
     () => Boolean(draft && config && !areConfigsEqual(draft, config)),
     [config, draft]
@@ -381,6 +389,10 @@ export const ProjectSettingsPage = () => {
         ...current,
         customFields: [...current.customFields, nextField],
         fieldOrder: [...getNormalizedFieldOrder(current), nextField.id],
+        boardCardFieldIds: [
+          ...getNormalizedBoardCardFieldIds(current),
+          nextField.id,
+        ],
       };
     });
   };
@@ -395,6 +407,9 @@ export const ProjectSettingsPage = () => {
       ...current,
       customFields: current.customFields.filter((field) => field.id !== fieldId),
       fieldOrder: getNormalizedFieldOrder(current).filter(
+        (item) => item !== fieldId
+      ),
+      boardCardFieldIds: getNormalizedBoardCardFieldIds(current).filter(
         (item) => item !== fieldId
       ),
       lifecycle: {
@@ -413,6 +428,23 @@ export const ProjectSettingsPage = () => {
     if (expandedFieldId === fieldId) {
       setExpandedFieldId(null);
     }
+  };
+
+  const toggleBoardCardField = (fieldId: string) => {
+    if (fieldId === 'name') {
+      return;
+    }
+
+    updateDraft((current) => {
+      const visibleIds = getNormalizedBoardCardFieldIds(current);
+
+      return {
+        ...current,
+        boardCardFieldIds: visibleIds.includes(fieldId)
+          ? visibleIds.filter((item) => item !== fieldId)
+          : [...visibleIds, fieldId],
+      };
+    });
   };
 
   const save = async () => {
@@ -600,10 +632,14 @@ export const ProjectSettingsPage = () => {
             />
           </TabsContent>
 
-          <TabsContent value="fields" className="mt-0 space-y-4">
+          <TabsContent
+            value="fields"
+            className="mt-0 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]"
+          >
             <FieldsTab
               draft={draft}
               fieldEntries={fieldEntries}
+              boardCardFieldIds={boardCardFieldIds}
               expandedFieldId={expandedFieldId}
               setExpandedFieldId={setExpandedFieldId}
               addField={addField}
@@ -611,6 +647,7 @@ export const ProjectSettingsPage = () => {
               updateField={updateField}
               switchFieldType={switchFieldType}
               handleFieldDragEnd={handleFieldDragEnd}
+              toggleBoardCardField={toggleBoardCardField}
               issues={issues}
             />
           </TabsContent>

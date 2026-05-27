@@ -122,6 +122,7 @@ export interface ProjectConfig {
   lifecycle: LifecycleConfig;
   customFields: CustomFieldDefinition[];
   fieldOrder: string[];
+  boardCardFieldIds: string[];
   updatedAt: string;
 }
 

@@ -47,8 +47,27 @@ export const RowToggleButton = ({
       >
         {accent}
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{title}</div>
-          {(subtitle || meta) && (
+          <div
+            className={cn(
+              'min-w-0',
+              compact && (subtitle || meta)
+                ? 'flex items-baseline gap-x-3'
+                : ''
+            )}
+          >
+            <div className="min-w-0 truncate text-sm font-medium">{title}</div>
+            {compact && subtitle && (
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {subtitle}
+              </span>
+            )}
+            {compact && meta && (
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {meta}
+              </span>
+            )}
+          </div>
+          {!compact && (subtitle || meta) && (
             <div
               className="text-muted-foreground mt-1 flex flex-wrap gap-x-3
                 gap-y-1 text-xs"

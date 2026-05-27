@@ -56,7 +56,6 @@ import { Loader2, Pencil } from 'lucide-react';
 import { getApiErrorMessage } from '@/api/get-error-message.ts';
 import type { CustomFieldDefinition } from '@/features/project-config/model/project-config.types.ts';
 import {
-  formatCustomFieldValue,
   getAssignableMembersForField,
   getOrderedCustomFields,
 } from '@/features/project-config/model';
@@ -139,7 +138,10 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
     open && (usersLoading === 'pending' || usersProjectId !== projectId);
 
   const issueReferenceOptions = useMemo(
-    () => issues.filter((item) => item.projectId === projectId && item.id !== issue?.id),
+    () =>
+      issues.filter(
+        (item) => item.projectId === projectId && item.id !== issue?.id
+      ),
     [issues, projectId, issue?.id]
   );
   const authorMember = useMemo(
@@ -207,12 +209,19 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       return `${field.name} must be a date`;
     }
 
-    if (field.type === 'checkbox' && value != null && typeof value !== 'boolean') {
+    if (
+      field.type === 'checkbox' &&
+      value != null &&
+      typeof value !== 'boolean'
+    ) {
       return `${field.name} must be checked or unchecked`;
     }
 
     if (field.type === 'user_reference' && value != null) {
-      const availableMembers = getAssignableMembersForField(field, projectMembers);
+      const availableMembers = getAssignableMembersForField(
+        field,
+        projectMembers
+      );
       if (!availableMembers.some((member) => member.id === value)) {
         return `${field.name} references an unavailable member`;
       }
@@ -280,7 +289,10 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
     }
 
     if (field.type === 'user_reference') {
-      const availableMembers = getAssignableMembersForField(field, projectMembers);
+      const availableMembers = getAssignableMembersForField(
+        field,
+        projectMembers
+      );
 
       return (
         <UserSelectField
@@ -298,7 +310,10 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       <Select
         value={value == null ? 'none' : String(value)}
         onValueChange={(nextValue) =>
-          setFieldValue(field.id, nextValue === 'none' ? null : Number(nextValue))
+          setFieldValue(
+            field.id,
+            nextValue === 'none' ? null : Number(nextValue)
+          )
         }
       >
         <SelectTrigger className="w-full">
@@ -416,13 +431,18 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
         className="max-h-[95vh] min-w-[60vw] overflow-x-hidden overflow-y-auto"
       >
         <DialogHeader>
-          <DialogTitle>{mode === 'add' ? 'Add Issue' : 'Edit Issue'}</DialogTitle>
+          <DialogTitle>
+            {mode === 'add' ? 'Add Issue' : 'Edit Issue'}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3">
             <Label>Issue Name</Label>
-            <Input value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </div>
 
           <div className="flex gap-4">
@@ -554,7 +574,10 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">New files:</span>
                 {files.map((file) => (
-                  <span key={file.name} className="text-muted-foreground text-xs">
+                  <span
+                    key={file.name}
+                    className="text-muted-foreground text-xs"
+                  >
                     {file.name}
                   </span>
                 ))}
@@ -562,9 +585,14 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             )}
             {mode === 'edit' && issue && issue.attachments.length > 0 && (
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Current attachments:</span>
+                <span className="text-sm font-medium">
+                  Current attachments:
+                </span>
                 {issue.attachments.map((attachment) => (
-                  <span key={attachment.url} className="text-muted-foreground text-xs">
+                  <span
+                    key={attachment.url}
+                    className="text-muted-foreground text-xs"
+                  >
                     {attachment.originalFileName}
                   </span>
                 ))}
@@ -574,25 +602,10 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
 
           {customFields.length > 0 && (
             <div className="flex flex-col gap-4">
-              <div>
-                <h3 className="text-sm font-medium">Custom fields</h3>
-                <p className="text-muted-foreground text-sm">
-                  These fields are configured for the current project.
-                </p>
-              </div>
               {customFields.map((field) => (
                 <div key={field.id} className="flex flex-col gap-2">
                   <Label>{field.name}</Label>
                   {renderFieldControl(field)}
-                  {getFieldValue(field.id) != null && (
-                    <span className="text-muted-foreground text-xs">
-                      Value:{' '}
-                      {formatCustomFieldValue(field, getFieldValue(field.id), {
-                        issues,
-                        members: projectMembers,
-                      })}
-                    </span>
-                  )}
                 </div>
               ))}
             </div>

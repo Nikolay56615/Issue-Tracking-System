@@ -39,146 +39,198 @@ class LifecycleConditionsIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void authorConditionAllowsOnlyIssueAuthorToTransition() throws Exception {
+    void basicGraphTransitionsWorkCorrectly() throws Exception {
+        // Проверяем базовые переходы по графу
+        TestUser owner = register("graph-owner");
+        TestUser worker = register("graph-worker");
 
-        TestUser owner = register("author-owner");
-        TestUser author = register("author-user");
-        TestUser another = register("another-user");
+        long projectId = createProject(owner, "Graph transitions");
+        invite(owner, projectId, worker.id(), "WORKER");
 
-        long projectId = createProject(owner, "Author condition");
-
-        invite(owner, projectId, author.id(), "WORKER");
-        invite(owner, projectId, another.id(), "WORKER");
-
-        setTransitionRulesEnabled(owner, projectId, true);
-
-        configureTransitionCondition(
+        long issueId = createIssue(
                 owner,
                 projectId,
-                "REVIEW",
-                "DONE",
-                List.of(Map.of(
-                        "type", "author"
-                ))
+                "Graph issue",
+                Map.of(),
+                List.of(worker.id())
         );
+
+        // BACKLOG -> IN_PROGRESS (разрешено графом + worker как assignee)
+        changeIssueStatus(worker, issueId, "IN_PROGRESS", 200);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("IN_PROGRESS");
+
+        // IN_PROGRESS -> REVIEW (разрешено графом + worker как assignee)
+        changeIssueStatus(worker, issueId, "REVIEW", 200);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("REVIEW");
+
+        // REVIEW -> DONE (разрешено графом + owner как привилегированная роль)
+        changeIssueStatus(owner, issueId, "DONE", 200);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("DONE");
+
+        // DONE -> BACKLOG (разрешено графом + owner как привилегированная роль)
+        changeIssueStatus(owner, issueId, "BACKLOG", 200);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("BACKLOG");
+    }
+
+    @Test
+    void invalidGraphTransitionsAreRejected() throws Exception {
+        // Проверяем, что запрещенные графом переходы не работают
+        TestUser owner = register("invalid-graph-owner");
+
+        long projectId = createProject(owner, "Invalid graph");
+
+        long issueId = createIssue(
+                owner,
+                projectId,
+                "Invalid graph issue",
+                Map.of(),
+                List.of()
+        );
+
+        // BACKLOG -> DONE (запрещено графом)
+        changeIssueStatus(owner, issueId, "DONE", 401);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("BACKLOG");
+
+        // BACKLOG -> REVIEW (запрещено графом)
+        changeIssueStatus(owner, issueId, "REVIEW", 401);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("BACKLOG");
+
+        // Переводим в IN_PROGRESS
+        changeIssueStatus(owner, issueId, "IN_PROGRESS", 200);
+
+        // IN_PROGRESS -> DONE (запрещено, только через REVIEW)
+        changeIssueStatus(owner, issueId, "DONE", 401);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("IN_PROGRESS");
+    }
+
+    @Test
+    void roleBasedTransitionsWorkCorrectly() throws Exception {
+        // Проверяем ролевые ограничения
+        TestUser owner = register("role-owner");
+        TestUser worker = register("role-worker");
+        TestUser reviewer = register("role-reviewer");
+
+        long projectId = createProject(owner, "Role transitions");
+        invite(owner, projectId, worker.id(), "WORKER");
+        invite(owner, projectId, reviewer.id(), "REVIEWER");
+
+        long issueId = createIssue(
+                owner,
+                projectId,
+                "Role issue",
+                Map.of(),
+                List.of(worker.id())
+        );
+
+        // WORKER может BACKLOG -> IN_PROGRESS (как assignee)
+        changeIssueStatus(worker, issueId, "IN_PROGRESS", 200);
+
+        // WORKER может IN_PROGRESS -> REVIEW (как assignee)
+        changeIssueStatus(worker, issueId, "REVIEW", 200);
+
+        // WORKER НЕ может REVIEW -> DONE (только REVIEWER/ADMIN/OWNER)
+        changeIssueStatus(worker, issueId, "DONE", 401);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("REVIEW");
+
+        // REVIEWER может REVIEW -> DONE
+        changeIssueStatus(reviewer, issueId, "DONE", 200);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("DONE");
+
+        // OWNER может делать любые переходы
+        changeIssueStatus(owner, issueId, "BACKLOG", 200);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("BACKLOG");
+    }
+
+    @Test
+    void workerCannotTransitionWithoutBeingAssignee() throws Exception {
+        // Проверяем, что WORKER не может переводить задачу, если не является assignee
+        TestUser owner = register("no-assignee-owner");
+        TestUser worker1 = register("no-assignee-worker1");
+        TestUser worker2 = register("no-assignee-worker2");
+
+        long projectId = createProject(owner, "No assignee");
+        invite(owner, projectId, worker1.id(), "WORKER");
+        invite(owner, projectId, worker2.id(), "WORKER");
+
+        // Создаем задачу БЕЗ assignee
+        long issueId = createIssue(
+                owner,
+                projectId,
+                "No assignee issue",
+                Map.of(),
+                List.of() // Пустой список assignee
+        );
+
+        // worker1 пытается перевести BACKLOG -> IN_PROGRESS (должно упасть, т.к. не assignee)
+        changeIssueStatus(worker1, issueId, "IN_PROGRESS", 401);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("BACKLOG");
+
+        // Назначаем worker1 как assignee
+        updateIssueAssignees(owner, issueId, List.of(worker1.id()));
+
+        // Теперь worker1 может перевести
+        changeIssueStatus(worker1, issueId, "IN_PROGRESS", 200);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("IN_PROGRESS");
+
+        // worker2 НЕ может перевести IN_PROGRESS -> REVIEW (не assignee)
+        changeIssueStatus(worker2, issueId, "REVIEW", 401);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("IN_PROGRESS");
+    }
+
+    @Test
+    void authorCanCancelIssueFromInProgress() throws Exception {
+        // Проверяем, что автор может отменить задачу (вернуть в BACKLOG)
+        TestUser owner = register("cancel-owner");
+        TestUser author = register("cancel-author");
+        TestUser worker = register("cancel-worker");
+
+        long projectId = createProject(owner, "Cancel issue");
+        invite(owner, projectId, author.id(), "WORKER");
+        invite(owner, projectId, worker.id(), "WORKER");
 
         long issueId = createIssue(
                 author,
                 projectId,
-                "Author issue",
+                "Cancel issue",
                 Map.of(),
-                List.of(author.id())
+                List.of(worker.id())
         );
 
-        changeIssueStatus(author, issueId, "IN_PROGRESS", 200);
-        changeIssueStatus(author, issueId, "REVIEW", 200);
+        // Переводим в IN_PROGRESS
+        changeIssueStatus(worker, issueId, "IN_PROGRESS", 200);
 
-        changeIssueStatus(another, issueId, "DONE", 401);
+        // Author может вернуть IN_PROGRESS -> BACKLOG
+        changeIssueStatus(author, issueId, "BACKLOG", 200);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("BACKLOG");
 
-        Map<String, Object> deniedIssue = getIssue(author, issueId);
-        assertThat(text(deniedIssue.get("status"))).isEqualTo("REVIEW");
-
-        changeIssueStatus(author, issueId, "DONE", 200);
-
-        Map<String, Object> completedIssue = getIssue(author, issueId);
-        assertThat(text(completedIssue.get("status"))).isEqualTo("DONE");
+        // Worker (не author) НЕ может вернуть IN_PROGRESS -> BACKLOG
+        changeIssueStatus(worker, issueId, "IN_PROGRESS", 200);
+        changeIssueStatus(worker, issueId, "BACKLOG", 401);
+        assertThat(text(getIssue(owner, issueId).get("status"))).isEqualTo("IN_PROGRESS");
     }
 
-    @Test
-    void assigneeConditionAllowsOnlyAssigneeToTransition() throws Exception {
+    // Добавьте этот хелпер-метод для обновления assignee
+    private void updateIssueAssignees(
+            TestUser user,
+            long issueId,
+            List<Long> assigneeIds
+    ) throws Exception {
 
-        TestUser owner = register("assignee-owner");
-        TestUser assignee = register("assignee-user");
-        TestUser another = register("another-assignee");
+        Map<String, Object> issue = getIssue(user, issueId);
 
-        long projectId = createProject(owner, "Assignee condition");
-
-        invite(owner, projectId, assignee.id(), "WORKER");
-        invite(owner, projectId, another.id(), "WORKER");
-
-        setTransitionRulesEnabled(owner, projectId, true);
-
-        configureTransitionCondition(
-                owner,
-                projectId,
-                "REVIEW",
-                "DONE",
-                List.of(Map.of(
-                        "type", "assignee"
-                ))
-        );
-
-        long issueId = createIssue(
-                owner,
-                projectId,
-                "Assignee issue",
-                Map.of(),
-                List.of(assignee.id())
-        );
-
-        changeIssueStatus(owner, issueId, "IN_PROGRESS", 200);
-        changeIssueStatus(owner, issueId, "REVIEW", 200);
-
-        changeIssueStatus(another, issueId, "DONE", 401);
-
-        Map<String, Object> deniedIssue = getIssue(owner, issueId);
-        assertThat(text(deniedIssue.get("status"))).isEqualTo("REVIEW");
-
-        changeIssueStatus(assignee, issueId, "DONE", 200);
-
-        Map<String, Object> completedIssue = getIssue(owner, issueId);
-        assertThat(text(completedIssue.get("status"))).isEqualTo("DONE");
-    }
-
-    @Test
-    void fieldUserReferenceConditionAllowsReferencedUserToTransition() throws Exception {
-
-        TestUser owner = register("field-owner");
-        TestUser qa = register("qa-user");
-        TestUser another = register("another-qa");
-
-        long projectId = createProject(owner, "Field user reference");
-
-        invite(owner, projectId, qa.id(), "WORKER");
-        invite(owner, projectId, another.id(), "WORKER");
-
-        setTransitionRulesEnabled(owner, projectId, true);
-
-        addUserReferenceField(owner, projectId, "qaUser");
-
-        configureTransitionCondition(
-                owner,
-                projectId,
-                "REVIEW",
-                "DONE",
-                List.of(Map.of(
-                        "type", "field_user_reference",
-                        "customFieldId", "qaUser"
-                ))
-        );
-
-        long issueId = createIssue(
-                owner,
-                projectId,
-                "QA issue",
-                Map.of(
-                        "qaUser", qa.id()
-                ),
-                List.of(owner.id())
-        );
-
-        changeIssueStatus(owner, issueId, "IN_PROGRESS", 200);
-        changeIssueStatus(owner, issueId, "REVIEW", 200);
-
-        changeIssueStatus(another, issueId, "DONE", 401);
-
-        Map<String, Object> deniedIssue = getIssue(owner, issueId);
-        assertThat(text(deniedIssue.get("status"))).isEqualTo("REVIEW");
-
-        changeIssueStatus(qa, issueId, "DONE", 200);
-
-        Map<String, Object> completedIssue = getIssue(owner, issueId);
-        assertThat(text(completedIssue.get("status"))).isEqualTo("DONE");
+        mockMvc.perform(put("/api/issues/{id}", issueId)
+                        .with(httpBasic(user.email(), PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "name", text(issue.get("name")),
+                                "description", text(issue.get("description")),
+                                "priority", text(issue.get("priority")),
+                                "type", text(issue.get("type")),
+                                "status", text(issue.get("status")),
+                                "assigneeIds", assigneeIds,
+                                "attachments", list(issue.get("attachments"))
+                        ))))
+                .andExpect(status().isOk());
     }
 
     private TestUser register(String prefix) throws Exception {
@@ -225,7 +277,7 @@ class LifecycleConditionsIntegrationTest {
             TestUser actor,
             long projectId,
             long userId,
-            String roleId
+            String role
     ) throws Exception {
 
         mockMvc.perform(post("/api/projects/{id}/invite", projectId)
@@ -233,94 +285,9 @@ class LifecycleConditionsIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of(
                                 "userId", userId,
-                                "roleId", roleId
+                                "role", role
                         ))))
                 .andExpect(status().isOk());
-    }
-
-    private void setTransitionRulesEnabled(
-            TestUser user,
-            long projectId,
-            boolean enabled
-    ) throws Exception {
-
-        Map<String, Object> config = getProjectConfig(user, projectId);
-
-        Map<String, Object> lifecycle =
-                mutableObject(config.get("lifecycle"));
-
-        lifecycle.put("transitionRulesEnabled", enabled);
-
-        config.put("lifecycle", lifecycle);
-
-        saveProjectConfig(user, projectId, config);
-    }
-
-    private void configureTransitionCondition(
-            TestUser user,
-            long projectId,
-            String from,
-            String to,
-            List<Map<String, Object>> conditions
-    ) throws Exception {
-
-        Map<String, Object> config = getProjectConfig(user, projectId);
-
-        Map<String, Object> lifecycle =
-                mutableObject(config.get("lifecycle"));
-
-        List<Map<String, Object>> transitions =
-                new ArrayList<>(list(lifecycle.get("transitions")));
-
-        List<Map<String, Object>> updated = transitions.stream()
-                .map(transition -> {
-
-                    if (from.equals(text(transition.get("fromStatusId")))
-                            && to.equals(text(transition.get("toStatusId")))) {
-
-                        Map<String, Object> copy =
-                                new HashMap<>(transition);
-
-                        copy.put("conditions", conditions);
-
-                        return copy;
-                    }
-
-                    return transition;
-                })
-                .toList();
-
-        lifecycle.put("transitions", updated);
-
-        config.put("lifecycle", lifecycle);
-
-        saveProjectConfig(user, projectId, config);
-    }
-
-    private void addUserReferenceField(
-            TestUser user,
-            long projectId,
-            String fieldId
-    ) throws Exception {
-
-        Map<String, Object> config =
-                getProjectConfig(user, projectId);
-
-        List<Map<String, Object>> fields =
-                new ArrayList<>(list(config.get("customFields")));
-
-        fields.add(Map.of(
-                "id", fieldId,
-                "projectId", projectId,
-                "name", fieldId,
-                "type", "user",
-                "required", false,
-                "config", Map.of()
-        ));
-
-        config.put("customFields", fields);
-
-        saveProjectConfig(user, projectId, config);
     }
 
     private long createIssue(

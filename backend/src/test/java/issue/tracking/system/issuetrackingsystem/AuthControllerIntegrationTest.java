@@ -1,4 +1,3 @@
-
 package issue.tracking.system.issuetrackingsystem;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -6,25 +5,19 @@ import issue.tracking.system.issuetrackingsystem.bff.dto.LoginRequest;
 import issue.tracking.system.issuetrackingsystem.bff.dto.RegisterRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-class AuthControllerIntegrationTest {
+class AuthControllerIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    // --- REGISTER ---
 
     @Test
     void shouldRegisterUser() throws Exception {
@@ -51,23 +44,20 @@ class AuthControllerIntegrationTest {
                 "password123"
         );
 
-        // first time OK
+        // First time OK
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)));
 
-        // second time FAIL
+        // Second time FAIL
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().is4xxClientError());
     }
 
-    // --- LOGIN ---
-
     @Test
     void shouldLoginWithEmail() throws Exception {
-        // register first
         RegisterRequest register = new RegisterRequest(
                 "login@mail.com",
                 "loginuser",

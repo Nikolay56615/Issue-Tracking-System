@@ -2,9 +2,7 @@ package issue.tracking.system.issuetrackingsystem;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -112,6 +110,8 @@ class RemoveMemberCleanupIntegrationTest {
                 List.of(worker1.id(), worker2.id())
         );
 
+        changeIssueStatus(owner, issueId, "IN_PROGRESS", 200);
+
         removeMember(owner, projectId, worker1.id());
 
         Map<String, Object> issue = getIssue(owner, issueId);
@@ -187,7 +187,7 @@ class RemoveMemberCleanupIntegrationTest {
             long userId
     ) throws Exception {
 
-        mockMvc.perform(delete("/api/projects/{id}/members/{userId}", projectId, userId)
+        mockMvc.perform(post("/api/projects/{id}/remove-member/{userId}", projectId, userId)
                         .with(httpBasic(actor.email(), PASSWORD)))
                 .andExpect(status().isOk());
     }
@@ -225,7 +225,7 @@ class RemoveMemberCleanupIntegrationTest {
             int expectedStatus
     ) throws Exception {
 
-        mockMvc.perform(post("/api/issues/{id}/status", issueId)
+        mockMvc.perform(put("/api/issues/{id}/status", issueId)
                         .with(httpBasic(user.email(), PASSWORD))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of(

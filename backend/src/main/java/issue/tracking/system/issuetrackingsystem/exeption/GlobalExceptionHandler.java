@@ -36,11 +36,12 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(Map.of(
-            "timestamp", LocalDateTime.now().toString(),
-            "status", status.value(),
-            "error", status.getReasonPhrase(),
-            "message", message
-        ));
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", status.value());
+        body.put("error", status.getReasonPhrase());
+        body.put("message", message != null ? message : "Unknown error");
+
+        return ResponseEntity.status(status).body(body);
     }
 }

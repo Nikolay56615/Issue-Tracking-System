@@ -3,18 +3,58 @@ import { getApiErrorMessage } from '@/api/get-error-message.ts';
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import type {
   CreateProjectRequest,
+  PermissionKey,
   Project,
+  ProjectPermissionsById,
   UserProfile,
 } from '@/features/profile/model/profile.types.ts';
 import { AxiosError } from 'axios';
+import type { RootState } from '@/store/types.ts';
+
+const fetchProjectPermissions = async (
+  projects: Project[]
+): Promise<{
+  projects: Project[];
+  projectPermissions: ProjectPermissionsById;
+}> => {
+  const results = await Promise.all(
+    projects.map(async (project) => {
+      try {
+        const { role } = await ProfileRequests.getMyRole(project.id);
+        return { project, permissions: role.permissions };
+      } catch (error: unknown) {
+        if (
+          error instanceof AxiosError &&
+          (error.response?.status === 401 || error.response?.status === 403)
+        ) {
+          return null;
+        }
+
+        throw error;
+      }
+    })
+  );
+  const accessible = results.filter(
+    (result): result is { project: Project; permissions: PermissionKey[] } =>
+      result !== null
+  );
+
+  return {
+    projects: accessible.map((result) => result.project),
+    projectPermissions: Object.fromEntries(
+      accessible.map((result) => [result.project.id, result.permissions])
+    ),
+  };
+};
 
 export const fetchProjects = createAsyncThunk<
-  Project[],
+  { projects: Project[]; projectPermissions: ProjectPermissionsById },
   void,
   { rejectValue: string }
 >('projects', async (_, { rejectWithValue }) => {
   try {
-    return await ProfileRequests.fetchProjects();
+    const projects = await ProfileRequests.fetchProjects();
+    return await fetchProjectPermissions(projects);
   } catch (error: unknown) {
     return rejectWithValue(getApiErrorMessage(error));
   }
@@ -24,21 +64,33 @@ export const getCurrentUser = createAsyncThunk<
   UserProfile,
   void,
   { rejectValue: string }
->('currentUser', async (_, { rejectWithValue }) => {
-  try {
-    return await ProfileRequests.getCurrentUser();
-  } catch (error: unknown) {
-    return rejectWithValue(getApiErrorMessage(error));
+>(
+  'currentUser',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await ProfileRequests.getCurrentUser();
+    } catch (error: unknown) {
+      return rejectWithValue(getApiErrorMessage(error));
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { profile } = getState() as RootState;
+      return profile.profileLoading !== 'pending';
+    },
   }
-});
+);
 
 export const createProject = createAsyncThunk<
-  Project,
+  { project: Project; permissions: PermissionKey[] },
   CreateProjectRequest,
   { rejectValue: string }
 >('createProject', async (createProjectRequest, { rejectWithValue }) => {
   try {
-    return await ProfileRequests.createProject(createProjectRequest);
+    const project = await ProfileRequests.createProject(createProjectRequest);
+    const { role } = await ProfileRequests.getMyRole(project.id);
+
+    return { project, permissions: role.permissions };
   } catch (e) {
     if (e instanceof AxiosError) {
       return rejectWithValue(e.response?.data?.message || 'Error happened');

@@ -1,5 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type {
+  ProjectPermissionsById,
   Project,
   UserProfile,
 } from '@/features/profile/model/profile.types';
@@ -14,6 +15,7 @@ import {
 interface ProfileState {
   profile: UserProfile;
   projects: Project[];
+  projectPermissions: ProjectPermissionsById;
   profileLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   projectsLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   createProjectLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
@@ -27,8 +29,15 @@ interface ProfileState {
 }
 
 const initialState: ProfileState = {
-  profile: { id: -1, username: 'No User', email: '' },
+  profile: {
+    id: -1,
+    username: 'No User',
+    email: '',
+    globalAdmin: false,
+    active: true,
+  },
   projects: [],
+  projectPermissions: {},
   profileLoading: 'idle',
   projectsLoading: 'idle',
   createProjectLoading: 'idle',
@@ -53,7 +62,8 @@ const profileSlice = createSlice({
       })
       .addCase(fetchProjects.fulfilled, (state, action) => {
         state.projectsLoading = 'succeeded';
-        state.projects = action.payload;
+        state.projects = action.payload.projects;
+        state.projectPermissions = action.payload.projectPermissions;
       })
       .addCase(fetchProjects.rejected, (state, action) => {
         state.projectsLoading = 'failed';
@@ -77,7 +87,9 @@ const profileSlice = createSlice({
       })
       .addCase(createProject.fulfilled, (state, action) => {
         state.createProjectLoading = 'succeeded';
-        state.projects.push(action.payload);
+        state.projects.push(action.payload.project);
+        state.projectPermissions[action.payload.project.id] =
+          action.payload.permissions;
       })
       .addCase(createProject.rejected, (state, action) => {
         state.createProjectLoading = 'failed';

@@ -24,7 +24,7 @@ public class LifecycleController {
     @PostMapping("/can-transition")
     public ResponseEntity<Boolean> canTransition(@RequestBody StatusTransitionRequest request) {
         Long userId = currentUserProvider.getCurrentUserId();
-        IssueDto issue = issueQueryApi.getById(request.issueId());
+        IssueDto issue = issueQueryApi.getById(userId, request.issueId());
         if (issue == null) {
             return ResponseEntity.badRequest().body(false);
         }

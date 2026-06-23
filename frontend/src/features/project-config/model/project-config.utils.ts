@@ -1,21 +1,184 @@
 import type { Issue } from '@/features/board/model/board.types.ts';
 import type {
   CustomFieldDefinition,
+  CustomFieldType,
   CustomStatus,
   ProjectConfig,
+  SystemIssueFieldId,
   Transition,
   TransitionCondition,
 } from '@/features/project-config/model/project-config.types.ts';
+import { SYSTEM_ISSUE_FIELDS } from '@/features/project-config/model/project-config.types.ts';
 import type {
   CustomRole,
   PermissionKey,
   UserProfileWithRole,
 } from '@/features/profile/model/profile.types.ts';
 
+export interface OrderedIssueFieldEntry {
+  id: string;
+  label: string;
+  kind: 'system' | 'custom';
+  systemFieldId?: SystemIssueFieldId;
+  customField?: CustomFieldDefinition;
+}
+
+export const FIELD_TYPE_OPTIONS: CustomFieldType[] = [
+  'text',
+  'number',
+  'date',
+  'checkbox',
+  'enum',
+  'user_reference',
+  'issue_reference',
+  'enum',
+];
+
+export const CONDITION_EDITOR_OPTIONS = [
+  { value: 'role', label: 'Role' },
+  { value: 'user_source', label: 'User source' },
+] as const;
+
+const SYSTEM_FIELD_LABELS = new Map(
+  SYSTEM_ISSUE_FIELDS.map((field) => [field.id, field.label])
+);
+
+export const getDefaultFieldOrder = (
+  customFields: CustomFieldDefinition[]
+): string[] => [
+  ...SYSTEM_ISSUE_FIELDS.map((field) => field.id),
+  ...customFields.map((field) => field.id),
+];
+
+const DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS: SystemIssueFieldId[] = [
+  'description',
+  'dueDate',
+  'type',
+  'priority',
+];
+
+export const getDefaultBoardCardFieldIds = (
+  customFields: CustomFieldDefinition[]
+): string[] => [
+  ...DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS,
+  ...customFields.map((field) => field.id),
+];
+
+export const getNormalizedFieldOrder = (
+  config: Pick<ProjectConfig, 'customFields' | 'fieldOrder'> | null | undefined
+) => {
+  const fallback = getDefaultFieldOrder(config?.customFields ?? []);
+
+  if (!config?.fieldOrder?.length) {
+    return fallback;
+  }
+
+  const validIds = new Set(fallback);
+  const ordered = config.fieldOrder.filter((fieldId) => validIds.has(fieldId));
+  const missing = fallback.filter((fieldId) => !ordered.includes(fieldId));
+
+  return [...ordered, ...missing];
+};
+
+export const getNormalizedBoardCardFieldIds = (
+  config:
+    | Pick<ProjectConfig, 'customFields' | 'fieldOrder'> & {
+        boardCardFieldIds?: string[];
+      }
+    | null
+    | undefined
+) => {
+  const fallback = getDefaultBoardCardFieldIds(config?.customFields ?? []);
+
+  if (!Array.isArray(config?.boardCardFieldIds)) {
+    return fallback;
+  }
+
+  const validIds = new Set(
+    getNormalizedFieldOrder(config).filter((fieldId) => fieldId !== 'name')
+  );
+
+  return config.boardCardFieldIds.filter(
+    (fieldId, index, array) =>
+      validIds.has(fieldId) && array.indexOf(fieldId) === index
+  );
+};
+
+export const getSystemFieldLabel = (fieldId: SystemIssueFieldId) =>
+  SYSTEM_FIELD_LABELS.get(fieldId) ?? fieldId;
+
+export const isSystemFieldId = (fieldId: string): fieldId is SystemIssueFieldId =>
+  SYSTEM_FIELD_LABELS.has(fieldId as SystemIssueFieldId);
+
+export const getOrderedIssueFields = (
+  config: ProjectConfig | null
+): OrderedIssueFieldEntry[] => {
+  if (config == null) {
+    return [];
+  }
+
+  const customFieldsById = new Map(
+    config.customFields.map((field) => [field.id, field])
+  );
+
+  return getNormalizedFieldOrder(config).reduce<OrderedIssueFieldEntry[]>(
+    (entries, fieldId) => {
+      if (isSystemFieldId(fieldId)) {
+        entries.push({
+          id: fieldId,
+          label: getSystemFieldLabel(fieldId),
+          kind: 'system',
+          systemFieldId: fieldId,
+        });
+
+        return entries;
+      }
+
+      const customField = customFieldsById.get(fieldId);
+      if (customField) {
+        entries.push({
+          id: customField.id,
+          label: customField.name,
+          kind: 'custom',
+          customField,
+        });
+      }
+
+      return entries;
+    },
+    []
+  );
+};
+
+export const getOrderedCustomFields = (
+  config: ProjectConfig | null
+): CustomFieldDefinition[] =>
+  getOrderedIssueFields(config)
+    .filter((entry) => entry.kind === 'custom')
+    .map((entry) => entry.customField)
+    .filter((field): field is CustomFieldDefinition => field != null);
+
+export const getBoardCardFieldEntries = (
+  config: ProjectConfig | null
+): OrderedIssueFieldEntry[] => {
+  if (config == null) {
+    return [];
+  }
+
+  const visibleIds = new Set(getNormalizedBoardCardFieldIds(config));
+
+  return getOrderedIssueFields(config).filter(
+    (entry) => entry.id !== 'name' && visibleIds.has(entry.id)
+  );
+};
+
 export const getOrderedStatuses = (config: ProjectConfig | null): CustomStatus[] =>
   [...(config?.lifecycle.statuses ?? [])].sort(
     (left, right) => left.displayOrder - right.displayOrder
   );
+
+export const isTransitionRulesEnabled = (config: ProjectConfig | null) =>
+  config?.lifecycle.transitionRulesEnabled !== false;
 
 export const getStatusById = (config: ProjectConfig | null, statusId: string) =>
   config?.lifecycle.statuses.find((status) => status.id === statusId);
@@ -58,7 +221,7 @@ export const getAssignableMembersForField = (
 
 export const formatCustomFieldValue = (
   field: CustomFieldDefinition,
-  value: number | string | null | undefined,
+  value: boolean | number | string | null | undefined,
   params: {
     issues?: Issue[];
     members?: UserProfileWithRole[];
@@ -78,7 +241,31 @@ export const formatCustomFieldValue = (
     return issue?.name ?? `Issue #${value}`;
   }
 
+  if (field.type === 'checkbox') {
+    return value === true ? 'Checked' : 'Unchecked';
+  }
+
+  if (field.type === 'enum') {
+    return (
+      field.config.options.find((option) => option.id === value)?.label ??
+      String(value)
+    );
+  }
+
   return String(value);
+};
+
+export const getEnumOption = (
+  field: CustomFieldDefinition,
+  value: boolean | number | string | null | undefined
+) => {
+  if (field.type !== 'enum' || value === null || value === undefined) {
+    return null;
+  }
+
+  return (
+    field.config.options.find((option) => option.id === String(value)) ?? null
+  );
 };
 
 export const transitionHasConditionType = (
@@ -117,4 +304,285 @@ export const isTransitionAllowedForIssue = (params: {
 
     return false;
   });
+};
+
+export const formatFieldTypeLabel = (type: CustomFieldType) =>
+  type.replace('_', ' ');
+
+export const formatConditionLabel = (type: TransitionCondition['type']) =>
+  type.replace(/_/g, ' ');
+
+export const formatPermissionLabel = (permission: string) =>
+  permission.replace(/^[^.]+\./, '');
+
+export const cloneConfig = (config: ProjectConfig) => structuredClone(config);
+
+export const getInitialRole = (config: ProjectConfig) =>
+  config.roles.find((role) => role.permissions.includes('settings.manage')) ??
+  config.roles[0];
+
+export const createRoleDraft = (projectId: number): CustomRole => ({
+  id: `project-${projectId}-role-${Date.now()}`,
+  projectId,
+  name: 'New Role',
+  permissions: ['issue.view'],
+});
+
+export const createStatusDraft = (
+  projectId: number,
+  displayOrder: number
+): CustomStatus => ({
+  id: `project-${projectId}-status-${Date.now()}`,
+  projectId,
+  name: `Status ${displayOrder}`,
+  displayOrder,
+  color: '#64748b',
+});
+
+export const createFieldDraft = (projectId: number): CustomFieldDefinition => ({
+  id: `project-${projectId}-field-${Date.now()}`,
+  projectId,
+  name: 'New Field',
+  type: 'text',
+  required: false,
+  config: {
+    maxLength: 80,
+  },
+});
+
+export const createTransitionDraft = (
+  config: ProjectConfig
+): Transition | null => {
+  if (config.lifecycle.statuses.length < 2 || config.roles.length === 0) {
+    return null;
+  }
+
+  return {
+    id: `project-${config.projectId}-transition-${Date.now()}`,
+    fromStatusId: config.lifecycle.statuses[0].id,
+    toStatusId: config.lifecycle.statuses[1].id,
+    conditions: [
+      {
+        type: 'role',
+        roleId: getInitialRole(config).id,
+      },
+    ],
+  };
+};
+
+export const getIssueCountForStatus = (issues: Issue[], statusId: string) =>
+  issues.filter((issue) => issue.status === statusId).length;
+
+export const hasValuesForField = (issues: Issue[], fieldId: string) =>
+  issues.some((issue) => {
+    const value = issue.customFields?.[fieldId];
+    return value !== null && value !== undefined && value !== '';
+  });
+
+export const toTextConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'text' as const,
+  config: {
+    maxLength: field.type === 'text' ? field.config.maxLength : 80,
+  },
+});
+
+export const toNumberConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'number' as const,
+  config: {
+    min: field.type === 'number' ? field.config.min : 1,
+    max: field.type === 'number' ? field.config.max : 100,
+    isInteger:
+      field.type === 'number' ? (field.config.isInteger ?? true) : true,
+  },
+});
+
+export const toDateConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'date' as const,
+  config: {},
+});
+
+export const toCheckboxConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'checkbox' as const,
+  config: {},
+});
+
+export const toEnumConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'enum' as const,
+  config: {
+    options:
+      field.type === 'enum'
+        ? field.config.options
+        : [
+            {
+              id: `${field.id}-option-1`,
+              label: 'Option 1',
+              color: '#2563eb',
+            },
+          ],
+  },
+});
+
+export const toUserReferenceConfig = (
+  field: CustomFieldDefinition,
+  roles: CustomRole[]
+) => ({
+  ...field,
+  type: 'user_reference' as const,
+  config: {
+    allowedRoleIds:
+      field.type === 'user_reference'
+        ? field.config.allowedRoleIds
+        : roles[0]
+          ? [roles[0].id]
+          : [],
+  },
+});
+
+export const toIssueReferenceConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'issue_reference' as const,
+  config: {},
+});
+
+export const toEnumConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'enum' as const,
+  config: {
+    options:
+      field.type === 'enum'
+        ? field.config.options
+        : [
+            {
+              id: 'blocked',
+              label: 'Blocked',
+              color: '#ef4444',
+            },
+          ],
+  },
+});
+
+export const switchFieldType = (
+  field: CustomFieldDefinition,
+  type: CustomFieldType,
+  roles: CustomRole[]
+): CustomFieldDefinition => {
+  if (type === 'text') return toTextConfig(field);
+  if (type === 'number') return toNumberConfig(field);
+  if (type === 'date') return toDateConfig(field);
+  if (type === 'checkbox') return toCheckboxConfig(field);
+  if (type === 'enum') return toEnumConfig(field);
+  if (type === 'user_reference') return toUserReferenceConfig(field, roles);
+  if (type === 'enum') return toEnumConfig(field);
+  return toIssueReferenceConfig(field);
+};
+
+export const createCondition = (
+  type: TransitionCondition['type'],
+  config: ProjectConfig
+): TransitionCondition => {
+  if (type === 'role') {
+    return {
+      type,
+      roleId: getInitialRole(config).id,
+    };
+  }
+
+  if (type === 'field_user_reference') {
+    const field = config.customFields.find(
+      (item) => item.type === 'user_reference'
+    );
+    return {
+      type,
+      customFieldId: field?.id ?? '',
+    };
+  }
+
+  return { type };
+};
+
+export const getConditionEditorKind = (condition: TransitionCondition) =>
+  condition.type === 'role' ? 'role' : 'user_source';
+
+export const getUserSourceValue = (condition: TransitionCondition) => {
+  if (condition.type === 'field_user_reference') {
+    return `field:${condition.customFieldId}`;
+  }
+
+  return condition.type;
+};
+
+export const createConditionFromUserSource = (
+  value: string,
+  config: ProjectConfig
+): TransitionCondition => {
+  if (value === 'author') {
+    return { type: 'author' };
+  }
+
+  if (value === 'assignee') {
+    return { type: 'assignee' };
+  }
+
+  const fallbackField = config.customFields.find(
+    (field) => field.type === 'user_reference'
+  );
+
+  return {
+    type: 'field_user_reference',
+    customFieldId: value.replace(/^field:/, '') || fallbackField?.id || '',
+  };
+};
+
+export const getRoleMemberCount = (
+  users: Array<{ roleId: string }>,
+  roleId: string
+) => users.filter((user) => user.roleId === roleId).length;
+
+export const describeTransitionCondition = (
+  condition: TransitionCondition,
+  config: ProjectConfig
+) => {
+  if (condition.type === 'role') {
+    return (
+      config.roles.find((role) => role.id === condition.roleId)?.name ?? 'Role'
+    );
+  }
+
+  if (condition.type === 'field_user_reference') {
+    return (
+      config.customFields.find((field) => field.id === condition.customFieldId)
+        ?.name ?? 'User field'
+    );
+  }
+
+  return formatConditionLabel(condition.type);
+};
+
+export const getFieldEntryMeta = (
+  fieldEntry: OrderedIssueFieldEntry,
+  issues: Issue[]
+) => {
+  if (fieldEntry.kind === 'system') {
+    if (fieldEntry.systemFieldId === 'author') {
+      return 'System field · read only';
+    }
+
+    return 'System field';
+  }
+
+  const customField = fieldEntry.customField;
+  if (!customField) {
+    return 'Custom field';
+  }
+
+  if (hasValuesForField(issues, customField.id)) {
+    return 'Has issue values';
+  }
+
+  return customField.required ? 'Required' : 'Optional';
 };

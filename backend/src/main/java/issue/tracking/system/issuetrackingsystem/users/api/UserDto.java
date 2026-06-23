@@ -7,5 +7,7 @@ package issue.tracking.system.issuetrackingsystem.users.api;
 public record UserDto (
     Long id,
     String email,
-    String username
+    String username,
+    Boolean globalAdmin,
+    Boolean active
 ) {}

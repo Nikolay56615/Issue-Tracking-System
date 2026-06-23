@@ -32,7 +32,7 @@ export const UserCard = ({
   onRemove,
 }: UserCardProps) => {
   return (
-    <Card className="flex w-103 flex-row gap-4 px-6 py-4">
+    <Card className="flex w-full flex-row gap-4 px-6 py-4">
       <div
         className="flex h-16 w-16 items-center justify-center rounded-full
           bg-purple-100"
@@ -49,7 +49,12 @@ export const UserCard = ({
         <span className="text-gray-600 dark:text-gray-300">
           {user.roleName}
         </span>
-        {canManageRoles && (
+        {user.projectOwner && (
+          <span className="text-muted-foreground mt-2 text-sm">
+            Project owner
+          </span>
+        )}
+        {canManageRoles && !user.projectOwner && (
           <div className="mt-2 flex items-center gap-2">
             <Select
               value={user.roleId}
@@ -69,7 +74,7 @@ export const UserCard = ({
             </Select>
           </div>
         )}
-        {!canManageRoles && canRemove && (
+        {!user.projectOwner && !canManageRoles && canRemove && (
           <div className="mt-2">
             <Button
               variant="outline"
@@ -81,7 +86,7 @@ export const UserCard = ({
             </Button>
           </div>
         )}
-        {canManageRoles && canRemove && (
+        {!user.projectOwner && canManageRoles && canRemove && (
           <div className="mt-2">
             <Button
               variant="outline"

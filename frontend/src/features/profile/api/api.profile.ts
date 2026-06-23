@@ -1,6 +1,7 @@
 import { axiosInstance } from '@/api/instance.ts';
 import type {
   CreateProjectRequest,
+  CurrentProjectRoleResponse,
   InviteUserRequest,
   Project,
   UpdateProjectMemberRoleRequest,
@@ -27,6 +28,14 @@ export const createProject = async ({
     name,
     templateProjectId,
   });
+
+  return data;
+};
+
+export const getMyRole = async (id: number) => {
+  const { data } = await axiosInstance.get<CurrentProjectRoleResponse>(
+    `/projects/${id}/my-role`
+  );
 
   return data;
 };
@@ -66,6 +75,20 @@ export const removeProjectMember = async (projectId: number, userId: number) => 
 export const searchUsers = async (query: string) => {
   const { data } = await axiosInstance.get<UserProfile[]>(
     `/users/search?query=${query}`
+  );
+
+  return data;
+};
+
+export const getInviteCandidates = async (
+  projectId: number,
+  query: string
+) => {
+  const { data } = await axiosInstance.get<UserProfile[]>(
+    `/projects/${projectId}/invite-candidates`,
+    {
+      params: { query },
+    }
   );
 
   return data;

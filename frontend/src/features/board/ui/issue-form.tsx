@@ -41,6 +41,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -56,11 +57,14 @@ import { Loader2, Pencil } from 'lucide-react';
 import { getApiErrorMessage } from '@/api/get-error-message.ts';
 import type { CustomFieldDefinition } from '@/features/project-config/model/project-config.types.ts';
 import {
-  formatCustomFieldValue,
   getAssignableMembersForField,
+  getOrderedCustomFields,
 } from '@/features/project-config/model';
-import { UsersRequests } from '@/features/users/api';
-import type { UserProfileWithRole } from '@/features/profile';
+import {
+  UserSelectField,
+  UserValueCard,
+} from '@/features/board/ui/user-field.tsx';
+import { getProjectUsers } from '@/features/users/model/users.actions.ts';
 
 interface IssueFormProps {
   mode: 'add' | 'edit';
@@ -74,11 +78,16 @@ const ISSUE_PRIORITIES: IssuePriority[] = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'];
 export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
   const dispatch = useAppDispatch();
   const { issues, loading } = useAppSelector((state) => state.board);
+  const {
+    users,
+    loading: usersLoading,
+    projectId: usersProjectId,
+  } = useAppSelector((state) => state.users);
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
 
-  const customFields = projectConfig?.customFields ?? [];
+  const customFields = getOrderedCustomFields(projectConfig);
   const [name, setName] = useState(issue?.name ?? '');
   const [type, setType] = useState<IssueType>(issue?.type ?? 'TASK');
   const [priority, setPriority] = useState<IssuePriority>(
@@ -91,8 +100,6 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
   const [assigneeId, setAssigneeId] = useState<number | null>(
     issue?.assigneeIds[0] ?? null
   );
-  const [projectMembers, setProjectMembers] = useState<UserProfileWithRole[]>([]);
-  const [membersLoading, setMembersLoading] = useState(false);
   const [dueDate, setDueDate] = useState(
     issue?.dueDate ? issue.dueDate.split('T')[0] : ''
   );
@@ -121,37 +128,27 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       return;
     }
 
-    let cancelled = false;
+    dispatch(getProjectUsers(projectId));
+  }, [dispatch, open, projectId]);
 
-    const loadMembers = async () => {
-      setMembersLoading(true);
-      try {
-        const data = await UsersRequests.getProjectUsers(projectId);
-        if (!cancelled) {
-          setProjectMembers(data);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Failed to load project members:', error);
-          setProjectMembers([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setMembersLoading(false);
-        }
-      }
-    };
-
-    loadMembers();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, projectId]);
+  const projectMembers = useMemo(
+    () => (usersProjectId === projectId ? users : []),
+    [projectId, users, usersProjectId]
+  );
+  const membersLoading =
+    open && (usersLoading === 'pending' || usersProjectId !== projectId);
 
   const issueReferenceOptions = useMemo(
-    () => issues.filter((item) => item.projectId === projectId && item.id !== issue?.id),
+    () =>
+      issues.filter(
+        (item) => item.projectId === projectId && item.id !== issue?.id
+      ),
     [issues, projectId, issue?.id]
+  );
+  const authorMember = useMemo(
+    () =>
+      projectMembers.find((member) => member.id === issue?.authorId) ?? null,
+    [issue?.authorId, projectMembers]
   );
 
   const resetState = () => {
@@ -171,10 +168,23 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
 
   const getFieldValue = (fieldId: string) => fieldValues[fieldId] ?? null;
 
+  const getNormalizedCustomFields = () => ({
+    ...fieldValues,
+    ...Object.fromEntries(
+      customFields
+        .filter((field) => field.type === 'checkbox')
+        .map((field) => [field.id, fieldValues[field.id] === true])
+    ),
+  });
+
   const validateCustomField = (field: CustomFieldDefinition) => {
     const value = getFieldValue(field.id);
 
-    if (field.required && (value === null || value === '' || value === undefined)) {
+    if (
+      field.type !== 'checkbox' &&
+      field.required &&
+      (value === null || value === '' || value === undefined)
+    ) {
       return `${field.name} is required`;
     }
 
@@ -196,8 +206,32 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       }
     }
 
+    if (field.type === 'date' && value != null && typeof value !== 'string') {
+      return `${field.name} must be a date`;
+    }
+
+    if (
+      field.type === 'checkbox' &&
+      value != null &&
+      typeof value !== 'boolean'
+    ) {
+      return `${field.name} must be checked or unchecked`;
+    }
+
+    if (field.type === 'enum' && value != null) {
+      if (
+        typeof value !== 'string' ||
+        !field.config.options.some((option) => option.id === value)
+      ) {
+        return `${field.name} contains an unavailable option`;
+      }
+    }
+
     if (field.type === 'user_reference' && value != null) {
-      const availableMembers = getAssignableMembersForField(field, projectMembers);
+      const availableMembers = getAssignableMembersForField(
+        field,
+        projectMembers
+      );
       if (!availableMembers.some((member) => member.id === value)) {
         return `${field.name} references an unavailable member`;
       }
@@ -206,6 +240,12 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
     if (field.type === 'issue_reference' && value != null) {
       if (!issueReferenceOptions.some((item) => item.id === value)) {
         return `${field.name} references an unavailable issue`;
+      }
+    }
+
+    if (field.type === 'enum' && value != null) {
+      if (!field.config.options.some((option) => option.id === value)) {
+        return `${field.name} references an unavailable option`;
       }
     }
 
@@ -239,14 +279,83 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       );
     }
 
-    if (field.type === 'user_reference') {
-      const availableMembers = getAssignableMembersForField(field, projectMembers);
+    if (field.type === 'date') {
+      return (
+        <Input
+          type="date"
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) =>
+            setFieldValue(field.id, event.target.value || null)
+          }
+        />
+      );
+    }
 
+    if (field.type === 'checkbox') {
+      return (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={value === true}
+            onChange={(event) => setFieldValue(field.id, event.target.checked)}
+          />
+          <span>Checked</span>
+        </label>
+      );
+    }
+
+    if (field.type === 'enum') {
+      return (
+        <Select
+          value={typeof value === 'string' ? value : 'none'}
+          onValueChange={(nextValue) =>
+            setFieldValue(field.id, nextValue === 'none' ? null : nextValue)
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={field.name} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="none">Not set</SelectItem>
+              {field.config.options.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    if (field.type === 'user_reference') {
+      const availableMembers = getAssignableMembersForField(
+        field,
+        projectMembers
+      );
+
+      return (
+        <UserSelectField
+          members={availableMembers}
+          value={typeof value === 'number' ? value : null}
+          onChange={(nextValue) => setFieldValue(field.id, nextValue)}
+          placeholder={field.name}
+          emptyLabel="Not set"
+          disabled={membersLoading}
+        />
+      );
+    }
+
+    if (field.type === 'issue_reference') {
       return (
         <Select
           value={value == null ? 'none' : String(value)}
           onValueChange={(nextValue) =>
-            setFieldValue(field.id, nextValue === 'none' ? null : Number(nextValue))
+            setFieldValue(
+              field.id,
+              nextValue === 'none' ? null : Number(nextValue)
+            )
           }
         >
           <SelectTrigger className="w-full">
@@ -254,9 +363,9 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Not set</SelectItem>
-            {availableMembers.map((member) => (
-              <SelectItem key={member.id} value={String(member.id)}>
-                {member.name} ({member.roleName})
+            {issueReferenceOptions.map((relatedIssue) => (
+              <SelectItem key={relatedIssue.id} value={String(relatedIssue.id)}>
+                {relatedIssue.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -268,7 +377,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       <Select
         value={value == null ? 'none' : String(value)}
         onValueChange={(nextValue) =>
-          setFieldValue(field.id, nextValue === 'none' ? null : Number(nextValue))
+          setFieldValue(field.id, nextValue === 'none' ? null : nextValue)
         }
       >
         <SelectTrigger className="w-full">
@@ -276,9 +385,9 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="none">Not set</SelectItem>
-          {issueReferenceOptions.map((relatedIssue) => (
-            <SelectItem key={relatedIssue.id} value={String(relatedIssue.id)}>
-              {relatedIssue.name}
+          {field.config.options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -315,6 +424,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
 
       const description = editor.api.markdown.serialize();
       const assigneeIds = assigneeId == null ? [] : [assigneeId];
+      const customFieldValues = getNormalizedCustomFields();
 
       if (mode === 'add') {
         await dispatch(
@@ -327,7 +437,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             assigneeIds,
             attachmentFileNames,
             dueDate: dueDate || undefined,
-            customFields: fieldValues,
+            customFields: customFieldValues,
           })
         ).unwrap();
       } else if (issue) {
@@ -347,7 +457,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               description,
               assigneeIds,
               attachments: [...existingAttachments, ...newAttachments],
-              customFields: fieldValues,
+              customFields: customFieldValues,
               dueDate: dueDate || undefined,
             },
           })
@@ -376,22 +486,33 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
         {mode === 'add' ? (
           <Button variant="default">Add Issue</Button>
         ) : (
-          <Button className="ml-auto" size="sm" variant="ghost">
+          <Button
+            className="ml-auto"
+            size="sm"
+            variant="ghost"
+            aria-label="Edit issue"
+          >
             <Pencil />
           </Button>
         )}
       </DialogTrigger>
       <DialogContent
-        className="max-h-[95vh] min-w-[60vw] overflow-x-hidden overflow-y-auto"
+        className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-4xl flex-col
+          overflow-hidden sm:max-w-4xl"
       >
         <DialogHeader>
-          <DialogTitle>{mode === 'add' ? 'Add Issue' : 'Edit Issue'}</DialogTitle>
+          <DialogTitle>
+            {mode === 'add' ? 'Add Issue' : 'Edit Issue'}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto pr-2">
           <div className="flex flex-col gap-3">
             <Label>Issue Name</Label>
-            <Input value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </div>
 
           <div className="flex gap-4">
@@ -434,7 +555,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             </div>
           </div>
 
-          <div className="flex w-full max-w-[54vw] flex-col gap-3">
+          <div className="flex w-full flex-col gap-3">
             <Label>Issue Description</Label>
             <div className="rounded-lg border">
               <Plate editor={editor}>
@@ -458,12 +579,23 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
                     I
                   </MarkToolbarButton>
                 </FixedToolbar>
-                <EditorContainer className="h-90">
+                <EditorContainer className="min-h-64 max-h-80 overflow-y-auto">
                   <Editor />
                 </EditorContainer>
               </Plate>
             </div>
           </div>
+
+          {mode === 'edit' && (
+            <div className="flex flex-col gap-3">
+              <Label>Author</Label>
+              <UserValueCard
+                member={authorMember}
+                loading={membersLoading}
+                emptyLabel="Unknown author"
+              />
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <Label>Assignee</Label>
@@ -473,24 +605,13 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
                 <span>Loading members...</span>
               </div>
             ) : (
-              <Select
-                value={assigneeId == null ? 'none' : String(assigneeId)}
-                onValueChange={(value) =>
-                  setAssigneeId(value === 'none' ? null : Number(value))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Not set</SelectItem>
-                  {projectMembers.map((member) => (
-                    <SelectItem key={member.id} value={String(member.id)}>
-                      {member.name} ({member.roleName})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <UserSelectField
+                members={projectMembers}
+                value={assigneeId}
+                onChange={setAssigneeId}
+                placeholder="Assignee"
+                emptyLabel="Not set"
+              />
             )}
           </div>
 
@@ -523,7 +644,10 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">New files:</span>
                 {files.map((file) => (
-                  <span key={file.name} className="text-muted-foreground text-xs">
+                  <span
+                    key={file.name}
+                    className="text-muted-foreground text-xs"
+                  >
                     {file.name}
                   </span>
                 ))}
@@ -531,9 +655,14 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             )}
             {mode === 'edit' && issue && issue.attachments.length > 0 && (
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Current attachments:</span>
+                <span className="text-sm font-medium">
+                  Current attachments:
+                </span>
                 {issue.attachments.map((attachment) => (
-                  <span key={attachment.url} className="text-muted-foreground text-xs">
+                  <span
+                    key={attachment.url}
+                    className="text-muted-foreground text-xs"
+                  >
                     {attachment.originalFileName}
                   </span>
                 ))}
@@ -543,25 +672,10 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
 
           {customFields.length > 0 && (
             <div className="flex flex-col gap-4">
-              <div>
-                <h3 className="text-sm font-medium">Custom fields</h3>
-                <p className="text-muted-foreground text-sm">
-                  These fields are configured for the current project.
-                </p>
-              </div>
               {customFields.map((field) => (
                 <div key={field.id} className="flex flex-col gap-2">
                   <Label>{field.name}</Label>
                   {renderFieldControl(field)}
-                  {getFieldValue(field.id) != null && (
-                    <span className="text-muted-foreground text-xs">
-                      Value:{' '}
-                      {formatCustomFieldValue(field, getFieldValue(field.id), {
-                        issues,
-                        members: projectMembers,
-                      })}
-                    </span>
-                  )}
                 </div>
               ))}
             </div>

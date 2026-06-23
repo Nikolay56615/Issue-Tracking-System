@@ -2,12 +2,14 @@ package issue.tracking.system.issuetrackingsystem.projects.internal;
 
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectCommandApi;
+import issue.tracking.system.issuetrackingsystem.projects.api.CustomRoleDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectMemberWithRoleDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
 import issue.tracking.system.issuetrackingsystem.users.api.UserDto;
 import issue.tracking.system.issuetrackingsystem.users.api.UserQueryApi;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,22 +25,58 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
 
     private final ProjectRepository projectRepository;
     private final UserQueryApi userQueryApi;
+    private final ProjectConfigService projectConfigService;
 
     @Override
     @Transactional
     public ProjectDto createProject(String name, Long ownerUserId) {
         Project project = new Project(name, ownerUserId);
-        project.addMember(ownerUserId, ProjectRole.OWNER);
+        project.addMember(ownerUserId, ProjectConfigDefaults.OWNER);
         Project saved = projectRepository.save(project);
+        projectConfigService.createDefaultConfig(saved.getId());
         return new ProjectDto(saved.getId(), saved.getName(), saved.getOwnerId(), saved.isArchived());
     }
 
     @Override
     @Transactional
-    public void inviteUser(Long projectId, Long userId, ProjectRole role) {
+    public void inviteUser(Long projectId, Long userId, String roleId) {
         Project project = projectRepository.findById(projectId)
             .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-        project.addMember(userId, role);
+        userQueryApi.findUserById(userId)
+            .filter(user -> Boolean.TRUE.equals(user.active()))
+            .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (!projectConfigService.hasRole(projectId, roleId)) {
+            throw new IllegalArgumentException("Project role not found");
+        }
+        project.addMember(userId, roleId);
+        projectRepository.save(project);
+    }
+
+    @Override
+    @Transactional
+    public void updateMemberRole(Long projectId, Long actorUserId, Long userId, String roleId) {
+        if (!userQueryApi.isGlobalAdmin(actorUserId)
+            && !projectConfigService.hasPermission(projectId, actorUserId, "members.assignRole")) {
+            throw new SecurityException("Insufficient permissions to assign roles");
+        }
+        if (!projectConfigService.hasRole(projectId, roleId)) {
+            throw new IllegalArgumentException("Project role not found");
+        }
+
+        Project project = projectRepository.findById(projectId)
+            .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+        ProjectMember member = project.getMembers().stream()
+            .filter(item -> item.getUserId().equals(userId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Project member not found"));
+        if (project.getOwnerId().equals(userId)) {
+            CustomRoleDto role = projectConfigService.getRoleById(projectId, roleId)
+                .orElseThrow(() -> new IllegalArgumentException("Project role not found"));
+            if (!role.permissions().containsAll(ProjectConfigDefaults.OWNER_CRITICAL_PERMISSIONS)) {
+                throw new SecurityException("Project owner must keep owner-critical permissions");
+            }
+        }
+        member.setRoleId(roleId);
         projectRepository.save(project);
     }
 
@@ -52,10 +90,10 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     @Override
     @Transactional(readOnly = true)
     public List<ProjectDto> getMyProjects(Long userId) {
-        List<Project> owned = projectRepository.findAllByOwnerIdAllProjects(userId);
-        List<Project> active = projectRepository.findAllActiveByMemberUserId(userId);
-        return java.util.stream.Stream.concat(owned.stream(), active.stream())
-            .distinct()
+        List<Project> projects = userQueryApi.isGlobalAdmin(userId)
+            ? projectRepository.findAll()
+            : projectRepository.findAllByMemberUserId(userId);
+        return projects.stream()
             .map(p -> new ProjectDto(p.getId(), p.getName(), p.getOwnerId(), p.isArchived()))
             .toList();
     }
@@ -63,6 +101,9 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     @Override
     @Transactional(readOnly = true)
     public boolean hasAccess(Long userId, Long projectId) {
+        if (userQueryApi.isGlobalAdmin(userId)) {
+            return projectRepository.existsById(projectId);
+        }
         return projectRepository.findById(projectId)
             .map(p -> p.getMembers().stream().anyMatch(m -> m.getUserId().equals(userId)))
             .orElse(false);
@@ -71,12 +112,51 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     @Override
     @Transactional(readOnly = true)
     public Optional<String> getUserRole(Long userId, Long projectId) {
+        if (userQueryApi.isGlobalAdmin(userId)) {
+            return projectRepository.existsById(projectId)
+                ? Optional.of(ProjectConfigDefaults.GLOBAL_ADMIN)
+                : Optional.empty();
+        }
         return projectRepository.findById(projectId)
             .flatMap(p -> p.getMembers().stream()
                 .filter(m -> m.getUserId().equals(userId))
                 .findFirst())
-            .map(ProjectMember::getRole)
-            .map(Enum::name);
+            .map(ProjectMember::getRoleId);
+    }
+
+    @Override
+    @Transactional
+    public boolean hasPermission(Long userId, Long projectId, String permission) {
+        if (userQueryApi.isGlobalAdmin(userId)) {
+            return projectRepository.existsById(projectId);
+        }
+        return projectConfigService.hasPermission(projectId, userId, permission);
+    }
+
+    @Override
+    @Transactional
+    public boolean canTransitionIssue(
+        Long userId,
+        Long projectId,
+        String fromStatusId,
+        String toStatusId,
+        Long authorId,
+        List<Long> assigneeIds,
+        Map<String, Object> customFields
+    ) {
+        if (!hasAccess(userId, projectId)) {
+            return false;
+        }
+
+        return projectConfigService.canTransitionIssue(
+            projectId,
+            userId,
+            fromStatusId,
+            toStatusId,
+            authorId,
+            assigneeIds,
+            customFields
+        );
     }
 
     @Override
@@ -86,11 +166,21 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
             .map(project -> project.getMembers().stream()
                 .map(member -> {
                     var user = userQueryApi.findUserById(member.getUserId());
+                    CustomRoleDto role = projectConfigService
+                        .getRoleById(projectId, member.getRoleId())
+                        .orElse(new CustomRoleDto(
+                            member.getRoleId(),
+                            projectId,
+                            member.getRoleId(),
+                            List.of()
+                        ));
                     return new ProjectMemberWithRoleDto(
                         member.getUserId(),
                         user.map(UserDto::username).orElse("") ,
                         user.map(UserDto::email).orElse("") ,
-                        member.getRole().name()
+                        role.id(),
+                        role.name(),
+                        role.permissions()
                     );
                 })
                 .toList())
@@ -125,8 +215,9 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     public void archiveProject(Long projectId, Long userId) {
         Project project = projectRepository.findById(projectId)
             .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-        if (!project.getOwnerId().equals(userId)) {
-            throw new SecurityException("Only owner can archive project");
+        if (!userQueryApi.isGlobalAdmin(userId)
+            && !projectConfigService.hasPermission(projectId, userId, "project.archive")) {
+            throw new SecurityException("Insufficient permissions to archive project");
         }
         project.setArchived(true);
         projectRepository.save(project);
@@ -137,8 +228,9 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     public void restoreProject(Long projectId, Long userId) {
         Project project = projectRepository.findById(projectId)
             .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-        if (!project.getOwnerId().equals(userId)) {
-            throw new SecurityException("Only owner can restore project");
+        if (!userQueryApi.isGlobalAdmin(userId)
+            && !projectConfigService.hasPermission(projectId, userId, "project.restore")) {
+            throw new SecurityException("Insufficient permissions to restore project");
         }
         project.setArchived(false);
         projectRepository.save(project);
@@ -149,11 +241,12 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     public void removeUser(Long projectId, Long ownerId, Long userId) {
         Project project = projectRepository.findById(projectId)
             .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-        if (!project.getOwnerId().equals(ownerId)) {
-            throw new SecurityException("Only owner can remove members");
+        if (!userQueryApi.isGlobalAdmin(ownerId)
+            && !projectConfigService.hasPermission(projectId, ownerId, "members.remove")) {
+            throw new SecurityException("Insufficient permissions to remove members");
         }
-        if (ownerId.equals(userId)) {
-            throw new SecurityException("Owner cannot remove themselves");
+        if (project.getOwnerId().equals(userId)) {
+            throw new SecurityException("Project owner cannot be removed");
         }
         boolean removed = project.getMembers().removeIf(m -> m.getUserId().equals(userId));
         if (removed) {
@@ -168,7 +261,7 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
             .flatMap(p -> p.getMembers().stream()
                 .filter(m -> m.getUserId().equals(userId))
                 .findFirst())
-            .map(member -> member.getRole().name())
+            .map(ProjectMember::getRoleId)
             .orElse(null);
     }
 }

@@ -56,7 +56,7 @@ public class Project {
     }
 
     // Логика добавления участника
-    public void addMember(Long userId, ProjectRole role) {
+    public void addMember(Long userId, String roleId) {
         // Проверка на дубликаты (в памяти, перед сохранением)
         boolean exists = this.members.stream()
             .anyMatch(m -> m.getUserId().equals(userId));
@@ -65,6 +65,6 @@ public class Project {
             throw new IllegalArgumentException("User with ID " + userId + " is already a member.");
         }
 
-        this.members.add(new ProjectMember(userId, role));
+        this.members.add(new ProjectMember(userId, roleId));
     }
 }

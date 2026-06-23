@@ -6,6 +6,7 @@ import issue.tracking.system.issuetrackingsystem.issue.api.IssueType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
+import java.util.Map;
 
 public record CreateIssueRequest(
     @NotNull Long projectId,
@@ -16,5 +17,6 @@ public record CreateIssueRequest(
     List<Long> assigneeIds,
     List<AttachmentDto> attachments,
     List<String> attachmentFileNames,
-    java.time.LocalDate dueDate
+    java.time.LocalDate dueDate,
+    Map<String, Object> customFields
 ) {}

@@ -9,6 +9,7 @@ export type SystemIssueFieldId =
   | 'type'
   | 'priority'
   | 'assignee'
+  | 'author'
   | 'startDate'
   | 'dueDate'
   | 'attachments';
@@ -16,8 +17,12 @@ export type SystemIssueFieldId =
 export type CustomFieldType =
   | 'text'
   | 'number'
+  | 'date'
+  | 'checkbox'
+  | 'enum'
   | 'user_reference'
-  | 'issue_reference';
+  | 'issue_reference'
+  | 'enum';
 
 export interface BaseCustomFieldDefinition {
   id: string;
@@ -43,6 +48,29 @@ export interface NumberFieldDefinition extends BaseCustomFieldDefinition {
   };
 }
 
+export interface DateFieldDefinition extends BaseCustomFieldDefinition {
+  type: 'date';
+  config: Record<string, never>;
+}
+
+export interface CheckboxFieldDefinition extends BaseCustomFieldDefinition {
+  type: 'checkbox';
+  config: Record<string, never>;
+}
+
+export interface EnumFieldOption {
+  id: string;
+  label: string;
+  color: string;
+}
+
+export interface EnumFieldDefinition extends BaseCustomFieldDefinition {
+  type: 'enum';
+  config: {
+    options: EnumFieldOption[];
+  };
+}
+
 export interface UserReferenceFieldDefinition
   extends BaseCustomFieldDefinition {
   type: 'user_reference';
@@ -57,11 +85,28 @@ export interface IssueReferenceFieldDefinition
   config: Record<string, never>;
 }
 
+export interface EnumFieldOption {
+  id: string;
+  label: string;
+  color: string;
+}
+
+export interface EnumFieldDefinition extends BaseCustomFieldDefinition {
+  type: 'enum';
+  config: {
+    options: EnumFieldOption[];
+  };
+}
+
 export type CustomFieldDefinition =
   | TextFieldDefinition
   | NumberFieldDefinition
+  | DateFieldDefinition
+  | CheckboxFieldDefinition
+  | EnumFieldDefinition
   | UserReferenceFieldDefinition
-  | IssueReferenceFieldDefinition;
+  | IssueReferenceFieldDefinition
+  | EnumFieldDefinition;
 
 export interface CustomStatus {
   id: string;
@@ -96,6 +141,7 @@ export interface Transition {
 }
 
 export interface LifecycleConfig {
+  transitionRulesEnabled: boolean;
   statuses: CustomStatus[];
   transitions: Transition[];
 }
@@ -105,6 +151,8 @@ export interface ProjectConfig {
   roles: CustomRole[];
   lifecycle: LifecycleConfig;
   customFields: CustomFieldDefinition[];
+  fieldOrder: string[];
+  boardCardFieldIds: string[];
   updatedAt: string;
 }
 
@@ -129,7 +177,12 @@ export const PERMISSION_GROUPS: Array<{
   },
   {
     label: 'Members',
-    permissions: ['members.invite', 'members.remove', 'members.assignRole'],
+    permissions: [
+      'members.view',
+      'members.invite',
+      'members.remove',
+      'members.assignRole',
+    ],
   },
   {
     label: 'Project Settings',
@@ -150,6 +203,7 @@ export const SYSTEM_ISSUE_FIELDS: Array<{
   { id: 'type', label: 'Type' },
   { id: 'priority', label: 'Priority' },
   { id: 'assignee', label: 'Assignee' },
+  { id: 'author', label: 'Author' },
   { id: 'startDate', label: 'Start date' },
   { id: 'dueDate', label: 'Due date' },
   { id: 'attachments', label: 'Attachments' },

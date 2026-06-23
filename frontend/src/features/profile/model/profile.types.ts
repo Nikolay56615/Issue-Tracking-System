@@ -3,6 +3,7 @@ export type PermissionKey =
   | 'issue.create'
   | 'issue.edit'
   | 'issue.remove'
+  | 'members.view'
   | 'members.invite'
   | 'members.remove'
   | 'members.assignRole'
@@ -16,6 +17,8 @@ export interface UserProfile {
   id: number;
   email: string;
   username: string;
+  globalAdmin?: boolean;
+  active?: boolean;
 }
 
 export interface CustomRole {
@@ -32,6 +35,7 @@ export interface UserProfileWithRole {
   roleId: string;
   roleName: string;
   permissions: PermissionKey[];
+  projectOwner: boolean;
 }
 
 export interface Project {
@@ -39,9 +43,12 @@ export interface Project {
   name: string;
   ownerId: number;
   archived: boolean;
-  currentRoleId?: string;
-  currentRoleName?: string;
-  currentPermissions?: PermissionKey[];
+}
+
+export type ProjectPermissionsById = Record<number, PermissionKey[]>;
+
+export interface CurrentProjectRoleResponse {
+  role: CustomRole;
 }
 
 export interface CreateProjectRequest {

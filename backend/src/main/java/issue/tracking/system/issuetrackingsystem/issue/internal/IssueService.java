@@ -1,12 +1,14 @@
 package issue.tracking.system.issuetrackingsystem.issue.internal;
 
 import issue.tracking.system.issuetrackingsystem.issue.api.*;
-import issue.tracking.system.issuetrackingsystem.lifecycle.api.IssueStatus;
-import issue.tracking.system.issuetrackingsystem.lifecycle.api.LifecycleEngine;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
+import issue.tracking.system.issuetrackingsystem.projects.api.CustomFieldDefinitionDto;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectConfigDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
+import issue.tracking.system.issuetrackingsystem.projects.internal.ProjectConfigService;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -28,8 +30,8 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     private final ApplicationEventPublisher eventPublisher;
     private final ProjectAccessApi projectAccess;
     private final ProjectQueryApi projectQueryApi;
+    private final ProjectConfigService projectConfigService;
     private final FileStorageApi fileStorage;
-    private final LifecycleEngine lifecycle;
     private final IssueMapper mapper;
 
     // --- COMMAND API IMPL ---
@@ -39,9 +41,13 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     public IssueDto createIssue(Long userId, Long projectId, String name, IssueType type,
                             IssuePriority priority, String description,
                             List<Long> assigneeIds, List<AttachmentDto> attachments,
-                            java.time.LocalDate dueDate) {
+                            java.time.LocalDate dueDate,
+                            Map<String, Object> customFields) {
         if (!projectAccess.hasAccess(userId, projectId)) {
             throw new SecurityException("User is not a member of the project");
+        }
+        if (!projectAccess.hasPermission(userId, projectId, "issue.create")) {
+            throw new SecurityException("Insufficient permissions to create issue");
         }
 
         var projectOpt = projectQueryApi.getProjectById(projectId);
@@ -58,6 +64,13 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             throw new SecurityException("Assignees must be project members");
         }
 
+        ProjectConfigDto config = projectConfigService.getOrCreateConfig(projectId);
+        Map<String, Object> sanitizedCustomFields = projectConfigService.sanitizeCustomFields(
+            projectId,
+            customFields,
+            null
+        );
+
         Issue issue = new Issue();
         issue.setProjectId(projectId);
         issue.setAuthorId(userId);
@@ -66,11 +79,12 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         issue.setType(type);
         issue.setPriority(priority);
         issue.setAssigneeIds(selectedAssigneeIds);
-        issue.setStatus(IssueStatus.BACKLOG);
+        issue.setStatus(projectConfigService.getInitialStatusId(projectId));
         issue.setStartDate(LocalDate.now());
         if (dueDate != null) {
             issue.setDueDate(dueDate);
         }
+        issue.setCustomFieldsJson(mapper.writeCustomFields(sanitizedCustomFields));
 
         check_attachements(attachments, issue);
 
@@ -87,11 +101,16 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Transactional
     public void updateIssue(Long issueId, Long userId, String name, String description,
         IssuePriority priority, IssueType type,
-        IssueStatus status,
+        String status,
         List<Long> assigneeIds,
-        List<AttachmentDto> newAttachments) {
+        List<AttachmentDto> newAttachments,
+        LocalDate dueDate,
+        Map<String, Object> customFields) {
 
         Issue issue = getIssueIfAllowed(issueId, userId, false);
+        if (!projectAccess.hasPermission(userId, issue.getProjectId(), "issue.edit")) {
+            throw new SecurityException("Insufficient permissions to edit issue");
+        }
 
         var projectOpt = projectQueryApi.getProjectById(issue.getProjectId());
         if (projectOpt.isPresent() && projectOpt.get().archived()) {
@@ -142,16 +161,33 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             issue.setAssigneeIds(assigneeIds);
         }
 
-        if (status != null && status != issue.getStatus()) {
-            String role = projectAccess.getUserRole(userId, issue.getProjectId()).orElse("");
-            boolean isAssignee = issue.getAssigneeIds() != null && issue.getAssigneeIds().contains(userId);
-            boolean isAuthor = issue.getAuthorId().equals(userId);
+        if (dueDate != null) {
+            issue.setDueDate(dueDate);
+        }
 
-            if (!lifecycle.canTransition(issue.getStatus(), status, role, isAssignee, isAuthor)) {
+        if (customFields != null) {
+            issue.setCustomFieldsJson(mapper.writeCustomFields(
+                projectConfigService.sanitizeCustomFields(issue.getProjectId(), customFields, issue.getId())
+            ));
+        }
+
+        if (status != null && !status.equals(issue.getStatus())) {
+            if (!projectConfigService.statusExists(issue.getProjectId(), status)) {
+                throw new IllegalArgumentException("Target status does not exist");
+            }
+            if (!projectAccess.canTransitionIssue(
+                userId,
+                issue.getProjectId(),
+                issue.getStatus(),
+                status,
+                issue.getAuthorId(),
+                issue.getAssigneeIds(),
+                mapper.readCustomFields(issue)
+            )) {
                 throw new SecurityException("Transition denied");
             }
             issue.setStatus(status);
-            if (status == IssueStatus.DONE) {
+            if ("DONE".equals(status)) {
                 issue.setDueDate(LocalDate.now());
             }
         }
@@ -195,24 +231,31 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
 
     @Override
     @Transactional
-    public void changeStatus(Long issueId, Long userId, IssueStatus newStatus) {
+    public void changeStatus(Long issueId, Long userId, String newStatus) {
         Issue issue = issueRepository.findById(issueId)
             .orElseThrow(() -> new IllegalArgumentException("Issue not found"));
+        if (!projectAccess.hasAccess(userId, issue.getProjectId())) {
+            throw new SecurityException("User is not a member of the project");
+        }
+        if (!projectConfigService.statusExists(issue.getProjectId(), newStatus)) {
+            throw new IllegalArgumentException("Target status does not exist");
+        }
 
-        String role = projectAccess.getUserRole(userId, issue.getProjectId())
-            .orElseThrow(() -> new SecurityException("User has no role"));
-
-        boolean isAssignee = issue.getAssigneeIds() != null
-            && issue.getAssigneeIds().contains(userId);
-        boolean isAuthor = issue.getAuthorId() != null && issue.getAuthorId().equals(userId);
-
-        if (!lifecycle.canTransition(issue.getStatus(), newStatus, role, isAssignee, isAuthor)) {
+        if (!projectAccess.canTransitionIssue(
+            userId,
+            issue.getProjectId(),
+            issue.getStatus(),
+            newStatus,
+            issue.getAuthorId(),
+            issue.getAssigneeIds(),
+            mapper.readCustomFields(issue)
+        )) {
             throw new SecurityException("Transition denied by lifecycle rules");
         }
 
         issue.setStatus(newStatus);
 
-        if (newStatus == IssueStatus.DONE) {
+        if ("DONE".equals(newStatus)) {
             issue.setDueDate(LocalDate.now());
         }
 
@@ -226,7 +269,10 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Override
     @Transactional
     public void moveToTrash(Long issueId, Long userId) {
-        Issue issue = getIssueIfAllowed(issueId, userId, true);
+        Issue issue = getIssueIfAllowed(issueId, userId, false);
+        if (!projectAccess.hasPermission(userId, issue.getProjectId(), "issue.remove")) {
+            throw new SecurityException("Insufficient permissions to remove issue");
+        }
 
         // Clean up attachments
         for (Attachment att : new ArrayList<>(issue.getAttachments())) {  // Avoid concurrent modification
@@ -245,10 +291,11 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Transactional
     public void restoreFromTrash(Long issueId, Long userId) {
         Issue issue = issueRepository.findById(issueId).orElseThrow();
-        String role = projectAccess.getUserRole(userId, issue.getProjectId()).orElse("");
-
-        if (isReviewerOrHigher(role)) {
-            throw new SecurityException("Access denied");
+        if (!projectAccess.hasAccess(userId, issue.getProjectId())) {
+            throw new SecurityException("User is not a member of the project");
+        }
+        if (!projectAccess.hasPermission(userId, issue.getProjectId(), "issue.edit")) {
+            throw new SecurityException("Insufficient permissions to restore issue");
         }
 
         issue.setDeletedAt(null);
@@ -277,23 +324,22 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         }
     }
 
-    private boolean isReviewerOrHigher(String role) {
-        return !"REVIEWER".equals(role) && !"ADMIN".equals(role) && !"OWNER".equals(role);
-    }
-
     // --- QUERY API IMPL ---
 
     @Override
     @Transactional(readOnly = true)
-    public IssueDto getById(Long id) {
-        return issueRepository.findById(id)
-            .map(mapper::toDto)
+    public IssueDto getById(Long userId, Long id) {
+        Issue issue = issueRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Issue not found"));
+        requireIssueView(userId, issue.getProjectId());
+        return mapper.toDto(issue);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<IssueDto> getBoardIssues(Long projectId, IssueFilterDto filter) {
+    public List<IssueDto> getBoardIssues(Long userId, Long projectId, IssueFilterDto filter) {
+        requireIssueView(userId, projectId);
+        ProjectConfigDto config = projectConfigService.getOrCreateConfig(projectId);
         List<Issue> issues = issueRepository.findAllActiveByProjectId(projectId);
         Stream<Issue> stream = issues.stream();
 
@@ -314,10 +360,17 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
                 stream = stream.filter(i -> i.getName().toLowerCase().contains(q));
             }
             if (filter.dateFrom() != null) {
-                stream = stream.filter(i -> i.getStartDate() != null && !i.getStartDate().isBefore(filter.dateFrom()));
+                stream = stream.filter(i -> i.getDueDate() != null && !i.getDueDate().isBefore(filter.dateFrom()));
             }
             if (filter.dateTo() != null) {
-                stream = stream.filter(i -> i.getStartDate() != null && !i.getStartDate().isAfter(filter.dateTo()));
+                stream = stream.filter(i -> i.getDueDate() != null && !i.getDueDate().isAfter(filter.dateTo()));
+            }
+            if (filter.customFields() != null && !filter.customFields().isEmpty()) {
+                stream = stream.filter(i -> matchesCustomFields(
+                    config,
+                    mapper.readCustomFields(i),
+                    filter.customFields()
+                ));
             }
         }
         return stream
@@ -326,9 +379,51 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             .toList();
     }
 
+    private boolean matchesCustomFields(
+        ProjectConfigDto config,
+        Map<String, Object> issueCustomFields,
+        Map<String, Object> expectedCustomFields
+    ) {
+        Map<String, CustomFieldDefinitionDto> fieldsById = config.customFields().stream()
+            .collect(Collectors.toMap(CustomFieldDefinitionDto::id, field -> field));
+
+        return expectedCustomFields.entrySet().stream()
+            .filter(entry -> entry.getValue() != null && !"".equals(entry.getValue()))
+            .allMatch(entry -> {
+                Object actual = issueCustomFields.get(entry.getKey());
+                Object expected = entry.getValue();
+                CustomFieldDefinitionDto field = fieldsById.get(entry.getKey());
+                if ("checkbox".equals(field == null ? null : field.type())) {
+                    return Boolean.valueOf(String.valueOf(actual == null ? false : actual))
+                        .equals(Boolean.valueOf(String.valueOf(expected)));
+                }
+                if (actual == null) {
+                    return false;
+                }
+                if ("enum".equals(field == null ? null : field.type())) {
+                    return actual.toString().equals(expected.toString());
+                }
+                if (actual instanceof Number actualNumber && expected instanceof Number expectedNumber) {
+                    return Double.compare(actualNumber.doubleValue(), expectedNumber.doubleValue()) == 0;
+                }
+                if ("number".equals(field == null ? null : field.type())) {
+                    try {
+                        return Double.compare(
+                            Double.parseDouble(actual.toString()),
+                            Double.parseDouble(expected.toString())
+                        ) == 0;
+                    } catch (NumberFormatException ex) {
+                        return false;
+                    }
+                }
+                return actual.toString().toLowerCase().contains(expected.toString().toLowerCase());
+            });
+    }
+
     @Override
     @Transactional(readOnly = true)
-    public List<IssueDto> getTrashBin(Long projectId) {
+    public List<IssueDto> getTrashBin(Long userId, Long projectId) {
+        requireIssueView(userId, projectId);
         return issueRepository.findDeletedByProjectId(projectId).stream()
             .map(mapper::toDto)
             .toList();
@@ -363,6 +458,15 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             }
         }
         return issue;
+    }
+
+    private void requireIssueView(Long userId, Long projectId) {
+        if (!projectAccess.hasAccess(userId, projectId)) {
+            throw new SecurityException("User is not a member of the project");
+        }
+        if (!projectAccess.hasPermission(userId, projectId, "issue.view")) {
+            throw new SecurityException("Insufficient permissions to view issues");
+        }
     }
 }
 

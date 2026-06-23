@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator.tsx';
 interface StatusColumnProps {
   status: IssueStatus;
   title: string;
+  color: string;
   issues: Issue[];
   canDrag: (issue: Issue) => boolean;
 }
@@ -19,6 +20,7 @@ interface StatusColumnProps {
 export const StatusColumn = ({
   status,
   title,
+  color,
   issues,
   canDrag,
 }: StatusColumnProps) => {
@@ -28,12 +30,23 @@ export const StatusColumn = ({
     <Card
       ref={setNodeRef}
       className={cn(
-        'flex w-80 flex-col gap-0 py-4 transition-opacity',
+        'flex w-80 min-w-80 shrink-0 flex-col gap-0 py-4 transition-opacity',
         isOver && 'opacity-80'
       )}
     >
       <CardHeader className="gap-0 px-4 pb-4">
-        <h2 className="font-medium">{title}</h2>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: color }}
+            />
+            <h2 className="font-medium">{title}</h2>
+          </div>
+          <span className="text-muted-foreground text-xs">
+            {issues.length}
+          </span>
+        </div>
       </CardHeader>
       <Separator />
       <SortableContext

@@ -27,6 +27,12 @@ class SecurityCurrentUserProvider implements CurrentUserProvider {
         if (auth == null || !(auth.getPrincipal() instanceof UserDetailsImpl principal)) {
             return Optional.empty();
         }
-        return Optional.of(new UserDto(principal.getId(), principal.getEmail(), principal.getRealUsername()));
+        return Optional.of(new UserDto(
+            principal.getId(),
+            principal.getEmail(),
+            principal.getRealUsername(),
+            principal.isGlobalAdmin(),
+            principal.isActive()
+        ));
     }
 }

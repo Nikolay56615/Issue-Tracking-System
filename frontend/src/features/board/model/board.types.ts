@@ -23,7 +23,7 @@ export type IssueType = 'TASK' | 'BUG' | 'FEATURE' | 'SEARCH';
 
 export type IssuePriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
 
-export type IssueCustomFieldValue = string | number | null;
+export type IssueCustomFieldValue = string | number | boolean | null;
 
 export interface Attachment {
   originalFileName: string;
@@ -68,7 +68,15 @@ export interface ChangeIssueStatusRequest {
 
 export interface LifecycleGraph {
   statuses: IssueStatus[];
-  transitions: Transition[];
+  transitions: LifecycleGraphTransition[];
+}
+
+export interface LifecycleGraphTransition {
+  from: IssueStatus;
+  to: IssueStatus;
+  allowedRoles: string[];
+  authorAllowed: boolean;
+  assigneeAllowed: boolean;
 }
 
 export type LifecycleTransition = Transition;
@@ -81,7 +89,6 @@ export interface UpdateIssueRequest {
   status?: IssueStatus;
   assigneeIds?: number[];
   dueDate?: string;
-  attachmentFileNames?: string[];
   attachments?: Attachment[];
   customFields?: Record<string, IssueCustomFieldValue>;
 }

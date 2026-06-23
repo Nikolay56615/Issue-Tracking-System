@@ -94,7 +94,10 @@ export function InviteUserPopover({
       setError(null);
 
       try {
-        const response = await ProfileRequests.searchUsers(searchQuery);
+        const response = await ProfileRequests.getInviteCandidates(
+          projectId,
+          searchQuery
+        );
         setUserOptions(response);
       } catch (err) {
         setError('Failed to fetch users');
@@ -116,7 +119,7 @@ export function InviteUserPopover({
         clearTimeout(debounceTimeout.current);
       }
     };
-  }, [searchQuery]);
+  }, [projectId, searchQuery]);
 
   const handleInvite = async () => {
     if (!selectedUser || !projectId) return;

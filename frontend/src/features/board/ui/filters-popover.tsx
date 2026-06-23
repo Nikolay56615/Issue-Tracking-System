@@ -9,6 +9,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -22,17 +23,17 @@ import type {
 import { BadgeButton } from '@/features/board/ui/badge-button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { getBoard } from '@/features/board/model/board.actions.ts';
 import {
   resetFilters,
   setFilters,
 } from '@/features/board/model/board.reducer.ts';
 import {
   getAssignableMembersForField,
+  getOrderedCustomFields,
   type CustomFieldDefinition,
 } from '@/features/project-config/model';
-import { UsersRequests } from '@/features/users';
-import type { UserProfileWithRole } from '@/features/profile';
+import { UserSelectField } from '@/features/board/ui/user-field.tsx';
+import { getProjectUsers } from '@/features/users/model/users.actions.ts';
 
 const TYPES = ['TASK', 'BUG', 'FEATURE', 'SEARCH'] as const;
 const PRIORITIES = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'] as const;
@@ -47,11 +48,16 @@ const getStringValue = (value: IssueCustomFieldValue) =>
 export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
   const dispatch = useAppDispatch();
   const { filters, issues } = useAppSelector((state) => state.board);
+  const {
+    users,
+    loading: usersLoading,
+    projectId: usersProjectId,
+  } = useAppSelector((state) => state.users);
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
 
-  const customFields = projectConfig?.customFields ?? [];
+  const customFields = getOrderedCustomFields(projectConfig);
   const [open, setOpen] = useState(false);
   const [localTypes, setLocalTypes] = useState<IssueType[]>(filters.types ?? []);
   const [localPriorities, setLocalPriorities] = useState<IssuePriority[]>(
@@ -64,8 +70,6 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
     from: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
     to: filters.dateTo ? new Date(filters.dateTo) : undefined,
   });
-  const [projectMembers, setProjectMembers] = useState<UserProfileWithRole[]>([]);
-  const [membersLoading, setMembersLoading] = useState(false);
   const [localAssigneeId, setLocalAssigneeId] = useState<number | undefined>(
     filters.assigneeId
   );
@@ -76,33 +80,12 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
   useEffect(() => {
     if (!open) return;
 
-    let cancelled = false;
+    dispatch(getProjectUsers(projectId));
+  }, [dispatch, open, projectId]);
 
-    const loadMembers = async () => {
-      setMembersLoading(true);
-      try {
-        const data = await UsersRequests.getProjectUsers(projectId);
-        if (!cancelled) {
-          setProjectMembers(data);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Failed to load members for filters:', error);
-          setProjectMembers([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setMembersLoading(false);
-        }
-      }
-    };
-
-    loadMembers();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, projectId]);
+  const projectMembers = usersProjectId === projectId ? users : [];
+  const membersLoading =
+    open && (usersLoading === 'pending' || usersProjectId !== projectId);
 
   const issueReferenceOptions = useMemo(
     () => issues.filter((issue) => issue.projectId === projectId),
@@ -130,12 +113,6 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
     };
 
     dispatch(setFilters(nextFilters));
-    dispatch(
-      getBoard({
-        projectId,
-        filters: nextFilters,
-      })
-    );
     setOpen(false);
   };
 
@@ -174,9 +151,96 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
       );
     }
 
+    if (field.type === 'date') {
+      return (
+        <Input
+          type="date"
+          value={getStringValue(value)}
+          onChange={(event) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]: event.target.value || null,
+            }))
+          }
+        />
+      );
+    }
+
+    if (field.type === 'checkbox') {
+      return (
+        <Select
+          value={
+            value === true ? 'checked' : value === false ? 'unchecked' : 'all'
+          }
+          onValueChange={(nextValue) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]:
+                nextValue === 'all' ? null : nextValue === 'checked',
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={field.name} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any</SelectItem>
+            <SelectItem value="checked">Checked</SelectItem>
+            <SelectItem value="unchecked">Unchecked</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    if (field.type === 'enum') {
+      return (
+        <Select
+          value={typeof value === 'string' ? value : 'all'}
+          onValueChange={(nextValue) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]: nextValue === 'all' ? null : nextValue,
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={field.name} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="all">Any</SelectItem>
+              {field.config.options.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      );
+    }
+
     if (field.type === 'user_reference') {
       const allowedMembers = getAssignableMembersForField(field, projectMembers);
 
+      return (
+        <UserSelectField
+          members={allowedMembers}
+          value={typeof value === 'number' ? value : null}
+          onChange={(nextValue) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]: nextValue,
+            }))
+          }
+          placeholder={field.name}
+          emptyLabel="Any member"
+          disabled={membersLoading}
+        />
+      );
+    }
+
+    if (field.type === 'issue_reference') {
       return (
         <Select
           value={value == null ? 'all' : String(value)}
@@ -191,10 +255,10 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
             <SelectValue placeholder={field.name} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Any member</SelectItem>
-            {allowedMembers.map((member) => (
-              <SelectItem key={member.id} value={String(member.id)}>
-                {member.name} ({member.roleName})
+            <SelectItem value="all">Any issue</SelectItem>
+            {issueReferenceOptions.map((issue) => (
+              <SelectItem key={issue.id} value={String(issue.id)}>
+                {issue.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -208,7 +272,7 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
         onValueChange={(nextValue) =>
           setLocalCustomFilters((prev) => ({
             ...prev,
-            [field.id]: nextValue === 'all' ? null : Number(nextValue),
+            [field.id]: nextValue === 'all' ? null : nextValue,
           }))
         }
       >
@@ -216,10 +280,10 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
           <SelectValue placeholder={field.name} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Any issue</SelectItem>
-          {issueReferenceOptions.map((issue) => (
-            <SelectItem key={issue.id} value={String(issue.id)}>
-              {issue.name}
+          <SelectItem value="all">Any option</SelectItem>
+          {field.config.options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -235,7 +299,10 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
           Filters
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="mr-4 w-96 p-4" align="start">
+      <PopoverContent
+        className="mr-4 max-h-[calc(100vh-2rem)] w-96 overflow-y-auto p-4"
+        align="start"
+      >
         <div className="space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium">Type</label>
@@ -293,24 +360,13 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
                 <span>Loading members...</span>
               </div>
             ) : (
-              <Select
-                value={localAssigneeId == null ? 'all' : String(localAssigneeId)}
-                onValueChange={(value) =>
-                  setLocalAssigneeId(value === 'all' ? undefined : Number(value))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Any assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any assignee</SelectItem>
-                  {projectMembers.map((member) => (
-                    <SelectItem key={member.id} value={String(member.id)}>
-                      {member.name} ({member.roleName})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <UserSelectField
+                members={projectMembers}
+                value={localAssigneeId}
+                onChange={(value) => setLocalAssigneeId(value ?? undefined)}
+                placeholder="Any assignee"
+                emptyLabel="Any assignee"
+              />
             )}
           </div>
 

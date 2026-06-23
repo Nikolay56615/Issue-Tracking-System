@@ -9,20 +9,22 @@ import type { Issue } from '@/features/board/model';
 import { TypeBadge } from '@/features/board/ui/type-badge.tsx';
 import { PriorityBadge } from '@/features/board/ui/priority-badge.tsx';
 import { Button } from '@/components/ui/button.tsx';
-import { Trash, User } from 'lucide-react';
+import { Trash } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { deleteIssue } from '@/features/board/model/board.actions.ts';
-import { useEffect, useState } from 'react';
-import type { UserProfileWithRole } from '@/features/profile';
 import { IssueForm } from '@/features/board/ui/issue-form.tsx';
 import ReactMarkdown from 'react-markdown';
-import { UsersRequests } from '@/features/users';
 import { AttachmentImage } from '@/features/board/ui/attachment-image.tsx';
 import { AttachmentRow } from '@/features/board/ui/attachment-row.tsx';
 import {
   formatCustomFieldValue,
+  getStatusById,
+  getOrderedCustomFields,
   getStatusLabel,
 } from '@/features/project-config/model';
+import { StatusBadge } from '@/features/board/ui/status-badge.tsx';
+import { UserValueCard } from '@/features/board/ui/user-field.tsx';
+import { EnumFieldBadge } from '@/features/board/ui/enum-field-badge.tsx';
 
 interface IssueDialogProps {
   issue: Issue;
@@ -45,42 +47,22 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
   const dispatch = useAppDispatch();
   const { deleteIssueStatus } = useAppSelector((state) => state.board);
   const boardIssues = useAppSelector((state) => state.board.issues);
+  const {
+    users: projectMembers,
+    loading: usersLoading,
+    projectId: usersProjectId,
+  } = useAppSelector((state) => state.users);
   const { config: projectConfig } = useAppSelector(
     (state) => state.projectConfig
   );
-  const customDialogFields = projectConfig?.customFields ?? [];
-
-  const [assignees, setAssignees] = useState<UserProfileWithRole[]>([]);
-  const [author, setAuthor] = useState<UserProfileWithRole | null>(null);
-  const [projectMembers, setProjectMembers] = useState<UserProfileWithRole[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      setLoadingUsers(true);
-      try {
-        // Загружаем всех участников проекта
-        const projectMembers = await UsersRequests.getProjectUsers(projectId);
-        setProjectMembers(projectMembers);
-
-        // Находим автора
-        const authorData = projectMembers.find((u) => u.id === authorId);
-        setAuthor(authorData || null);
-
-        // Находим assignees
-        const assigneesData = projectMembers.filter((u) =>
-          assigneeIds.includes(u.id)
-        );
-        setAssignees(assigneesData);
-      } catch (error) {
-        console.error('Failed to fetch users:', error);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-
-    fetchUsers();
-  }, [projectId, authorId, assigneeIds]);
+  const customDialogFields = getOrderedCustomFields(projectConfig);
+  const statusMeta = getStatusById(projectConfig, status);
+  const members = usersProjectId === projectId ? projectMembers : [];
+  const loadingUsers =
+    usersLoading === 'pending' || usersProjectId !== projectId;
+  const author = members.find((member) => member.id === authorId) ?? null;
+  const assignee =
+    members.find((member) => assigneeIds.includes(member.id)) ?? null;
 
   const isImage = (filename: string): boolean => {
     const ext = filename.toLowerCase().split('.').pop();
@@ -100,7 +82,7 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
           {name}
         </span>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[80vh] flex-col">
+      <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-3xl">
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle>{name}</DialogTitle>
           <IssueForm mode="edit" projectId={projectId} issue={issue} />
@@ -118,63 +100,29 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
             <div className="flex gap-2">
               <TypeBadge type={type} />
               <PriorityBadge priority={priority} />
-              <span className="rounded-md border px-2 py-1 text-xs">
-                {getStatusLabel(projectConfig, status)}
-              </span>
+              <StatusBadge
+                label={getStatusLabel(projectConfig, status)}
+                color={statusMeta?.color ?? '#64748b'}
+              />
             </div>
 
             <div>
               <span className="mb-1 block text-sm font-medium">Author</span>
-              {loadingUsers ? (
-                <div className="text-muted-foreground text-sm">Loading...</div>
-              ) : author ? (
-                <div
-                  className="flex items-center gap-2 rounded border px-3 py-2
-                    text-sm"
-                >
-                  <User className="text-muted-foreground h-4 w-4" />
-                  <div className="flex flex-col">
-                    <span className="font-medium">{author.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {author.email}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-muted-foreground text-sm">Unknown</div>
-              )}
+              <UserValueCard
+                member={author}
+                loading={loadingUsers}
+                emptyLabel="Unknown author"
+              />
             </div>
 
-            {assigneeIds.length > 0 && (
-              <div>
-                <span className="mb-2 block text-sm font-medium">
-                  Assignees
-                </span>
-                {loadingUsers ? (
-                  <div className="text-muted-foreground text-sm">
-                    Loading...
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {assignees.map((assignee) => (
-                      <div
-                        key={assignee.id}
-                        className="flex items-center gap-2 rounded border px-3
-                          py-2 text-sm"
-                      >
-                        <User className="text-muted-foreground h-4 w-4" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{assignee.name}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {assignee.email}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <div>
+              <span className="mb-1 block text-sm font-medium">Assignee</span>
+              <UserValueCard
+                member={assignee}
+                loading={loadingUsers}
+                emptyLabel="Not set"
+              />
+            </div>
 
             {description && (
               <div>
@@ -205,12 +153,27 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
                   <span className="mb-1 block text-sm font-medium">
                     {field.name}
                   </span>
-                  <span className="text-muted-foreground text-sm">
-                    {formatCustomFieldValue(field, value, {
-                      issues: boardIssues,
-                      members: projectMembers,
-                    })}
-                  </span>
+                  {field.type === 'user_reference' ? (
+                    <UserValueCard
+                      member={
+                        typeof value === 'number'
+                          ? members.find((member) => member.id === value) ??
+                            null
+                          : null
+                      }
+                      loading={loadingUsers}
+                      emptyLabel="Not set"
+                    />
+                  ) : field.type === 'enum' ? (
+                    <EnumFieldBadge field={field} value={value} />
+                  ) : (
+                    <span className="text-muted-foreground text-sm">
+                      {formatCustomFieldValue(field, value, {
+                        issues: boardIssues,
+                        members,
+                      })}
+                    </span>
+                  )}
                 </div>
               );
             })}

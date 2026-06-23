@@ -5,6 +5,7 @@ const PERMISSION_KEYS = [
   'issue.create',
   'issue.edit',
   'issue.remove',
+  'members.view',
   'members.invite',
   'members.remove',
   'members.assignRole',
@@ -50,6 +51,42 @@ const users = [
     id: 6,
     email: 'reviewer@example.com',
     username: 'Roman Orlov',
+    password: 'password',
+  },
+  {
+    id: 7,
+    email: 'analyst@example.com',
+    username: 'Sofia Ivanova',
+    password: 'password',
+  },
+  {
+    id: 8,
+    email: 'designer@example.com',
+    username: 'Daria Kuznetsova',
+    password: 'password',
+  },
+  {
+    id: 9,
+    email: 'support@example.com',
+    username: 'Mikhail Lebedev',
+    password: 'password',
+  },
+  {
+    id: 10,
+    email: 'devops@example.com',
+    username: 'Kirill Morozov',
+    password: 'password',
+  },
+  {
+    id: 11,
+    email: 'product@example.com',
+    username: 'Elena Fedorova',
+    password: 'password',
+  },
+  {
+    id: 12,
+    email: 'intern@example.com',
+    username: 'Artem Volkov',
     password: 'password',
   },
 ];
@@ -127,6 +164,50 @@ const createField = (projectId, slug, name, type, required, config) => ({
   config: structuredClone(config),
 });
 
+const SYSTEM_FIELD_IDS = [
+  'name',
+  'description',
+  'type',
+  'priority',
+  'assignee',
+  'author',
+  'startDate',
+  'dueDate',
+  'attachments',
+];
+
+const createFieldOrder = (customFields) => [
+  ...SYSTEM_FIELD_IDS,
+  ...customFields.map((field) => field.id),
+];
+
+const DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS = [
+  'description',
+  'dueDate',
+  'type',
+  'priority',
+];
+
+const createBoardCardFieldIds = (customFields) => [
+  ...DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS,
+  ...customFields.map((field) => field.id),
+];
+
+const normalizeBoardCardFieldIds = (config) => {
+  const fallback = createBoardCardFieldIds(config.customFields ?? []);
+  const source = Array.isArray(config.boardCardFieldIds)
+    ? config.boardCardFieldIds
+    : fallback;
+  const validIds = new Set(
+    createFieldOrder(config.customFields ?? []).filter((id) => id !== 'name')
+  );
+
+  return source.filter(
+    (fieldId, index, array) =>
+      validIds.has(fieldId) && array.indexOf(fieldId) === index
+  );
+};
+
 const createTransition = (projectId, slug, fromStatusId, toStatusId, conditions) => ({
   id: `project-${projectId}-transition-${slug}`,
   fromStatusId,
@@ -141,6 +222,7 @@ const createDefaultProjectConfig = (projectId) => {
     'issue.create',
     'issue.edit',
     'issue.remove',
+    'members.view',
     'members.invite',
     'members.remove',
     'members.assignRole',
@@ -154,10 +236,12 @@ const createDefaultProjectConfig = (projectId) => {
     'issue.view',
     'issue.create',
     'issue.edit',
+    'members.view',
   ]);
   const reviewer = createRole(projectId, 'reviewer', 'Reviewer', [
     'issue.view',
     'issue.edit',
+    'members.view',
   ]);
 
   const backlog = createStatus(projectId, 'backlog', 'Backlog', 1, '#64748b', true);
@@ -175,6 +259,7 @@ const createDefaultProjectConfig = (projectId) => {
     projectId,
     roles: [owner, admin, worker, reviewer],
     lifecycle: {
+      transitionRulesEnabled: true,
       statuses: [backlog, inProgress, review, done],
       transitions: [
         createTransition(projectId, 'backlog-to-in-progress', backlog.id, inProgress.id, [
@@ -203,6 +288,8 @@ const createDefaultProjectConfig = (projectId) => {
       ],
     },
     customFields: [],
+    fieldOrder: createFieldOrder([]),
+    boardCardFieldIds: createBoardCardFieldIds([]),
     updatedAt: new Date().toISOString(),
   };
 };
@@ -214,6 +301,7 @@ const createQaVisionProjectConfig = (projectId) => {
     'issue.create',
     'issue.edit',
     'issue.remove',
+    'members.view',
     'members.invite',
     'members.remove',
     'members.assignRole',
@@ -227,11 +315,17 @@ const createQaVisionProjectConfig = (projectId) => {
     'issue.view',
     'issue.create',
     'issue.edit',
+    'members.view',
   ]);
-  const qa = createRole(projectId, 'qa', 'QA', ['issue.view', 'issue.edit']);
+  const qa = createRole(projectId, 'qa', 'QA', [
+    'issue.view',
+    'issue.edit',
+    'members.view',
+  ]);
   const qaLead = createRole(projectId, 'qa-lead', 'QA Lead', [
     'issue.view',
     'issue.edit',
+    'members.view',
     'template.export',
   ]);
 
@@ -264,6 +358,7 @@ const createQaVisionProjectConfig = (projectId) => {
     projectId,
     roles: [owner, admin, developer, qa, qaLead],
     lifecycle: {
+      transitionRulesEnabled: true,
       statuses: [backlog, inProgress, review, qaStatus, done],
       transitions: [
         createTransition(projectId, 'backlog-to-in-progress', backlog.id, inProgress.id, [
@@ -304,6 +399,13 @@ const createQaVisionProjectConfig = (projectId) => {
       ],
     },
     customFields: [environment, storyPoints, qaEngineer, blockedBy],
+    fieldOrder: createFieldOrder([environment, storyPoints, qaEngineer, blockedBy]),
+    boardCardFieldIds: createBoardCardFieldIds([
+      environment,
+      storyPoints,
+      qaEngineer,
+      blockedBy,
+    ]),
     updatedAt: new Date().toISOString(),
   };
 };
@@ -349,6 +451,7 @@ const createProductTemplateConfig = (projectId) => {
     projectId,
     roles: [owner, admin, worker, reviewer, designer].filter(Boolean),
     lifecycle: {
+      transitionRulesEnabled: true,
       statuses: [discovery, planned, build, review, release],
       transitions: [
         createTransition(projectId, 'discovery-to-planned', discovery.id, planned.id, [
@@ -374,6 +477,12 @@ const createProductTemplateConfig = (projectId) => {
       ],
     },
     customFields: [uxOwner, estimate, releaseNotes],
+    fieldOrder: createFieldOrder([uxOwner, estimate, releaseNotes]),
+    boardCardFieldIds: createBoardCardFieldIds([
+      uxOwner,
+      estimate,
+      releaseNotes,
+    ]),
     updatedAt: new Date().toISOString(),
   };
 };
@@ -504,8 +613,6 @@ const issues = [
 const deletedIssueIds = new Set([104]);
 
 const ok = (body = {}) => ({ statusCode: 200, body });
-const created = (body = {}) => ({ statusCode: 201, body });
-const noContent = () => ({ statusCode: 204, body: {} });
 const error = (statusCode, message) => ({ statusCode, body: { message } });
 
 const getId = (request, name = 'id') => Number(request.params[name]);
@@ -534,7 +641,20 @@ const requireUser = (request) => {
 const getProject = (projectId) =>
   projects.find((project) => project.id === projectId) ?? null;
 
-const getConfig = (projectId) => projectConfigs.get(projectId) ?? null;
+const getConfig = (projectId) => {
+  const config = projectConfigs.get(projectId) ?? null;
+  if (!config) {
+    return null;
+  }
+
+  const normalized = {
+    ...config,
+    fieldOrder: config.fieldOrder ?? createFieldOrder(config.customFields ?? []),
+    boardCardFieldIds: normalizeBoardCardFieldIds(config),
+  };
+  projectConfigs.set(projectId, normalized);
+  return normalized;
+};
 
 const getUserById = (userId) => users.find((user) => user.id === userId) ?? null;
 
@@ -591,14 +711,11 @@ const toProfile = (user) => ({
   username: user.username,
 });
 
-const toProject = (project, member, role) => ({
+const toProject = (project) => ({
   id: project.id,
   name: project.name,
   ownerId: project.ownerId,
   archived: project.archived,
-  currentRoleId: member?.roleId,
-  currentRoleName: role?.name,
-  currentPermissions: role?.permissions ?? [],
 });
 
 const toMemberProfile = (projectId, member) => {
@@ -613,6 +730,7 @@ const toMemberProfile = (projectId, member) => {
     roleId: member.roleId,
     roleName: role?.name ?? 'Unknown',
     permissions: role?.permissions ?? [],
+    projectOwner: user.id === getProject(projectId)?.ownerId,
   };
 };
 
@@ -629,12 +747,15 @@ const getInitialStatusId = (config) => {
 const normalizeTemplateConfig = (config) => ({
   roles: config.roles.map((role) => structuredClone(role)),
   lifecycle: {
+    transitionRulesEnabled: config.lifecycle.transitionRulesEnabled !== false,
     statuses: config.lifecycle.statuses.map((status) => structuredClone(status)),
     transitions: config.lifecycle.transitions.map((transition) =>
       structuredClone(transition)
     ),
   },
   customFields: config.customFields.map((field) => structuredClone(field)),
+  fieldOrder: [...(config.fieldOrder ?? createFieldOrder(config.customFields))],
+  boardCardFieldIds: normalizeBoardCardFieldIds(config),
 });
 
 const cloneConfigForProject = (projectId, templateConfig) => {
@@ -701,6 +822,34 @@ const cloneConfigForProject = (projectId, templateConfig) => {
       };
     }
 
+    if (field.type === 'date' || field.type === 'checkbox') {
+      return {
+        id,
+        projectId,
+        name: field.name,
+        type: field.type,
+        required: field.required,
+        config: {},
+      };
+    }
+
+    if (field.type === 'enum') {
+      return {
+        id,
+        projectId,
+        name: field.name,
+        type: 'enum',
+        required: field.required,
+        config: {
+          options: field.config.options.map((option, optionIndex) => ({
+            id: `${id}-option-${slugify(option.label || optionIndex + 1)}`,
+            label: option.label,
+            color: option.color,
+          })),
+        },
+      };
+    }
+
     if (field.type === 'user_reference') {
       return {
         id,
@@ -725,6 +874,22 @@ const cloneConfigForProject = (projectId, templateConfig) => {
       config: {},
     };
   });
+
+  const fieldOrder = (templateConfig.fieldOrder ?? createFieldOrder(templateConfig.customFields))
+    .map((fieldId) => fieldIdMap.get(fieldId) ?? fieldId)
+    .filter(
+      (fieldId, index, array) =>
+        array.indexOf(fieldId) === index &&
+        (SYSTEM_FIELD_IDS.includes(fieldId) || customFields.some((field) => field.id === fieldId))
+    );
+  const boardCardFieldIds = normalizeBoardCardFieldIds(templateConfig)
+    .map((fieldId) => fieldIdMap.get(fieldId) ?? fieldId)
+    .filter(
+      (fieldId, index, array) =>
+        array.indexOf(fieldId) === index &&
+        fieldId !== 'name' &&
+        (SYSTEM_FIELD_IDS.includes(fieldId) || customFields.some((field) => field.id === fieldId))
+    );
 
   const transitions = templateConfig.lifecycle.transitions.map(
     (transition, index) => ({
@@ -757,10 +922,14 @@ const cloneConfigForProject = (projectId, templateConfig) => {
     projectId,
     roles,
     lifecycle: {
+      transitionRulesEnabled:
+        templateConfig.lifecycle.transitionRulesEnabled !== false,
       statuses,
       transitions,
     },
     customFields,
+    fieldOrder,
+    boardCardFieldIds,
     updatedAt: new Date().toISOString(),
   };
 };
@@ -829,6 +998,10 @@ const remapMembersToConfig = (projectId, previousConfig, nextConfig) => {
 
 const validateCustomFieldValue = (projectId, config, field, value, issueId = null) => {
   if (value === undefined || value === null || value === '') {
+    if (field.type === 'checkbox') {
+      return null;
+    }
+
     if (field.required) {
       return `${field.name} is required`;
     }
@@ -860,6 +1033,25 @@ const validateCustomFieldValue = (projectId, config, field, value, issueId = nul
     if (field.config.max != null && numericValue > field.config.max) {
       return `${field.name} is above maximum`;
     }
+    return null;
+  }
+
+  if (field.type === 'checkbox') {
+    if (typeof value !== 'boolean') {
+      return `${field.name} must be checked or unchecked`;
+    }
+
+    return null;
+  }
+
+  if (field.type === 'enum') {
+    if (
+      typeof value !== 'string' ||
+      !field.config.options.some((option) => option.id === value)
+    ) {
+      return `${field.name} contains an unavailable option`;
+    }
+
     return null;
   }
 
@@ -912,6 +1104,9 @@ const sanitizeCustomFields = (projectId, config, values, issueId = null) => {
     }
 
     if (value === undefined || value === null || value === '') {
+      if (field.type === 'checkbox') {
+        sanitized[field.id] = false;
+      }
       continue;
     }
 
@@ -922,6 +1117,11 @@ const sanitizeCustomFields = (projectId, config, values, issueId = null) => {
 
     if (field.type === 'user_reference' || field.type === 'issue_reference') {
       sanitized[field.id] = Number(value);
+      continue;
+    }
+
+    if (field.type === 'checkbox') {
+      sanitized[field.id] = value;
       continue;
     }
 
@@ -1016,12 +1216,83 @@ const isTransitionAllowed = (issue, transition, currentUserId, currentRoleId) =>
     return false;
   });
 
+const canTransitionIssue = (issue, toStatus, access) => {
+  if (issue.status === toStatus) return true;
+
+  const statusExists = access.config.lifecycle.statuses.some(
+    (status) => status.id === toStatus
+  );
+  if (!statusExists) return false;
+
+  if (access.config.lifecycle.transitionRulesEnabled === false) {
+    return true;
+  }
+
+  if (!hasPermission(access.role, 'issue.edit')) {
+    return false;
+  }
+
+  const transition = access.config.lifecycle.transitions.find(
+    (item) => item.fromStatusId === issue.status && item.toStatusId === toStatus
+  );
+
+  return transition
+    ? isTransitionAllowed(issue, transition, access.user.id, access.role.id)
+    : false;
+};
+
+const toLifecycleGraph = (lifecycle) => ({
+  statuses: lifecycle.statuses.map((status) => status.id),
+  transitions: lifecycle.transitions.map((transition) => ({
+    from: transition.fromStatusId,
+    to: transition.toStatusId,
+    allowedRoles: transition.conditions
+      .filter((condition) => condition.type === 'role')
+      .map((condition) => condition.roleId),
+    authorAllowed: transition.conditions.some(
+      (condition) => condition.type === 'author'
+    ),
+    assigneeAllowed: transition.conditions.some(
+      (condition) => condition.type === 'assignee'
+    ),
+  })),
+});
+
+const removeProjectMember = (projectId, userId) => {
+  if (getProject(projectId)?.ownerId === userId) {
+    return error(403, 'Project owner cannot be removed');
+  }
+
+  const projectMemberIndex = members.findIndex(
+    (member) => member.projectId === projectId && member.userId === userId
+  );
+  if (projectMemberIndex === -1) {
+    return error(404, 'Member not found');
+  }
+
+  members.splice(projectMemberIndex, 1);
+  return ok();
+};
+
 const validateProjectConfig = (projectId, config) => {
+  const validCustomFieldTypes = new Set([
+    'text',
+    'number',
+    'date',
+    'checkbox',
+    'enum',
+    'user_reference',
+    'issue_reference',
+  ]);
+
   if (!config.roles?.length) {
     return 'Project must have at least one role';
   }
   if (!config.lifecycle?.statuses?.length) {
     return 'Project must have at least one status';
+  }
+  if (typeof config.lifecycle.transitionRulesEnabled !== 'boolean') {
+    return 'Lifecycle transitionRulesEnabled must be boolean';
   }
 
   const roleIds = new Set(config.roles.map((role) => role.id));
@@ -1029,6 +1300,8 @@ const validateProjectConfig = (projectId, config) => {
   const customFieldsById = new Map(
     config.customFields.map((field) => [field.id, field])
   );
+  const expectedFieldOrder = createFieldOrder(config.customFields);
+  const expectedFieldIds = new Set(expectedFieldOrder);
 
   if (
     config.lifecycle.statuses.filter((status) => status.isInitial).length !== 1
@@ -1050,12 +1323,62 @@ const validateProjectConfig = (projectId, config) => {
   }
 
   for (const field of config.customFields) {
+    if (!validCustomFieldTypes.has(field.type)) {
+      return `${field.name} has an unsupported type`;
+    }
+
     if (
       field.type === 'user_reference' &&
       field.config.allowedRoleIds.some((roleId) => !roleIds.has(roleId))
     ) {
       return `${field.name} references a missing role`;
     }
+    if (
+      field.type === 'enum' &&
+      (!Array.isArray(field.config.options) ||
+        field.config.options.length === 0 ||
+        field.config.options.some(
+          (option, index, options) =>
+            !option.id ||
+            !option.label?.trim() ||
+            !/^#[0-9a-f]{6}$/i.test(option.color) ||
+            options.findIndex((item) => item.id === option.id) !== index
+        ))
+    ) {
+      return `${field.name} must have valid unique badge options`;
+    }
+  }
+
+  if (!Array.isArray(config.fieldOrder)) {
+    return 'Field order must be present';
+  }
+
+  if (config.fieldOrder.length !== expectedFieldOrder.length) {
+    return 'Field order must include every system and custom field exactly once';
+  }
+
+  if (
+    config.fieldOrder.some(
+      (fieldId, index) =>
+        !expectedFieldIds.has(fieldId) || config.fieldOrder.indexOf(fieldId) !== index
+    )
+  ) {
+    return 'Field order contains an invalid or duplicated field';
+  }
+
+  if (!Array.isArray(config.boardCardFieldIds)) {
+    return 'Board card field ids must be present';
+  }
+
+  if (
+    config.boardCardFieldIds.some(
+      (fieldId, index) =>
+        fieldId === 'name' ||
+        !expectedFieldIds.has(fieldId) ||
+        config.boardCardFieldIds.indexOf(fieldId) !== index
+    )
+  ) {
+    return 'Board card field ids contain an invalid or duplicated field';
   }
 
   for (const transition of config.lifecycle.transitions) {
@@ -1084,6 +1407,10 @@ const validateProjectConfig = (projectId, config) => {
 };
 
 const filterIssues = (projectId, filters = {}) => {
+  const customFieldsById = new Map(
+    (getConfig(projectId)?.customFields ?? []).map((field) => [field.id, field])
+  );
+
   return issues.filter((issue) => {
     if (deletedIssueIds.has(issue.id)) return false;
     if (issue.projectId !== projectId) return false;
@@ -1122,6 +1449,11 @@ const filterIssues = (projectId, filters = {}) => {
       }
 
       const issueValue = issue.customFields?.[fieldId];
+      const field = customFieldsById.get(fieldId);
+      if (field?.type === 'checkbox') {
+        return (issueValue ?? false) === value;
+      }
+
       if (typeof issueValue === 'string') {
         return issueValue.toLowerCase().includes(String(value).toLowerCase());
       }
@@ -1193,7 +1525,7 @@ const config = [
         };
         users.push(user);
 
-        return created(toProfile(user));
+        return ok(toProfile(user));
       }),
       route('/auth/login', 'post', (request) => {
         const { email, password } = request.body;
@@ -1232,9 +1564,7 @@ const config = [
           .filter((member) => member.userId === user.id)
           .map((member) => {
             const project = getProject(member.projectId);
-            const projectConfig = getConfig(member.projectId);
-            const role = getRole(projectConfig, member.roleId);
-            return project ? toProject(project, member, role) : null;
+            return project ? toProject(project) : null;
           })
           .filter(Boolean);
 
@@ -1282,9 +1612,14 @@ const config = [
           roleId: ownerRole.id,
         });
 
-        return created(
-          toProject(project, { projectId, userId: user.id, roleId: ownerRole.id }, ownerRole)
-        );
+        return ok(toProject(project));
+      }),
+      route('/projects/:projectId', 'get', (request) => {
+        const projectId = getId(request, 'projectId');
+        const access = ensureProjectAccess(request, projectId);
+        if (access.response) return access.response;
+
+        return ok(toProject(access.project));
       }),
       route('/projects/:projectId/config', 'get', (request) => {
         const projectId = getId(request, 'projectId');
@@ -1303,6 +1638,9 @@ const config = [
           projectId,
           updatedAt: new Date().toISOString(),
         };
+        nextConfig.fieldOrder =
+          nextConfig.fieldOrder ?? createFieldOrder(nextConfig.customFields ?? []);
+        nextConfig.boardCardFieldIds = normalizeBoardCardFieldIds(nextConfig);
         const validationError = validateProjectConfig(projectId, nextConfig);
         if (validationError) {
           return error(400, validationError);
@@ -1349,10 +1687,31 @@ const config = [
       }),
       route('/projects/:projectId/members', 'get', (request) => {
         const projectId = getId(request, 'projectId');
-        const access = ensureProjectAccess(request, projectId);
+        const access = ensureProjectAccess(request, projectId, 'members.view');
         if (access.response) return access.response;
 
         return ok(getProjectMembers(projectId).map((member) => toMemberProfile(projectId, member)));
+      }),
+      route('/projects/:projectId/invite-candidates', 'get', (request) => {
+        const projectId = getId(request, 'projectId');
+        const access = ensureProjectAccess(request, projectId, 'members.invite');
+        if (access.response) return access.response;
+
+        const query = String(request.query.query ?? '').toLowerCase();
+        const projectMemberIds = new Set(
+          getProjectMembers(projectId).map((member) => member.userId)
+        );
+
+        return ok(
+          users
+            .filter((user) => !projectMemberIds.has(user.id))
+            .filter(
+              (user) =>
+                user.email.toLowerCase().includes(query) ||
+                user.username.toLowerCase().includes(query)
+            )
+            .map(toProfile)
+        );
       }),
       route('/projects/:projectId/my-role', 'get', (request) => {
         const projectId = getId(request, 'projectId');
@@ -1402,6 +1761,9 @@ const config = [
         if (!member) {
           return error(404, 'Member not found');
         }
+        if (member.userId === access.project.ownerId) {
+          return error(403, 'Project owner role cannot be changed');
+        }
 
         const roleId = String(request.body.roleId);
         if (!getRole(access.config, roleId)) {
@@ -1416,16 +1778,14 @@ const config = [
         const access = ensureProjectAccess(request, projectId, 'members.remove');
         if (access.response) return access.response;
 
-        const userId = getId(request, 'userId');
-        const projectMemberIndex = members.findIndex(
-          (member) => member.projectId === projectId && member.userId === userId
-        );
-        if (projectMemberIndex === -1) {
-          return error(404, 'Member not found');
-        }
+        return removeProjectMember(projectId, getId(request, 'userId'));
+      }),
+      route('/projects/:projectId/remove-member/:userId', 'post', (request) => {
+        const projectId = getId(request, 'projectId');
+        const access = ensureProjectAccess(request, projectId, 'members.remove');
+        if (access.response) return access.response;
 
-        members.splice(projectMemberIndex, 1);
-        return noContent();
+        return removeProjectMember(projectId, getId(request, 'userId'));
       }),
       route('/projects/:projectId/archive', 'post', (request) => {
         const projectId = getId(request, 'projectId');
@@ -1433,7 +1793,7 @@ const config = [
         if (access.response) return access.response;
 
         access.project.archived = true;
-        return noContent();
+        return ok();
       }),
       route('/projects/:projectId/restore', 'post', (request) => {
         const projectId = getId(request, 'projectId');
@@ -1441,7 +1801,7 @@ const config = [
         if (access.response) return access.response;
 
         access.project.archived = false;
-        return noContent();
+        return ok();
       }),
       route('/issues/board', 'post', (request) => {
         const projectId = Number(request.query.projectId);
@@ -1493,7 +1853,7 @@ const config = [
         };
 
         issues.push(issue);
-        return created(issue);
+        return ok(issue);
       }),
       route('/issues/:id', 'get', (request) => {
         const issue = issues.find((item) => item.id === getId(request));
@@ -1520,15 +1880,27 @@ const config = [
         if (customFieldResult.error) {
           return error(400, customFieldResult.error);
         }
+        if (!request.body.name || !request.body.priority || !request.body.type) {
+          return error(400, 'name, priority and type are required');
+        }
+        if (request.body.status) {
+          const statusExists = access.config.lifecycle.statuses.some(
+            (status) => status.id === request.body.status
+          );
+          if (!statusExists) {
+            return error(400, 'Target status does not exist');
+          }
+        }
 
         Object.assign(issue, {
           name: request.body.name,
           description: request.body.description ?? issue.description,
-          priority: request.body.priority ?? issue.priority,
-          type: request.body.type ?? issue.type,
+          priority: request.body.priority,
+          type: request.body.type,
+          status: request.body.status ?? issue.status,
           assigneeIds: (request.body.assigneeIds ?? issue.assigneeIds).map(Number),
           dueDate: request.body.dueDate ?? issue.dueDate,
-          attachments: normalizeAttachments(request.body),
+          attachments: request.body.attachments ?? issue.attachments,
           customFields: customFieldResult.sanitized,
         });
 
@@ -1538,10 +1910,26 @@ const config = [
         const issue = issues.find((item) => item.id === getId(request));
         if (!issue) return error(404, 'Issue not found');
 
-        const access = ensureProjectAccess(request, issue.projectId, 'issue.edit');
+        const access = ensureProjectAccess(request, issue.projectId);
         if (access.response) return access.response;
 
         const nextStatus = String(request.body.newStatus);
+        const statusExists = access.config.lifecycle.statuses.some(
+          (status) => status.id === nextStatus
+        );
+        if (!statusExists) {
+          return error(400, 'Target status does not exist');
+        }
+
+        if (access.config.lifecycle.transitionRulesEnabled === false) {
+          issue.status = nextStatus;
+          return ok();
+        }
+
+        if (!hasPermission(access.role, 'issue.edit')) {
+          return error(403, 'Insufficient permissions');
+        }
+
         const transition = access.config.lifecycle.transitions.find(
           (item) =>
             item.fromStatusId === issue.status && item.toStatusId === nextStatus
@@ -1555,7 +1943,7 @@ const config = [
         }
 
         issue.status = nextStatus;
-        return noContent();
+        return ok();
       }),
       route('/issues/:id', 'delete', (request) => {
         const issue = issues.find((item) => item.id === getId(request));
@@ -1565,7 +1953,7 @@ const config = [
         if (access.response) return access.response;
 
         deletedIssueIds.add(issue.id);
-        return noContent();
+        return ok();
       }),
       route('/issues/:id/restore', 'post', (request) => {
         const issue = issues.find((item) => item.id === getId(request));
@@ -1575,7 +1963,7 @@ const config = [
         if (access.response) return access.response;
 
         deletedIssueIds.delete(issue.id);
-        return noContent();
+        return ok();
       }),
       route('/issues/:id/attachments', 'delete', (request) => {
         const issue = issues.find((item) => item.id === getId(request));
@@ -1588,7 +1976,7 @@ const config = [
           (attachment) => attachment.url !== request.query.url
         );
 
-        return noContent();
+        return ok();
       }),
       route('/attachments/upload', 'post', () =>
         ok({ url: `/files/mock-${counters.attachment++}.txt` })
@@ -1600,10 +1988,20 @@ const config = [
       })),
       route('/lifecycle/graph', 'get', () => {
         const lifecycle = getConfig(1).lifecycle;
-        return ok({
-          statuses: lifecycle.statuses.map((status) => status.id),
-          transitions: lifecycle.transitions,
-        });
+        return ok(toLifecycleGraph(lifecycle));
+      }),
+      route('/lifecycle/can-transition', 'post', (request) => {
+        const issue = issues.find((item) => item.id === Number(request.body.issueId));
+        if (!issue) return error(404, 'Issue not found');
+
+        const access = ensureProjectAccess(request, issue.projectId);
+        if (access.response) return access.response;
+
+        if (issue.status !== request.body.from) {
+          return ok(false);
+        }
+
+        return ok(canTransitionIssue(issue, String(request.body.to), access));
       }),
     ],
   },

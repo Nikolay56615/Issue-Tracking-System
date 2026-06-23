@@ -11,6 +11,7 @@ public interface IssueRepository extends JpaRepository<Issue, Long> {
     @Query("SELECT i FROM Issue i WHERE i.projectId = :projectId AND i.deletedAt IS NOT NULL")
     List<Issue> findDeletedByProjectId(Long projectId);
 
+    List<Issue> findByProjectId(Long projectId);
     List<Issue> findByProjectIdAndStatusAndDeletedAtIsNull(Long projectId, String status);
     List<Issue> findByProjectIdAndAssigneeIdsContaining(Long projectId, Long userId);
     List<Issue> findByProjectIdAndAuthorId(Long projectId, Long userId);

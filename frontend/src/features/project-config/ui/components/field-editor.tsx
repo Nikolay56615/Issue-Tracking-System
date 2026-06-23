@@ -1,4 +1,4 @@
-import { Trash } from 'lucide-react';
+import { Plus, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
@@ -227,6 +227,137 @@ export const FieldEditor = ({
       {field.type === 'checkbox' && (
         <div className="text-muted-foreground text-sm">
           This field stores a checked or unchecked value.
+        </div>
+      )}
+
+      {field.type === 'enum' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label>Options</Label>
+              <p className="text-muted-foreground text-xs">
+                Stored value is option id; label and color are used for badges.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                updateField(field.id, (current) =>
+                  current.type === 'enum'
+                    ? {
+                        ...current,
+                        config: {
+                          options: [
+                            ...current.config.options,
+                            {
+                              id: `option-${Date.now()}`,
+                              label: 'New option',
+                              color: '#64748b',
+                            },
+                          ],
+                        },
+                      }
+                    : current
+                )
+              }
+            >
+              <Plus data-icon="inline-start" />
+              Add option
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {field.config.options.map((option, optionIndex) => (
+              <div
+                key={`${option.id}-${optionIndex}`}
+                className="grid gap-2 md:grid-cols-[1fr_1fr_110px_auto]"
+              >
+                <Input
+                  aria-label="Option id"
+                  value={option.id}
+                  onChange={(event) =>
+                    updateField(field.id, (current) =>
+                      current.type === 'enum'
+                        ? {
+                            ...current,
+                            config: {
+                              options: current.config.options.map((item, index) =>
+                                index === optionIndex
+                                  ? { ...item, id: event.target.value }
+                                  : item
+                              ),
+                            },
+                          }
+                        : current
+                    )
+                  }
+                />
+                <Input
+                  aria-label="Option label"
+                  value={option.label}
+                  onChange={(event) =>
+                    updateField(field.id, (current) =>
+                      current.type === 'enum'
+                        ? {
+                            ...current,
+                            config: {
+                              options: current.config.options.map((item, index) =>
+                                index === optionIndex
+                                  ? { ...item, label: event.target.value }
+                                  : item
+                              ),
+                            },
+                          }
+                        : current
+                    )
+                  }
+                />
+                <Input
+                  aria-label="Option color"
+                  type="color"
+                  value={option.color}
+                  onChange={(event) =>
+                    updateField(field.id, (current) =>
+                      current.type === 'enum'
+                        ? {
+                            ...current,
+                            config: {
+                              options: current.config.options.map((item, index) =>
+                                index === optionIndex
+                                  ? { ...item, color: event.target.value }
+                                  : item
+                              ),
+                            },
+                          }
+                        : current
+                    )
+                  }
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={field.config.options.length <= 1}
+                  onClick={() =>
+                    updateField(field.id, (current) =>
+                      current.type === 'enum'
+                        ? {
+                            ...current,
+                            config: {
+                              options: current.config.options.filter(
+                                (_, index) => index !== optionIndex
+                              ),
+                            },
+                          }
+                        : current
+                    )
+                  }
+                >
+                  <Trash />
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

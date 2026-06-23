@@ -83,7 +83,7 @@ public class IssueController {
             request.customFields()
         );
 
-        return queryApi.getById(id);
+        return queryApi.getById(userId, id);
     }
 
     @PutMapping("/{id}/status")
@@ -108,18 +108,21 @@ public class IssueController {
 
     @GetMapping("/{id}")
     public IssueDto getById(@PathVariable Long id) {
-        return queryApi.getById(id);
+        Long userId = userProvider.getCurrentUserId();
+        return queryApi.getById(userId, id);
     }
 
     @PostMapping("/board")
     public List<IssueDto> getBoard(@RequestParam Long projectId,
                                    @RequestBody(required = false) IssueFilterDto filter) {
-        return queryApi.getBoardIssues(projectId, filter);
+        Long userId = userProvider.getCurrentUserId();
+        return queryApi.getBoardIssues(userId, projectId, filter);
     }
 
     @GetMapping("/trash")
     public List<IssueDto> getTrash(@RequestParam Long projectId) {
-        return queryApi.getTrashBin(projectId);
+        Long userId = userProvider.getCurrentUserId();
+        return queryApi.getTrashBin(userId, projectId);
     }
 
     @DeleteMapping("/{id}/attachments")

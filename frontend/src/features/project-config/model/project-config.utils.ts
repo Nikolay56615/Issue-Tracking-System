@@ -30,6 +30,7 @@ export const FIELD_TYPE_OPTIONS: CustomFieldType[] = [
   'checkbox',
   'user_reference',
   'issue_reference',
+  'enum',
 ];
 
 export const CONDITION_EDITOR_OPTIONS = [
@@ -243,7 +244,27 @@ export const formatCustomFieldValue = (
     return value === true ? 'Checked' : 'Unchecked';
   }
 
+  if (field.type === 'enum') {
+    return (
+      field.config.options.find((option) => option.id === value)?.label ??
+      String(value)
+    );
+  }
+
   return String(value);
+};
+
+export const getEnumOption = (
+  field: CustomFieldDefinition,
+  value: boolean | number | string | null | undefined
+) => {
+  if (field.type !== 'enum' || value === null || value === undefined) {
+    return null;
+  }
+
+  return (
+    field.config.options.find((option) => option.id === String(value)) ?? null
+  );
 };
 
 export const transitionHasConditionType = (
@@ -410,6 +431,23 @@ export const toIssueReferenceConfig = (field: CustomFieldDefinition) => ({
   config: {},
 });
 
+export const toEnumConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'enum' as const,
+  config: {
+    options:
+      field.type === 'enum'
+        ? field.config.options
+        : [
+            {
+              id: 'blocked',
+              label: 'Blocked',
+              color: '#ef4444',
+            },
+          ],
+  },
+});
+
 export const switchFieldType = (
   field: CustomFieldDefinition,
   type: CustomFieldType,
@@ -420,6 +458,7 @@ export const switchFieldType = (
   if (type === 'date') return toDateConfig(field);
   if (type === 'checkbox') return toCheckboxConfig(field);
   if (type === 'user_reference') return toUserReferenceConfig(field, roles);
+  if (type === 'enum') return toEnumConfig(field);
   return toIssueReferenceConfig(field);
 };
 

@@ -7,4 +7,5 @@ public interface UserQueryApi {
     Optional<UserDto> findUserById(Long id);
     List<UserDto> findUsersByIds(List<Long> ids);
     List<UserDto> searchUsersGlobal(String query);
+    boolean isGlobalAdmin(Long userId);
 }

@@ -2,7 +2,10 @@ package issue.tracking.system.issuetrackingsystem.issue.internal;
 
 import issue.tracking.system.issuetrackingsystem.issue.api.*;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
+import issue.tracking.system.issuetrackingsystem.projects.api.CustomFieldDefinitionDto;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectConfigDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
+import issue.tracking.system.issuetrackingsystem.projects.internal.ProjectConfigService;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
@@ -27,6 +30,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     private final ApplicationEventPublisher eventPublisher;
     private final ProjectAccessApi projectAccess;
     private final ProjectQueryApi projectQueryApi;
+    private final ProjectConfigService projectConfigService;
     private final FileStorageApi fileStorage;
     private final IssueMapper mapper;
 
@@ -60,6 +64,13 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             throw new SecurityException("Assignees must be project members");
         }
 
+        ProjectConfigDto config = projectConfigService.getOrCreateConfig(projectId);
+        Map<String, Object> sanitizedCustomFields = projectConfigService.sanitizeCustomFields(
+            projectId,
+            customFields,
+            null
+        );
+
         Issue issue = new Issue();
         issue.setProjectId(projectId);
         issue.setAuthorId(userId);
@@ -68,12 +79,12 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         issue.setType(type);
         issue.setPriority(priority);
         issue.setAssigneeIds(selectedAssigneeIds);
-        issue.setStatus("BACKLOG");
+        issue.setStatus(projectConfigService.getInitialStatusId(projectId));
         issue.setStartDate(LocalDate.now());
         if (dueDate != null) {
             issue.setDueDate(dueDate);
         }
-        issue.setCustomFieldsJson(mapper.writeCustomFields(customFields));
+        issue.setCustomFieldsJson(mapper.writeCustomFields(sanitizedCustomFields));
 
         check_attachements(attachments, issue);
 
@@ -155,10 +166,15 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         }
 
         if (customFields != null) {
-            issue.setCustomFieldsJson(mapper.writeCustomFields(customFields));
+            issue.setCustomFieldsJson(mapper.writeCustomFields(
+                projectConfigService.sanitizeCustomFields(issue.getProjectId(), customFields, issue.getId())
+            ));
         }
 
         if (status != null && !status.equals(issue.getStatus())) {
+            if (!projectConfigService.statusExists(issue.getProjectId(), status)) {
+                throw new IllegalArgumentException("Target status does not exist");
+            }
             if (!projectAccess.canTransitionIssue(
                 userId,
                 issue.getProjectId(),
@@ -221,6 +237,9 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         if (!projectAccess.hasAccess(userId, issue.getProjectId())) {
             throw new SecurityException("User is not a member of the project");
         }
+        if (!projectConfigService.statusExists(issue.getProjectId(), newStatus)) {
+            throw new IllegalArgumentException("Target status does not exist");
+        }
 
         if (!projectAccess.canTransitionIssue(
             userId,
@@ -272,10 +291,11 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Transactional
     public void restoreFromTrash(Long issueId, Long userId) {
         Issue issue = issueRepository.findById(issueId).orElseThrow();
-        String role = projectAccess.getUserRole(userId, issue.getProjectId()).orElse("");
-
-        if (isReviewerOrHigher(role)) {
-            throw new SecurityException("Access denied");
+        if (!projectAccess.hasAccess(userId, issue.getProjectId())) {
+            throw new SecurityException("User is not a member of the project");
+        }
+        if (!projectAccess.hasPermission(userId, issue.getProjectId(), "issue.edit")) {
+            throw new SecurityException("Insufficient permissions to restore issue");
         }
 
         issue.setDeletedAt(null);
@@ -292,30 +312,29 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
                 assignees = assignees.stream().filter(id -> !id.equals(userId)).toList();
                 issue.setAssigneeIds(assignees);
                 if (assignees.isEmpty()) {
-                    issue.setStatus("BACKLOG");
+                    issue.setStatus(projectConfigService.getInitialStatusId(projectId));
                 }
                 issueRepository.save(issue);
             }
         }
     }
 
-    private boolean isReviewerOrHigher(String role) {
-        return !"REVIEWER".equals(role) && !"ADMIN".equals(role) && !"OWNER".equals(role);
-    }
-
     // --- QUERY API IMPL ---
 
     @Override
     @Transactional(readOnly = true)
-    public IssueDto getById(Long id) {
-        return issueRepository.findById(id)
-            .map(mapper::toDto)
+    public IssueDto getById(Long userId, Long id) {
+        Issue issue = issueRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Issue not found"));
+        requireIssueView(userId, issue.getProjectId());
+        return mapper.toDto(issue);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<IssueDto> getBoardIssues(Long projectId, IssueFilterDto filter) {
+    public List<IssueDto> getBoardIssues(Long userId, Long projectId, IssueFilterDto filter) {
+        requireIssueView(userId, projectId);
+        ProjectConfigDto config = projectConfigService.getOrCreateConfig(projectId);
         List<Issue> issues = issueRepository.findAllActiveByProjectId(projectId);
         Stream<Issue> stream = issues.stream();
 
@@ -336,13 +355,17 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
                 stream = stream.filter(i -> i.getName().toLowerCase().contains(q));
             }
             if (filter.dateFrom() != null) {
-                stream = stream.filter(i -> i.getStartDate() != null && !i.getStartDate().isBefore(filter.dateFrom()));
+                stream = stream.filter(i -> i.getDueDate() != null && !i.getDueDate().isBefore(filter.dateFrom()));
             }
             if (filter.dateTo() != null) {
-                stream = stream.filter(i -> i.getStartDate() != null && !i.getStartDate().isAfter(filter.dateTo()));
+                stream = stream.filter(i -> i.getDueDate() != null && !i.getDueDate().isAfter(filter.dateTo()));
             }
             if (filter.customFields() != null && !filter.customFields().isEmpty()) {
-                stream = stream.filter(i -> matchesCustomFields(mapper.readCustomFields(i), filter.customFields()));
+                stream = stream.filter(i -> matchesCustomFields(
+                    config,
+                    mapper.readCustomFields(i),
+                    filter.customFields()
+                ));
             }
         }
         return stream
@@ -352,19 +375,41 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     }
 
     private boolean matchesCustomFields(
+        ProjectConfigDto config,
         Map<String, Object> issueCustomFields,
         Map<String, Object> expectedCustomFields
     ) {
+        Map<String, CustomFieldDefinitionDto> fieldsById = config.customFields().stream()
+            .collect(Collectors.toMap(CustomFieldDefinitionDto::id, field -> field));
+
         return expectedCustomFields.entrySet().stream()
             .filter(entry -> entry.getValue() != null && !"".equals(entry.getValue()))
             .allMatch(entry -> {
                 Object actual = issueCustomFields.get(entry.getKey());
                 Object expected = entry.getValue();
+                CustomFieldDefinitionDto field = fieldsById.get(entry.getKey());
+                if ("checkbox".equals(field == null ? null : field.type())) {
+                    return Boolean.valueOf(String.valueOf(actual == null ? false : actual))
+                        .equals(Boolean.valueOf(String.valueOf(expected)));
+                }
                 if (actual == null) {
                     return false;
                 }
+                if ("enum".equals(field == null ? null : field.type())) {
+                    return actual.toString().equals(expected.toString());
+                }
                 if (actual instanceof Number actualNumber && expected instanceof Number expectedNumber) {
                     return Double.compare(actualNumber.doubleValue(), expectedNumber.doubleValue()) == 0;
+                }
+                if ("number".equals(field == null ? null : field.type())) {
+                    try {
+                        return Double.compare(
+                            Double.parseDouble(actual.toString()),
+                            Double.parseDouble(expected.toString())
+                        ) == 0;
+                    } catch (NumberFormatException ex) {
+                        return false;
+                    }
                 }
                 return actual.toString().toLowerCase().contains(expected.toString().toLowerCase());
             });
@@ -372,7 +417,8 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
 
     @Override
     @Transactional(readOnly = true)
-    public List<IssueDto> getTrashBin(Long projectId) {
+    public List<IssueDto> getTrashBin(Long userId, Long projectId) {
+        requireIssueView(userId, projectId);
         return issueRepository.findDeletedByProjectId(projectId).stream()
             .map(mapper::toDto)
             .toList();
@@ -407,6 +453,15 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             }
         }
         return issue;
+    }
+
+    private void requireIssueView(Long userId, Long projectId) {
+        if (!projectAccess.hasAccess(userId, projectId)) {
+            throw new SecurityException("User is not a member of the project");
+        }
+        if (!projectAccess.hasPermission(userId, projectId, "issue.view")) {
+            throw new SecurityException("Insufficient permissions to view issues");
+        }
     }
 }
 

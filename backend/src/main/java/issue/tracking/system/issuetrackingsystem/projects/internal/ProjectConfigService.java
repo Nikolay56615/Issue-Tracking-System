@@ -11,9 +11,14 @@ import issue.tracking.system.issuetrackingsystem.projects.api.ProjectTemplateCon
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectTemplateDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectTransitionDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.TransitionConditionDto;
+import issue.tracking.system.issuetrackingsystem.issue.internal.IssueRepository;
+import issue.tracking.system.issuetrackingsystem.users.api.UserQueryApi;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,6 +34,8 @@ public class ProjectConfigService {
 
     private final ProjectConfigRepository configRepository;
     private final ProjectRepository projectRepository;
+    private final IssueRepository issueRepository;
+    private final UserQueryApi userQueryApi;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -59,9 +66,11 @@ public class ProjectConfigService {
                 config.roles(),
                 config.lifecycle(),
                 config.customFields(),
-                config.fieldOrder()
+                config.fieldOrder(),
+                config.boardCardFieldIds()
             )
         );
+        validateTemplate(projectId, template);
 
         ProjectConfigEntity entity = configRepository.findById(projectId)
             .orElseGet(() -> new ProjectConfigEntity(projectId, ""));
@@ -81,7 +90,8 @@ public class ProjectConfigService {
                 config.roles(),
                 config.lifecycle(),
                 config.customFields(),
-                config.fieldOrder()
+                config.fieldOrder(),
+                config.boardCardFieldIds()
             )
         );
     }
@@ -97,9 +107,12 @@ public class ProjectConfigService {
                 source.roles(),
                 source.lifecycle(),
                 source.customFields(),
-                source.fieldOrder()
+                source.fieldOrder(),
+                source.boardCardFieldIds()
             )
         );
+        alignMemberRoles(targetProjectId, targetTemplate.roles());
+        validateTemplate(targetProjectId, targetTemplate);
 
         ProjectConfigEntity entity = configRepository.findById(targetProjectId)
             .orElseGet(() -> new ProjectConfigEntity(targetProjectId, ""));
@@ -107,12 +120,16 @@ public class ProjectConfigService {
         entity.setUpdatedAt(LocalDateTime.now());
         ProjectConfigEntity saved = configRepository.save(entity);
 
-        alignMemberRoles(targetProjectId, targetTemplate.roles());
         return toConfigDto(saved);
     }
 
     @Transactional
     public Optional<CustomRoleDto> getUserRole(Long projectId, Long userId) {
+        if (userQueryApi.isGlobalAdmin(userId)) {
+            requireProject(projectId);
+            return Optional.of(ProjectConfigDefaults.globalAdminRole(projectId));
+        }
+
         Project project = requireProject(projectId);
         String roleId = project.getMembers().stream()
             .filter(member -> member.getUserId().equals(userId))
@@ -131,6 +148,11 @@ public class ProjectConfigService {
 
     @Transactional
     public boolean hasPermission(Long projectId, Long userId, String permission) {
+        if (userQueryApi.isGlobalAdmin(userId)) {
+            requireProject(projectId);
+            return true;
+        }
+
         return getUserRole(projectId, userId)
             .map(role -> role.permissions().contains(permission))
             .orElse(false);
@@ -158,8 +180,12 @@ public class ProjectConfigService {
         Map<String, Object> customFields
     ) {
         ProjectConfigDto config = getOrCreateConfig(projectId);
+        if (userQueryApi.isGlobalAdmin(userId)) {
+            return statusExists(config, toStatusId);
+        }
+
         if (!Boolean.TRUE.equals(config.lifecycle().transitionRulesEnabled())) {
-            return true;
+            return statusExists(config, toStatusId);
         }
 
         if (fromStatusId == null || fromStatusId.isBlank() || toStatusId == null || toStatusId.isBlank()) {
@@ -178,11 +204,11 @@ public class ProjectConfigService {
             return false;
         }
 
-        String currentRoleId = requireProject(projectId).getMembers().stream()
-            .filter(member -> member.getUserId().equals(userId))
-            .map(ProjectMember::getRoleId)
-            .findFirst()
-            .orElse(null);
+        Optional<CustomRoleDto> currentRole = getUserRole(projectId, userId);
+        if (currentRole.isEmpty() || !currentRole.get().permissions().contains("issue.edit")) {
+            return false;
+        }
+        String currentRoleId = currentRole.get().id();
 
         return Optional.ofNullable(transition.get().conditions())
             .orElse(List.of())
@@ -197,10 +223,216 @@ public class ProjectConfigService {
             ));
     }
 
+    @Transactional(readOnly = true)
+    public String getInitialStatusId(Long projectId) {
+        ProjectConfigDto config = getOrCreateConfig(projectId);
+        return config.lifecycle().statuses().stream()
+            .filter(status -> Boolean.TRUE.equals(status.isInitial()))
+            .findFirst()
+            .or(() -> config.lifecycle().statuses().stream()
+                .sorted(java.util.Comparator.comparing(CustomStatusDto::displayOrder))
+                .findFirst())
+            .map(CustomStatusDto::id)
+            .orElseThrow(() -> new IllegalArgumentException("Project has no initial status"));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean statusExists(Long projectId, String statusId) {
+        return statusExists(getOrCreateConfig(projectId), statusId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<CustomFieldDefinitionDto> getCustomField(Long projectId, String fieldId) {
+        return getOrCreateConfig(projectId).customFields().stream()
+            .filter(field -> field.id().equals(fieldId))
+            .findFirst();
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> sanitizeCustomFields(
+        Long projectId,
+        Map<String, Object> values,
+        Long issueId
+    ) {
+        ProjectConfigDto config = getOrCreateConfig(projectId);
+        Map<String, Object> sanitized = new LinkedHashMap<>();
+        Map<String, Object> source = values == null ? Map.of() : values;
+
+        for (CustomFieldDefinitionDto field : config.customFields()) {
+            Object value = source.get(field.id());
+            if (isBlankValue(value)) {
+                if ("checkbox".equals(field.type())) {
+                    sanitized.put(field.id(), false);
+                    continue;
+                }
+                if (Boolean.TRUE.equals(field.required())) {
+                    throw new IllegalArgumentException(field.name() + " is required");
+                }
+                continue;
+            }
+
+            sanitized.put(field.id(), sanitizeCustomFieldValue(projectId, field, value, issueId));
+        }
+
+        return sanitized;
+    }
+
     private Optional<CustomRoleDto> getRoleById(ProjectConfigDto config, String roleId) {
         return config.roles().stream()
             .filter(role -> role.id().equals(roleId))
             .findFirst();
+    }
+
+    private void validateTemplate(Long projectId, ProjectTemplateConfigDto config) {
+        Project project = requireProject(projectId);
+
+        if (config.roles() == null || config.roles().isEmpty()) {
+            throw new IllegalArgumentException("Project must have at least one role");
+        }
+        if (config.lifecycle() == null || config.lifecycle().statuses() == null || config.lifecycle().statuses().isEmpty()) {
+            throw new IllegalArgumentException("Project must have at least one status");
+        }
+
+        Set<String> roleIds = uniqueIds(config.roles().stream().map(CustomRoleDto::id).toList(), "Role ids");
+        Set<String> statusIds = uniqueIds(config.lifecycle().statuses().stream().map(CustomStatusDto::id).toList(), "Status ids");
+        Set<String> customFieldIds = uniqueIds(config.customFields().stream().map(CustomFieldDefinitionDto::id).toList(), "Custom field ids");
+
+        long initialStatuses = config.lifecycle().statuses().stream()
+            .filter(status -> Boolean.TRUE.equals(status.isInitial()))
+            .count();
+        if (initialStatuses != 1) {
+            throw new IllegalArgumentException("Exactly one status must be marked as initial");
+        }
+
+        validateOwnerCriticalAccess(project, config.roles());
+
+        Set<String> existingActiveStatuses = issueRepository.findAllActiveByProjectId(projectId).stream()
+            .map(issue -> issue.getStatus())
+            .collect(java.util.stream.Collectors.toSet());
+        if (!statusIds.containsAll(existingActiveStatuses)) {
+            throw new IllegalArgumentException("At least one issue uses a status that no longer exists");
+        }
+
+        for (ProjectMember member : project.getMembers()) {
+            if (!roleIds.contains(member.getRoleId())) {
+                throw new IllegalArgumentException("At least one project member is assigned to a missing role");
+            }
+        }
+
+        for (CustomFieldDefinitionDto field : config.customFields()) {
+            validateCustomFieldDefinition(field, roleIds);
+        }
+
+        List<String> expectedFieldOrder = ProjectConfigDefaults.defaultFieldOrder(config.customFields());
+        Set<String> expectedFieldIds = new HashSet<>(expectedFieldOrder);
+        validateExactFieldOrder(config.fieldOrder(), expectedFieldOrder, expectedFieldIds);
+        validateBoardCardFieldIds(config.boardCardFieldIds(), expectedFieldIds);
+
+        Map<String, CustomFieldDefinitionDto> customFieldsById = config.customFields().stream()
+            .collect(java.util.stream.Collectors.toMap(CustomFieldDefinitionDto::id, field -> field));
+
+        for (ProjectTransitionDto transition : config.lifecycle().transitions()) {
+            if (!statusIds.contains(transition.fromStatusId()) || !statusIds.contains(transition.toStatusId())) {
+                throw new IllegalArgumentException("A transition references a missing status");
+            }
+            for (TransitionConditionDto condition : Optional.ofNullable(transition.conditions()).orElse(List.of())) {
+                if ("role".equals(condition.type()) && !roleIds.contains(condition.roleId())) {
+                    throw new IllegalArgumentException("A transition references a missing role");
+                }
+                if ("field_user_reference".equals(condition.type())) {
+                    CustomFieldDefinitionDto field = customFieldsById.get(condition.customFieldId());
+                    if (field == null || !"user_reference".equals(field.type())) {
+                        throw new IllegalArgumentException("A transition references an invalid user reference field");
+                    }
+                }
+            }
+        }
+    }
+
+    private void validateOwnerCriticalAccess(Project project, List<CustomRoleDto> roles) {
+        ProjectMember ownerMember = project.getMembers().stream()
+            .filter(member -> member.getUserId().equals(project.getOwnerId()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Project owner must remain a project member"));
+
+        CustomRoleDto ownerRole = roles.stream()
+            .filter(role -> role.id().equals(ownerMember.getRoleId()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Project owner role is missing"));
+
+        if (!ownerRole.permissions().containsAll(ProjectConfigDefaults.OWNER_CRITICAL_PERMISSIONS)) {
+            throw new IllegalArgumentException("Project owner role must keep owner-critical permissions");
+        }
+    }
+
+    private void validateCustomFieldDefinition(CustomFieldDefinitionDto field, Set<String> roleIds) {
+        Set<String> validTypes = Set.of(
+            "text",
+            "number",
+            "date",
+            "checkbox",
+            "user_reference",
+            "issue_reference",
+            "enum"
+        );
+        if (!validTypes.contains(field.type())) {
+            throw new IllegalArgumentException(field.name() + " has an unsupported type");
+        }
+
+        if ("user_reference".equals(field.type())) {
+            Object allowedRoleIds = field.config().get("allowedRoleIds");
+            if (allowedRoleIds instanceof Collection<?> collection) {
+                for (Object roleId : collection) {
+                    if (!roleIds.contains(String.valueOf(roleId))) {
+                        throw new IllegalArgumentException(field.name() + " references a missing role");
+                    }
+                }
+            }
+        }
+
+        if ("enum".equals(field.type())) {
+            List<Map<String, Object>> options = enumOptions(field);
+            if (options.isEmpty()) {
+                throw new IllegalArgumentException(field.name() + " must have at least one enum option");
+            }
+            uniqueIds(options.stream().map(option -> String.valueOf(option.get("id"))).toList(), field.name() + " enum option ids");
+        }
+    }
+
+    private void validateExactFieldOrder(
+        List<String> fieldOrder,
+        List<String> expectedFieldOrder,
+        Set<String> expectedFieldIds
+    ) {
+        if (fieldOrder == null || fieldOrder.size() != expectedFieldOrder.size()) {
+            throw new IllegalArgumentException("Field order must include every system and custom field exactly once");
+        }
+
+        if (fieldOrder.stream().anyMatch(fieldId -> !expectedFieldIds.contains(fieldId))
+            || new HashSet<>(fieldOrder).size() != fieldOrder.size()) {
+            throw new IllegalArgumentException("Field order contains an invalid or duplicated field");
+        }
+    }
+
+    private void validateBoardCardFieldIds(List<String> fieldIds, Set<String> expectedFieldIds) {
+        if (fieldIds == null) {
+            throw new IllegalArgumentException("Board card field ids must be present");
+        }
+
+        if (fieldIds.stream().anyMatch(fieldId -> "name".equals(fieldId) || !expectedFieldIds.contains(fieldId))
+            || new HashSet<>(fieldIds).size() != fieldIds.size()) {
+            throw new IllegalArgumentException("Board card field ids contain an invalid or duplicated field");
+        }
+    }
+
+    private Set<String> uniqueIds(List<String> ids, String label) {
+        Set<String> unique = new HashSet<>();
+        for (String id : ids) {
+            if (id == null || id.isBlank() || !unique.add(id)) {
+                throw new IllegalArgumentException(label + " must be unique and not blank");
+            }
+        }
+        return unique;
     }
 
     private void alignMemberRoles(Long projectId, List<CustomRoleDto> roles) {
@@ -209,9 +441,13 @@ public class ProjectConfigService {
             .map(CustomRoleDto::id)
             .collect(java.util.stream.Collectors.toSet());
         String fallbackRoleId = roles.stream()
-            .filter(role -> role.permissions().contains("settings.manage"))
+            .filter(role -> role.permissions().containsAll(ProjectConfigDefaults.OWNER_CRITICAL_PERMISSIONS))
             .map(CustomRoleDto::id)
             .findFirst()
+            .or(() -> roles.stream()
+            .filter(role -> role.permissions().contains("settings.manage"))
+            .map(CustomRoleDto::id)
+            .findFirst())
             .orElse(roles.getFirst().id());
 
         boolean changed = false;
@@ -243,6 +479,7 @@ public class ProjectConfigService {
             template.lifecycle(),
             template.customFields(),
             template.fieldOrder(),
+            template.boardCardFieldIds(),
             entity.getUpdatedAt().toString()
         );
     }
@@ -307,7 +544,7 @@ public class ProjectConfigService {
                 textOr(field.name(), field.id()),
                 textOr(field.type(), "text"),
                 Boolean.TRUE.equals(field.required()),
-                field.config() == null ? Map.of() : field.config()
+                normalizeFieldConfig(textOr(field.type(), "text"), field.config())
             ))
             .toList();
 
@@ -325,6 +562,17 @@ public class ProjectConfigService {
             .filter(fieldId -> !fieldOrder.contains(fieldId))
             .toList();
 
+        List<String> fallbackBoardCardFieldIds = ProjectConfigDefaults.defaultBoardCardFieldIds(customFields);
+        Set<String> validBoardCardFieldIds = new HashSet<>(fallbackFieldOrder);
+        validBoardCardFieldIds.remove("name");
+        List<String> boardCardFieldIds = Optional.ofNullable(config.boardCardFieldIds())
+            .filter(items -> !items.isEmpty())
+            .orElse(fallbackBoardCardFieldIds)
+            .stream()
+            .filter(validBoardCardFieldIds::contains)
+            .distinct()
+            .toList();
+
         return new ProjectTemplateConfigDto(
             roles,
             new LifecycleConfigDto(
@@ -335,7 +583,8 @@ public class ProjectConfigService {
                 transitions
             ),
             customFields,
-            java.util.stream.Stream.concat(fieldOrder.stream(), missing.stream()).toList()
+            java.util.stream.Stream.concat(fieldOrder.stream(), missing.stream()).toList(),
+            boardCardFieldIds
         );
     }
 
@@ -418,6 +667,238 @@ public class ProjectConfigService {
         }
 
         return false;
+    }
+
+    private Map<String, Object> normalizeFieldConfig(String type, Map<String, Object> config) {
+        Map<String, Object> source = config == null ? Map.of() : config;
+        Map<String, Object> normalized = new LinkedHashMap<>();
+
+        switch (type) {
+            case "text" -> {
+                Object maxLength = source.get("maxLength");
+                if (maxLength != null) {
+                    normalized.put("maxLength", toInteger(maxLength, "maxLength"));
+                }
+            }
+            case "number" -> {
+                if (source.get("min") != null) {
+                    normalized.put("min", toDouble(source.get("min"), "min"));
+                }
+                if (source.get("max") != null) {
+                    normalized.put("max", toDouble(source.get("max"), "max"));
+                }
+                normalized.put("isInteger", Boolean.TRUE.equals(source.get("isInteger")));
+            }
+            case "user_reference" -> {
+                Object allowedRoleIds = source.get("allowedRoleIds");
+                if (allowedRoleIds instanceof Collection<?> collection) {
+                    normalized.put("allowedRoleIds", collection.stream()
+                        .map(String::valueOf)
+                        .filter(value -> !value.isBlank())
+                        .distinct()
+                        .toList());
+                } else {
+                    normalized.put("allowedRoleIds", List.of());
+                }
+            }
+            case "enum" -> normalized.put("options", normalizeEnumOptions(source.get("options")));
+            default -> {
+            }
+        }
+
+        return normalized;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> normalizeEnumOptions(Object options) {
+        if (!(options instanceof Collection<?> collection)) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> normalized = new ArrayList<>();
+        for (Object item : collection) {
+            if (!(item instanceof Map<?, ?> rawOption)) {
+                continue;
+            }
+            String id = String.valueOf(rawOption.get("id"));
+            Object rawLabel = rawOption.get("label");
+            Object rawColor = rawOption.get("color");
+            String label = rawLabel == null ? id : String.valueOf(rawLabel);
+            String color = rawColor == null ? "#64748b" : String.valueOf(rawColor);
+            if (id == null || id.isBlank() || "null".equals(id)) {
+                continue;
+            }
+            normalized.add(Map.of(
+                "id", id,
+                "label", label == null || label.isBlank() || "null".equals(label) ? id : label,
+                "color", color == null || color.isBlank() || "null".equals(color) ? "#64748b" : color
+            ));
+        }
+
+        return normalized;
+    }
+
+    private Object sanitizeCustomFieldValue(
+        Long projectId,
+        CustomFieldDefinitionDto field,
+        Object value,
+        Long issueId
+    ) {
+        return switch (field.type()) {
+            case "text" -> sanitizeText(field, value);
+            case "number" -> sanitizeNumber(field, value);
+            case "date" -> sanitizeDate(field, value);
+            case "checkbox" -> sanitizeCheckbox(field, value);
+            case "user_reference" -> sanitizeUserReference(projectId, field, value);
+            case "issue_reference" -> sanitizeIssueReference(projectId, field, value, issueId);
+            case "enum" -> sanitizeEnum(field, value);
+            default -> throw new IllegalArgumentException(field.name() + " has an unsupported type");
+        };
+    }
+
+    private String sanitizeText(CustomFieldDefinitionDto field, Object value) {
+        if (!(value instanceof String text)) {
+            throw new IllegalArgumentException(field.name() + " must be text");
+        }
+        Object maxLength = field.config().get("maxLength");
+        if (maxLength != null && text.length() > toInteger(maxLength, "maxLength")) {
+            throw new IllegalArgumentException(field.name() + " exceeds max length");
+        }
+        return text;
+    }
+
+    private Object sanitizeNumber(CustomFieldDefinitionDto field, Object value) {
+        double number = toDouble(value, field.name());
+        if (Boolean.TRUE.equals(field.config().get("isInteger")) && number % 1 != 0) {
+            throw new IllegalArgumentException(field.name() + " must be an integer");
+        }
+        Object min = field.config().get("min");
+        if (min != null && number < toDouble(min, "min")) {
+            throw new IllegalArgumentException(field.name() + " is below minimum");
+        }
+        Object max = field.config().get("max");
+        if (max != null && number > toDouble(max, "max")) {
+            throw new IllegalArgumentException(field.name() + " is above maximum");
+        }
+        if (Boolean.TRUE.equals(field.config().get("isInteger"))) {
+            return (long) number;
+        }
+        return number;
+    }
+
+    private String sanitizeDate(CustomFieldDefinitionDto field, Object value) {
+        String text = String.valueOf(value);
+        try {
+            return LocalDate.parse(text).toString();
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException(field.name() + " must be an ISO date");
+        }
+    }
+
+    private Boolean sanitizeCheckbox(CustomFieldDefinitionDto field, Object value) {
+        if (!(value instanceof Boolean checked)) {
+            throw new IllegalArgumentException(field.name() + " must be checked or unchecked");
+        }
+        return checked;
+    }
+
+    private Long sanitizeUserReference(Long projectId, CustomFieldDefinitionDto field, Object value) {
+        long userId = toLong(value, field.name());
+        Project project = requireProject(projectId);
+        ProjectMember member = project.getMembers().stream()
+            .filter(item -> item.getUserId().equals(userId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException(field.name() + " references a member outside the project"));
+
+        List<String> allowedRoleIds = allowedRoleIds(field);
+        if (!allowedRoleIds.isEmpty() && !allowedRoleIds.contains(member.getRoleId())) {
+            throw new IllegalArgumentException(field.name() + " references a member with an invalid role");
+        }
+
+        return userId;
+    }
+
+    private Long sanitizeIssueReference(Long projectId, CustomFieldDefinitionDto field, Object value, Long issueId) {
+        long referencedIssueId = toLong(value, field.name());
+        var referencedIssue = issueRepository.findById(referencedIssueId)
+            .orElseThrow(() -> new IllegalArgumentException(field.name() + " references an issue outside the project"));
+        if (!referencedIssue.getProjectId().equals(projectId) || referencedIssue.getDeletedAt() != null) {
+            throw new IllegalArgumentException(field.name() + " references an issue outside the project");
+        }
+        if (issueId != null && referencedIssue.getId().equals(issueId)) {
+            throw new IllegalArgumentException(field.name() + " cannot reference the issue itself");
+        }
+        return referencedIssueId;
+    }
+
+    private String sanitizeEnum(CustomFieldDefinitionDto field, Object value) {
+        String optionId = String.valueOf(value);
+        boolean exists = enumOptions(field).stream()
+            .anyMatch(option -> optionId.equals(String.valueOf(option.get("id"))));
+        if (!exists) {
+            throw new IllegalArgumentException(field.name() + " references a missing enum option");
+        }
+        return optionId;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> allowedRoleIds(CustomFieldDefinitionDto field) {
+        Object allowedRoleIds = field.config().get("allowedRoleIds");
+        if (!(allowedRoleIds instanceof Collection<?> collection)) {
+            return List.of();
+        }
+        return collection.stream().map(String::valueOf).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> enumOptions(CustomFieldDefinitionDto field) {
+        Object options = field.config().get("options");
+        if (!(options instanceof Collection<?> collection)) {
+            return List.of();
+        }
+        return collection.stream()
+            .filter(Map.class::isInstance)
+            .map(item -> (Map<String, Object>) item)
+            .toList();
+    }
+
+    private boolean statusExists(ProjectConfigDto config, String statusId) {
+        if (statusId == null || statusId.isBlank()) {
+            return false;
+        }
+        return config.lifecycle().statuses().stream()
+            .anyMatch(status -> status.id().equals(statusId));
+    }
+
+    private boolean isBlankValue(Object value) {
+        return value == null || (value instanceof String text && text.isBlank());
+    }
+
+    private int toInteger(Object value, String label) {
+        double number = toDouble(value, label);
+        if (number % 1 != 0) {
+            throw new IllegalArgumentException(label + " must be an integer");
+        }
+        return (int) number;
+    }
+
+    private long toLong(Object value, String label) {
+        double number = toDouble(value, label);
+        if (number % 1 != 0) {
+            throw new IllegalArgumentException(label + " must be an integer");
+        }
+        return (long) number;
+    }
+
+    private double toDouble(Object value, String label) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        try {
+            return Double.parseDouble(String.valueOf(value));
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException(label + " must be a number");
+        }
     }
 
     private ProjectTemplateConfigDto read(String json) {

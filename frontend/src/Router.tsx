@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 
 import { AuthPage } from '@/features/auth';
+import { AdminPage } from '@/features/admin';
 import { BoardPage } from '@/features/board';
 import { ProjectSettingsPage } from '@/features/project-config';
 import { ProfilePage } from '@/features/profile';
@@ -25,6 +26,10 @@ export const router = createBrowserRouter([
           {
             path: Routes.PROFILE,
             element: <ProfilePage />,
+          },
+          {
+            path: Routes.ADMIN,
+            element: <AdminPage />,
           },
         ],
       },

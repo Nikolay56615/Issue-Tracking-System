@@ -21,6 +21,7 @@ export const ProjectLayout = () => {
   const { currentRole: role, currentRoleProjectId } = useAppSelector(
     (state) => state.projectConfig
   );
+  const { profile } = useAppSelector((state) => state.profile);
   const numericProjectId = Number(projectId);
 
   useEffect(() => {
@@ -82,6 +83,18 @@ export const ProjectLayout = () => {
             >
               <Button className="h-9 cursor-pointer" variant="ghost">
                 Settings
+              </Button>
+            </NavLink>
+          )}
+          {profile.globalAdmin && (
+            <NavLink
+              to={Routes.ADMIN}
+              className={({ isActive }) =>
+                cn(isActive && 'bg-accent rounded-md')
+              }
+            >
+              <Button className="h-9 cursor-pointer" variant="ghost">
+                Admin
               </Button>
             </NavLink>
           )}

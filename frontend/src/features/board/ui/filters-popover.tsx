@@ -211,13 +211,39 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
       );
     }
 
+    if (field.type === 'issue_reference') {
+      return (
+        <Select
+          value={value == null ? 'all' : String(value)}
+          onValueChange={(nextValue) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]: nextValue === 'all' ? null : Number(nextValue),
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={field.name} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any issue</SelectItem>
+            {issueReferenceOptions.map((issue) => (
+              <SelectItem key={issue.id} value={String(issue.id)}>
+                {issue.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+
     return (
       <Select
         value={value == null ? 'all' : String(value)}
         onValueChange={(nextValue) =>
           setLocalCustomFilters((prev) => ({
             ...prev,
-            [field.id]: nextValue === 'all' ? null : Number(nextValue),
+            [field.id]: nextValue === 'all' ? null : nextValue,
           }))
         }
       >
@@ -225,10 +251,10 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
           <SelectValue placeholder={field.name} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Any issue</SelectItem>
-          {issueReferenceOptions.map((issue) => (
-            <SelectItem key={issue.id} value={String(issue.id)}>
-              {issue.name}
+          <SelectItem value="all">Any option</SelectItem>
+          {field.config.options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
             </SelectItem>
           ))}
         </SelectContent>

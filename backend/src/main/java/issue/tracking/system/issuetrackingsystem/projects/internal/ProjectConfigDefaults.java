@@ -16,6 +16,29 @@ final class ProjectConfigDefaults {
     static final String REVIEWER = "REVIEWER";
     static final String ADMIN = "ADMIN";
     static final String OWNER = "OWNER";
+    static final String GLOBAL_ADMIN = "GLOBAL_ADMIN";
+
+    static final List<String> PERMISSIONS = List.of(
+        "issue.view",
+        "issue.create",
+        "issue.edit",
+        "issue.remove",
+        "members.invite",
+        "members.remove",
+        "members.assignRole",
+        "settings.manage",
+        "project.archive",
+        "project.restore",
+        "template.export",
+        "template.apply"
+    );
+
+    static final List<String> OWNER_CRITICAL_PERMISSIONS = List.of(
+        "settings.manage",
+        "members.invite",
+        "members.remove",
+        "members.assignRole"
+    );
 
     private static final List<String> SYSTEM_FIELD_ORDER = List.of(
         "name",
@@ -29,6 +52,13 @@ final class ProjectConfigDefaults {
         "attachments"
     );
 
+    private static final List<String> DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS = List.of(
+        "description",
+        "dueDate",
+        "type",
+        "priority"
+    );
+
     private ProjectConfigDefaults() {}
 
     static ProjectTemplateConfigDto defaultTemplate(Long projectId) {
@@ -39,7 +69,8 @@ final class ProjectConfigDefaults {
             roles,
             new LifecycleConfigDto(false, statuses, defaultTransitions(roles)),
             List.of(),
-            SYSTEM_FIELD_ORDER
+            SYSTEM_FIELD_ORDER,
+            DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS
         );
     }
 
@@ -78,21 +109,17 @@ final class ProjectConfigDefaults {
                 OWNER,
                 projectId,
                 "Owner",
-                List.of(
-                    "issue.view",
-                    "issue.create",
-                    "issue.edit",
-                    "issue.remove",
-                    "members.invite",
-                    "members.remove",
-                    "members.assignRole",
-                    "settings.manage",
-                    "project.archive",
-                    "project.restore",
-                    "template.export",
-                    "template.apply"
-                )
+                PERMISSIONS
             )
+        );
+    }
+
+    static CustomRoleDto globalAdminRole(Long projectId) {
+        return new CustomRoleDto(
+            GLOBAL_ADMIN,
+            projectId,
+            "Global Admin",
+            PERMISSIONS
         );
     }
 
@@ -168,5 +195,11 @@ final class ProjectConfigDefaults {
         List<String> order = new ArrayList<>(SYSTEM_FIELD_ORDER);
         customFields.stream().map(CustomFieldDefinitionDto::id).forEach(order::add);
         return order;
+    }
+
+    static List<String> defaultBoardCardFieldIds(List<CustomFieldDefinitionDto> customFields) {
+        List<String> fieldIds = new ArrayList<>(DEFAULT_BOARD_CARD_SYSTEM_FIELD_IDS);
+        customFields.stream().map(CustomFieldDefinitionDto::id).forEach(fieldIds::add);
+        return fieldIds;
     }
 }

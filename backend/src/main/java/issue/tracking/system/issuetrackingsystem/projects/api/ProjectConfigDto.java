@@ -8,5 +8,6 @@ public record ProjectConfigDto(
     LifecycleConfigDto lifecycle,
     List<CustomFieldDefinitionDto> customFields,
     List<String> fieldOrder,
+    List<String> boardCardFieldIds,
     String updatedAt
 ) {}

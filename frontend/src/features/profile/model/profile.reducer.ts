@@ -29,7 +29,13 @@ interface ProfileState {
 }
 
 const initialState: ProfileState = {
-  profile: { id: -1, username: 'No User', email: '' },
+  profile: {
+    id: -1,
+    username: 'No User',
+    email: '',
+    globalAdmin: false,
+    active: true,
+  },
   projects: [],
   projectPermissions: {},
   profileLoading: 'idle',

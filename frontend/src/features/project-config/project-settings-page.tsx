@@ -255,13 +255,20 @@ export const ProjectSettingsPage = () => {
         ),
       },
     }));
+    if (expandedTransitionId === transitionId) {
+      setExpandedTransitionId(null);
+    }
+    toast.success('Transition deleted');
   };
 
   const addRole = () => {
+    const nextRole = createRoleDraft(draft.projectId);
     updateDraft((current) => ({
       ...current,
-      roles: [...current.roles, createRoleDraft(current.projectId)],
+      roles: [nextRole, ...current.roles],
     }));
+    setExpandedRoleId(nextRole.id);
+    toast.success('Role created');
   };
 
   const deleteRole = (roleId: string) => {
@@ -305,19 +312,26 @@ export const ProjectSettingsPage = () => {
     if (expandedRoleId === roleId) {
       setExpandedRoleId(null);
     }
+    toast.success('Role deleted');
   };
 
   const addStatus = () => {
+    const nextStatus = createStatusDraft(draft.projectId, 1);
     updateDraft((current) => ({
       ...current,
       lifecycle: {
         ...current.lifecycle,
         statuses: [
-          ...current.lifecycle.statuses,
-          createStatusDraft(current.projectId, current.lifecycle.statuses.length + 1),
+          nextStatus,
+          ...current.lifecycle.statuses.map((status) => ({
+            ...status,
+            displayOrder: status.displayOrder + 1,
+          })),
         ],
       },
     }));
+    setExpandedStatusId(nextStatus.id);
+    toast.success('Status created');
   };
 
   const deleteStatus = (statusId: string) => {
@@ -363,6 +377,7 @@ export const ProjectSettingsPage = () => {
     if (expandedStatusId === statusId) {
       setExpandedStatusId(null);
     }
+    toast.success('Status deleted');
   };
 
   const addTransition = () => {
@@ -376,25 +391,35 @@ export const ProjectSettingsPage = () => {
       ...current,
       lifecycle: {
         ...current.lifecycle,
-        transitions: [...current.lifecycle.transitions, nextTransition],
+        transitions: [nextTransition, ...current.lifecycle.transitions],
       },
     }));
+    setExpandedTransitionId(nextTransition.id);
+    toast.success('Transition created');
   };
 
   const addField = () => {
+    const nextField = createFieldDraft(draft.projectId);
     updateDraft((current) => {
-      const nextField = createFieldDraft(current.projectId);
+      const systemFieldIds = getNormalizedFieldOrder(current).filter(
+        (fieldId) => !current.customFields.some((field) => field.id === fieldId)
+      );
+      const customFieldIds = getNormalizedFieldOrder(current).filter((fieldId) =>
+        current.customFields.some((field) => field.id === fieldId)
+      );
 
       return {
         ...current,
-        customFields: [...current.customFields, nextField],
-        fieldOrder: [...getNormalizedFieldOrder(current), nextField.id],
+        customFields: [nextField, ...current.customFields],
+        fieldOrder: [...systemFieldIds, nextField.id, ...customFieldIds],
         boardCardFieldIds: [
           ...getNormalizedBoardCardFieldIds(current),
           nextField.id,
         ],
       };
     });
+    setExpandedFieldId(nextField.id);
+    toast.success('Field created');
   };
 
   const deleteField = (fieldId: string) => {
@@ -428,6 +453,7 @@ export const ProjectSettingsPage = () => {
     if (expandedFieldId === fieldId) {
       setExpandedFieldId(null);
     }
+    toast.success('Field deleted');
   };
 
   const toggleBoardCardField = (fieldId: string) => {
@@ -558,13 +584,26 @@ export const ProjectSettingsPage = () => {
               in one place.
             </p>
           </div>
+          {hasUnsavedChanges && (
+            <div
+              className="border-amber-300 bg-amber-50 px-3 py-2 text-sm
+                font-medium text-amber-800"
+            >
+              Unsaved changes
+            </div>
+          )}
           <Button
-            className="min-w-30"
+            className="min-w-32"
             onClick={save}
-            disabled={saving === 'pending'}
+            disabled={saving === 'pending' || !hasUnsavedChanges}
+            variant={hasUnsavedChanges ? 'default' : 'outline'}
           >
             <Save data-icon="inline-start" />
-            {saving === 'pending' ? 'Saving...' : 'Save'}
+            {saving === 'pending'
+              ? 'Saving...'
+              : hasUnsavedChanges
+                ? 'Save changes'
+                : 'Saved'}
           </Button>
         </div>
 

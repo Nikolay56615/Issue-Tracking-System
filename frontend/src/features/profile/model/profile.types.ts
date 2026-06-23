@@ -16,6 +16,8 @@ export interface UserProfile {
   id: number;
   email: string;
   username: string;
+  globalAdmin?: boolean;
+  active?: boolean;
 }
 
 export interface CustomRole {

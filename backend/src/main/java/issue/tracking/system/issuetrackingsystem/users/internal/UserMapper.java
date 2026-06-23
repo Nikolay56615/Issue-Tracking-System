@@ -10,6 +10,12 @@ public class UserMapper {
         if (entity == null) {
             return null;
         }
-        return new UserDto(entity.getId(), entity.getEmail(), entity.getUsername());
+        return new UserDto(
+            entity.getId(),
+            entity.getEmail(),
+            entity.getUsername(),
+            entity.isGlobalAdmin(),
+            entity.isActive()
+        );
     }
 }

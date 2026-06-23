@@ -24,6 +24,7 @@ import {
 } from '@/features/project-config/model';
 import { StatusBadge } from '@/features/board/ui/status-badge.tsx';
 import { UserValueCard } from '@/features/board/ui/user-field.tsx';
+import { EnumFieldBadge } from '@/features/board/ui/enum-field-badge.tsx';
 
 interface IssueDialogProps {
   issue: Issue;
@@ -163,6 +164,8 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
                       loading={loadingUsers}
                       emptyLabel="Not set"
                     />
+                  ) : field.type === 'enum' ? (
+                    <EnumFieldBadge field={field} value={value} />
                   ) : (
                     <span className="text-muted-foreground text-sm">
                       {formatCustomFieldValue(field, value, {

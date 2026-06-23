@@ -233,6 +233,12 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       }
     }
 
+    if (field.type === 'enum' && value != null) {
+      if (!field.config.options.some((option) => option.id === value)) {
+        return `${field.name} references an unavailable option`;
+      }
+    }
+
     return null;
   };
 
@@ -306,14 +312,37 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       );
     }
 
+    if (field.type === 'issue_reference') {
+      return (
+        <Select
+          value={value == null ? 'none' : String(value)}
+          onValueChange={(nextValue) =>
+            setFieldValue(
+              field.id,
+              nextValue === 'none' ? null : Number(nextValue)
+            )
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={field.name} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Not set</SelectItem>
+            {issueReferenceOptions.map((relatedIssue) => (
+              <SelectItem key={relatedIssue.id} value={String(relatedIssue.id)}>
+                {relatedIssue.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+
     return (
       <Select
         value={value == null ? 'none' : String(value)}
         onValueChange={(nextValue) =>
-          setFieldValue(
-            field.id,
-            nextValue === 'none' ? null : Number(nextValue)
-          )
+          setFieldValue(field.id, nextValue === 'none' ? null : nextValue)
         }
       >
         <SelectTrigger className="w-full">
@@ -321,9 +350,9 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="none">Not set</SelectItem>
-          {issueReferenceOptions.map((relatedIssue) => (
-            <SelectItem key={relatedIssue.id} value={String(relatedIssue.id)}>
-              {relatedIssue.name}
+          {field.config.options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
             </SelectItem>
           ))}
         </SelectContent>

@@ -39,6 +39,8 @@ public class UserService implements AuthApi, UserQueryApi, UserProvider {
         user.setEmail(email);
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
+        user.setActive(true);
+        user.setGlobalAdmin(false);
         user.setCreatedAt(LocalDateTime.now());
 
         User saved = userRepository.save(user);
@@ -97,10 +99,23 @@ public class UserService implements AuthApi, UserQueryApi, UserProvider {
 
         String q = query.toLowerCase();
         return userRepository.findAll().stream()
+            .filter(User::isActive)
             .filter(u -> u.getUsername().toLowerCase().contains(q)
                 || u.getEmail().toLowerCase().contains(q))
             .map(mapper::toDto)
             .limit(10)
             .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isGlobalAdmin(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        return userRepository.findById(userId)
+            .filter(User::isActive)
+            .map(User::isGlobalAdmin)
+            .orElse(false);
     }
 }

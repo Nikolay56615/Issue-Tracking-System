@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import issue.tracking.system.issuetrackingsystem.users.internal.UserRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,6 +38,9 @@ class ProjectConfigurationIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Test
     void projectConfigContainsDefaultRolesVisionLifecycleAndFreeMode() throws Exception {
@@ -170,6 +174,218 @@ class ProjectConfigurationIntegrationTest {
         assertThat(list(targetConfig.get("customFields")))
             .extracting(field -> text(field.get("id")))
             .contains("releaseDate");
+    }
+
+    @Test
+    void issueReadBoardAndTrashRequireProjectMembershipAndIssueView() throws Exception {
+        TestUser owner = register("access-owner");
+        TestUser outsider = register("access-outsider");
+        TestUser noViewUser = register("access-no-view");
+        long projectId = createProject(owner, "Access project");
+        long issueId = createIssue(owner, projectId, "Private issue", Map.of());
+
+        mockMvc.perform(get("/api/issues/{id}", issueId)
+                .with(httpBasic(outsider.email(), PASSWORD)))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/issues/board")
+                .queryParam("projectId", String.valueOf(projectId))
+                .with(httpBasic(outsider.email(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of())))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/issues/trash")
+                .queryParam("projectId", String.valueOf(projectId))
+                .with(httpBasic(outsider.email(), PASSWORD)))
+            .andExpect(status().isUnauthorized());
+
+        Map<String, Object> config = getProjectConfig(owner, projectId);
+        List<Map<String, Object>> roles = new ArrayList<>(list(config.get("roles")));
+        roles.add(Map.of(
+            "id", "NO_VIEW",
+            "projectId", projectId,
+            "name", "No View",
+            "permissions", List.of("issue.create")
+        ));
+        config.put("roles", roles);
+        saveProjectConfig(owner, projectId, config);
+        invite(owner, projectId, noViewUser.id(), "NO_VIEW");
+
+        mockMvc.perform(get("/api/issues/{id}", issueId)
+                .with(httpBasic(noViewUser.email(), PASSWORD)))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/issues/board")
+                .queryParam("projectId", String.valueOf(projectId))
+                .with(httpBasic(noViewUser.email(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of())))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void removedMemberDoesNotSeeProjectInProjectsList() throws Exception {
+        TestUser owner = register("member-owner");
+        TestUser member = register("member-worker");
+        long projectId = createProject(owner, "Membership project");
+        invite(owner, projectId, member.id(), "WORKER");
+
+        assertThat(projectIds(member)).contains(projectId);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .delete("/api/projects/{id}/members/{userId}", projectId, member.id())
+                .with(httpBasic(owner.email(), PASSWORD)))
+            .andExpect(status().isOk());
+
+        assertThat(projectIds(member)).doesNotContain(projectId);
+    }
+
+    @Test
+    void projectOwnerCannotLoseOwnerCriticalAccess() throws Exception {
+        TestUser owner = register("owner-guard");
+        long projectId = createProject(owner, "Owner guard project");
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .delete("/api/projects/{id}/members/{userId}", projectId, owner.id())
+                .with(httpBasic(owner.email(), PASSWORD)))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(put("/api/projects/{id}/members/{userId}/role", projectId, owner.id())
+                .with(httpBasic(owner.email(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("roleId", "WORKER"))))
+            .andExpect(status().isUnauthorized());
+
+        Map<String, Object> config = getProjectConfig(owner, projectId);
+        List<Map<String, Object>> roles = new ArrayList<>(list(config.get("roles")));
+        Map<String, Object> ownerRole = mutableObject(roles.stream()
+            .filter(role -> "OWNER".equals(text(role.get("id"))))
+            .findFirst()
+            .orElseThrow());
+        ownerRole.put("permissions", List.of("issue.view"));
+        roles = roles.stream()
+            .map(role -> "OWNER".equals(text(role.get("id"))) ? ownerRole : role)
+            .toList();
+        config.put("roles", roles);
+
+        mockMvc.perform(put("/api/projects/{id}/config", projectId)
+                .with(httpBasic(owner.email(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(config)))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void globalAdminSeesAllProjectsAndBypassesProjectAccess() throws Exception {
+        TestUser owner = register("global-owner");
+        TestUser admin = register("global-admin");
+        long projectId = createProject(owner, "Global admin visible project");
+        userRepository.findById(admin.id()).ifPresent(user -> {
+            user.setGlobalAdmin(true);
+            userRepository.save(user);
+        });
+
+        assertThat(projectIds(admin)).contains(projectId);
+
+        MvcResult roleResult = mockMvc.perform(get("/api/projects/{id}/my-role", projectId)
+                .with(httpBasic(admin.email(), PASSWORD)))
+            .andExpect(status().isOk())
+            .andReturn();
+        assertThat(text(object(readMap(roleResult).get("role")).get("id"))).isEqualTo("GLOBAL_ADMIN");
+
+        mockMvc.perform(post("/api/issues/board")
+                .queryParam("projectId", String.valueOf(projectId))
+                .with(httpBasic(admin.email(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of())))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void inactiveUserCannotAuthenticate() throws Exception {
+        TestUser user = register("inactive-user");
+        userRepository.findById(user.id()).ifPresent(entity -> {
+            entity.setActive(false);
+            userRepository.save(entity);
+        });
+
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "email", user.email(),
+                    "password", PASSWORD
+                ))))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void projectConfigPersistsBoardCardCheckboxEnumAndInitialStatus() throws Exception {
+        TestUser owner = register("field-owner");
+        long projectId = createProject(owner, "Field project");
+        Map<String, Object> config = getProjectConfig(owner, projectId);
+
+        Map<String, Object> lifecycle = mutableObject(config.get("lifecycle"));
+        List<Map<String, Object>> statuses = new ArrayList<>(list(lifecycle.get("statuses")));
+        statuses = statuses.stream()
+            .map(status -> {
+                Map<String, Object> item = mutableObject(status);
+                item.put("isInitial", "IN_PROGRESS".equals(text(item.get("id"))));
+                return item;
+            })
+            .toList();
+        lifecycle.put("statuses", statuses);
+        config.put("lifecycle", lifecycle);
+
+        List<Map<String, Object>> customFields = new ArrayList<>(list(config.get("customFields")));
+        customFields.add(Map.of(
+            "id", "qaRequired",
+            "projectId", projectId,
+            "name", "QA Required",
+            "type", "checkbox",
+            "required", false,
+            "config", Map.of()
+        ));
+        customFields.add(Map.of(
+            "id", "risk",
+            "projectId", projectId,
+            "name", "Risk",
+            "type", "enum",
+            "required", false,
+            "config", Map.of("options", List.of(
+                Map.of("id", "low", "label", "Low", "color", "#16a34a"),
+                Map.of("id", "blocked", "label", "Blocked", "color", "#ef4444")
+            ))
+        ));
+        config.put("customFields", customFields);
+
+        List<String> fieldOrder = new ArrayList<>();
+        for (Object fieldIdValue : listObjects(config.get("fieldOrder"))) {
+            fieldOrder.add(text(fieldIdValue));
+        }
+        fieldOrder.add("qaRequired");
+        fieldOrder.add("risk");
+        config.put("fieldOrder", fieldOrder);
+
+        List<String> boardCardFieldIds = new ArrayList<>();
+        for (Object fieldIdValue : listObjects(config.get("boardCardFieldIds"))) {
+            boardCardFieldIds.add(text(fieldIdValue));
+        }
+        boardCardFieldIds.add("qaRequired");
+        boardCardFieldIds.add("risk");
+        config.put("boardCardFieldIds", boardCardFieldIds);
+
+        saveProjectConfig(owner, projectId, config);
+
+        Map<String, Object> savedConfig = getProjectConfig(owner, projectId);
+        assertThat(listObjects(savedConfig.get("boardCardFieldIds"))).contains("qaRequired", "risk");
+        assertThat(list(savedConfig.get("customFields")))
+            .extracting(field -> text(field.get("type")))
+            .contains("checkbox", "enum");
+
+        long issueId = createIssue(owner, projectId, "Configured initial issue", Map.of("risk", "blocked"));
+        Map<String, Object> issue = getIssue(owner, issueId);
+        assertThat(text(issue.get("status"))).isEqualTo("IN_PROGRESS");
+        assertThat(object(issue.get("customFields")))
+            .containsEntry("qaRequired", false)
+            .containsEntry("risk", "blocked");
     }
 
     private TestUser register(String prefix) throws Exception {
@@ -320,6 +536,18 @@ class ProjectConfigurationIntegrationTest {
             .andReturn();
 
         return objectMapper.readValue(result.getResponse().getContentAsString(), LIST_OF_MAPS_TYPE);
+    }
+
+    private List<Long> projectIds(TestUser user) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/projects")
+                .with(httpBasic(user.email(), PASSWORD)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        return objectMapper.readValue(result.getResponse().getContentAsString(), LIST_OF_MAPS_TYPE)
+            .stream()
+            .map(project -> number(project.get("id")))
+            .toList();
     }
 
     private String json(Object value) throws Exception {

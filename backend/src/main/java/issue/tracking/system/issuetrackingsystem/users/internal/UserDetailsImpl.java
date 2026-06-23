@@ -12,6 +12,8 @@ class UserDetailsImpl implements UserDetails {
     private final String username;
     private final String email;
     private final String password;
+    private final boolean globalAdmin;
+    private final boolean active;
     private final Collection<? extends GrantedAuthority> authorities = List.of();
 
     public UserDetailsImpl(User user) {
@@ -19,11 +21,13 @@ class UserDetailsImpl implements UserDetails {
         this.username = user.getUsername();
         this.email = user.getEmail();
         this.password = user.getPasswordHash();
+        this.globalAdmin = user.isGlobalAdmin();
+        this.active = user.isActive();
     }
 
     @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }
-    @Override public boolean isEnabled() { return true; }
+    @Override public boolean isEnabled() { return active; }
     public String getRealUsername() { return username; }
 }

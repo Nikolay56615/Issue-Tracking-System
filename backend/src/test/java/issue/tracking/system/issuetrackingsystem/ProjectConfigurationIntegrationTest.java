@@ -3,6 +3,7 @@ package issue.tracking.system.issuetrackingsystem;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -170,6 +171,92 @@ class ProjectConfigurationIntegrationTest {
         assertThat(list(targetConfig.get("customFields")))
             .extracting(field -> text(field.get("id")))
             .contains("releaseDate");
+    }
+
+    @Test
+    void boardCardFieldSelectionIsSavedAndReturned() throws Exception {
+        TestUser owner = register("card-fields-owner");
+        long projectId = createProject(owner, "Card fields project");
+        Map<String, Object> config = getProjectConfig(owner, projectId);
+        config.put("boardCardFieldIds", List.of("priority", "assignee"));
+
+        saveProjectConfig(owner, projectId, config);
+
+        assertThat(listObjects(getProjectConfig(owner, projectId).get("boardCardFieldIds")))
+            .containsExactly("priority", "assignee");
+    }
+
+    @Test
+    void projectOwnerCannotBeDemotedOrRemoved() throws Exception {
+        TestUser owner = register("protected-owner");
+        TestUser admin = register("protected-admin");
+        long projectId = createProject(owner, "Protected owner project");
+        invite(owner, projectId, admin.id(), "ADMIN");
+
+        mockMvc.perform(put("/api/projects/{id}/members/{userId}/role", projectId, owner.id())
+                .with(httpBasic(owner.email(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("roleId", "WORKER"))))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(delete("/api/projects/{id}/members/{userId}", projectId, owner.id())
+                .with(httpBasic(admin.email(), PASSWORD)))
+            .andExpect(status().isUnauthorized());
+
+        MvcResult roleResult = mockMvc.perform(get("/api/projects/{id}/my-role", projectId)
+                .with(httpBasic(owner.email(), PASSWORD)))
+            .andExpect(status().isOk())
+            .andReturn();
+        assertThat(text(object(readMap(roleResult).get("role")).get("id")))
+            .isEqualTo("OWNER");
+    }
+
+    @Test
+    void boardRequiresIssueViewPermission() throws Exception {
+        TestUser owner = register("board-owner");
+        TestUser worker = register("board-worker");
+        long projectId = createProject(owner, "Restricted board project");
+        invite(owner, projectId, worker.id(), "WORKER");
+        Map<String, Object> config = getProjectConfig(owner, projectId);
+        List<Map<String, Object>> roles = new ArrayList<>(list(config.get("roles")));
+        for (Map<String, Object> role : roles) {
+            if ("WORKER".equals(text(role.get("id")))) {
+                role.put("permissions", List.of("issue.create", "issue.edit", "members.view"));
+            }
+        }
+        config.put("roles", roles);
+        saveProjectConfig(owner, projectId, config);
+
+        mockMvc.perform(post("/api/issues/board")
+                .queryParam("projectId", String.valueOf(projectId))
+                .with(httpBasic(worker.email(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of())))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void removedMemberNoLongerReceivesProjectFromProjectsEndpoint() throws Exception {
+        TestUser owner = register("remove-owner");
+        TestUser member = register("remove-member");
+        long projectId = createProject(owner, "Membership cleanup project");
+        invite(owner, projectId, member.id(), "WORKER");
+
+        mockMvc.perform(delete("/api/projects/{id}/members/{userId}", projectId, member.id())
+                .with(httpBasic(owner.email(), PASSWORD)))
+            .andExpect(status().isOk());
+
+        MvcResult projectsResult = mockMvc.perform(get("/api/projects")
+                .with(httpBasic(member.email(), PASSWORD)))
+            .andExpect(status().isOk())
+            .andReturn();
+        List<Map<String, Object>> visibleProjects = objectMapper.readValue(
+            projectsResult.getResponse().getContentAsString(),
+            LIST_OF_MAPS_TYPE
+        );
+        assertThat(visibleProjects)
+            .extracting(project -> number(project.get("id")))
+            .doesNotContain(projectId);
     }
 
     private TestUser register(String prefix) throws Exception {

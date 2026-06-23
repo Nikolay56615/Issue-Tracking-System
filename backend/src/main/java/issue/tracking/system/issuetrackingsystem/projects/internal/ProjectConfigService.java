@@ -59,7 +59,8 @@ public class ProjectConfigService {
                 config.roles(),
                 config.lifecycle(),
                 config.customFields(),
-                config.fieldOrder()
+                config.fieldOrder(),
+                config.boardCardFieldIds()
             )
         );
 
@@ -67,7 +68,9 @@ public class ProjectConfigService {
             .orElseGet(() -> new ProjectConfigEntity(projectId, ""));
         entity.setConfigJson(write(template));
         entity.setUpdatedAt(LocalDateTime.now());
-        return toConfigDto(configRepository.save(entity));
+        ProjectConfigEntity saved = configRepository.save(entity);
+        alignMemberRoles(projectId, template.roles());
+        return toConfigDto(saved);
     }
 
     @Transactional
@@ -81,7 +84,8 @@ public class ProjectConfigService {
                 config.roles(),
                 config.lifecycle(),
                 config.customFields(),
-                config.fieldOrder()
+                config.fieldOrder(),
+                config.boardCardFieldIds()
             )
         );
     }
@@ -97,7 +101,8 @@ public class ProjectConfigService {
                 source.roles(),
                 source.lifecycle(),
                 source.customFields(),
-                source.fieldOrder()
+                source.fieldOrder(),
+                source.boardCardFieldIds()
             )
         );
 
@@ -216,6 +221,12 @@ public class ProjectConfigService {
 
         boolean changed = false;
         for (ProjectMember member : project.getMembers()) {
+            if (member.getUserId().equals(project.getOwnerId()) &&
+                !ProjectConfigDefaults.OWNER.equals(member.getRoleId())) {
+                member.setRoleId(ProjectConfigDefaults.OWNER);
+                changed = true;
+                continue;
+            }
             if (!roleIds.contains(member.getRoleId())) {
                 member.setRoleId(fallbackRoleId);
                 changed = true;
@@ -243,6 +254,7 @@ public class ProjectConfigService {
             template.lifecycle(),
             template.customFields(),
             template.fieldOrder(),
+            template.boardCardFieldIds(),
             entity.getUpdatedAt().toString()
         );
     }
@@ -266,6 +278,20 @@ public class ProjectConfigService {
         if (roles.isEmpty()) {
             roles = ProjectConfigDefaults.defaultRoles(projectId);
         }
+
+        Optional<CustomRoleDto> configuredOwnerRole = roles.stream()
+            .filter(role -> ProjectConfigDefaults.OWNER.equals(role.id()))
+            .findFirst();
+        CustomRoleDto ownerRole = ProjectConfigDefaults.ownerRole(
+            projectId,
+            configuredOwnerRole.map(CustomRoleDto::name).orElse("Owner")
+        );
+        roles = configuredOwnerRole.isPresent()
+            ? roles.stream()
+                .map(role -> ProjectConfigDefaults.OWNER.equals(role.id()) ? ownerRole : role)
+                .toList()
+            : java.util.stream.Stream.concat(roles.stream(), java.util.stream.Stream.of(ownerRole))
+                .toList();
 
         List<CustomStatusDto> statuses = Optional.ofNullable(config.lifecycle())
             .map(LifecycleConfigDto::statuses)
@@ -325,6 +351,21 @@ public class ProjectConfigService {
             .filter(fieldId -> !fieldOrder.contains(fieldId))
             .toList();
 
+        List<String> normalizedFieldOrder = java.util.stream.Stream
+            .concat(fieldOrder.stream(), missing.stream())
+            .toList();
+        Set<String> configurableBoardFieldIds = normalizedFieldOrder.stream()
+            .filter(fieldId -> !"name".equals(fieldId))
+            .collect(java.util.stream.Collectors.toSet());
+        List<String> fallbackBoardCardFieldIds = ProjectConfigDefaults
+            .defaultBoardCardFieldIds(customFields);
+        List<String> boardCardFieldIds = Optional.ofNullable(config.boardCardFieldIds())
+            .orElse(fallbackBoardCardFieldIds)
+            .stream()
+            .filter(configurableBoardFieldIds::contains)
+            .distinct()
+            .toList();
+
         return new ProjectTemplateConfigDto(
             roles,
             new LifecycleConfigDto(
@@ -335,7 +376,8 @@ public class ProjectConfigService {
                 transitions
             ),
             customFields,
-            java.util.stream.Stream.concat(fieldOrder.stream(), missing.stream()).toList()
+            normalizedFieldOrder,
+            boardCardFieldIds
         );
     }
 

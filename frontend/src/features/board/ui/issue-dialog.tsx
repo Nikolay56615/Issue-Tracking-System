@@ -81,105 +81,83 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
           {name}
         </span>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-3xl">
-        <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle>{name}</DialogTitle>
-          <IssueForm mode="edit" projectId={projectId} issue={issue} />
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="flex flex-col gap-3 pr-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground text-sm">Id: {id}</span>
+      <DialogContent
+        className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-4xl flex-col
+          overflow-hidden sm:max-w-4xl"
+      >
+        <DialogHeader className="gap-3 pr-8">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <DialogTitle className="truncate text-xl">{name}</DialogTitle>
               <span className="text-muted-foreground text-sm">
-                Project: {projectId}
+                #{id} · Project {projectId}
               </span>
             </div>
+            <IssueForm mode="edit" projectId={projectId} issue={issue} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <TypeBadge type={type} />
+            <PriorityBadge priority={priority} />
+            <StatusBadge
+              label={getStatusLabel(projectConfig, status)}
+              color={statusMeta?.color ?? '#64748b'}
+            />
+          </div>
+        </DialogHeader>
 
-            <div className="flex gap-2">
-              <TypeBadge type={type} />
-              <PriorityBadge priority={priority} />
-              <StatusBadge
-                label={getStatusLabel(projectConfig, status)}
-                color={statusMeta?.color ?? '#64748b'}
-              />
-            </div>
-
-            <div>
-              <span className="mb-1 block text-sm font-medium">Author</span>
-              <UserValueCard
-                member={author}
-                loading={loadingUsers}
-                emptyLabel="Unknown author"
-              />
-            </div>
-
-            <div>
-              <span className="mb-1 block text-sm font-medium">Assignee</span>
-              <UserValueCard
-                member={assignee}
-                loading={loadingUsers}
-                emptyLabel="Not set"
-              />
-            </div>
-
+        <div
+          className="grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2
+            md:grid-cols-[minmax(0,1fr)_18rem]"
+        >
+          <div className="flex min-w-0 flex-col gap-5">
             {description && (
-              <div>
-                <span className="mb-1 block text-sm font-medium">
-                  Description
-                </span>
+              <section className="bg-muted/40 rounded-lg border p-4">
+                <h3 className="mb-2 text-sm font-medium">Description</h3>
                 <ReactMarkdown>{description}</ReactMarkdown>
-              </div>
+              </section>
             )}
 
-            {issue.dueDate && (
-              <div>
-                <span className="mb-1 block text-sm font-medium">Due Date</span>
-                <span className="text-muted-foreground text-sm">
-                  {issue.dueDate}
-                </span>
-              </div>
+            {customDialogFields.length > 0 && (
+              <section className="grid gap-3 sm:grid-cols-2">
+                {customDialogFields.map((field) => {
+                  const value = issue.customFields?.[field.id];
+                  if (value === undefined || value === null || value === '') {
+                    return null;
+                  }
+
+                  return (
+                    <div key={field.id} className="rounded-lg border p-3">
+                      <span className="mb-1 block text-sm font-medium">
+                        {field.name}
+                      </span>
+                      {field.type === 'user_reference' ? (
+                        <UserValueCard
+                          member={
+                            typeof value === 'number'
+                              ? members.find((member) => member.id === value) ??
+                                null
+                              : null
+                          }
+                          loading={loadingUsers}
+                          emptyLabel="Not set"
+                        />
+                      ) : (
+                        <span className="text-muted-foreground text-sm">
+                          {formatCustomFieldValue(field, value, {
+                            issues: boardIssues,
+                            members,
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </section>
             )}
-
-            {customDialogFields.map((field) => {
-              const value = issue.customFields?.[field.id];
-              if (value === undefined || value === null || value === '') {
-                return null;
-              }
-
-              return (
-                <div key={field.id}>
-                  <span className="mb-1 block text-sm font-medium">
-                    {field.name}
-                  </span>
-                  {field.type === 'user_reference' ? (
-                    <UserValueCard
-                      member={
-                        typeof value === 'number'
-                          ? members.find((member) => member.id === value) ??
-                            null
-                          : null
-                      }
-                      loading={loadingUsers}
-                      emptyLabel="Not set"
-                    />
-                  ) : (
-                    <span className="text-muted-foreground text-sm">
-                      {formatCustomFieldValue(field, value, {
-                        issues: boardIssues,
-                        members,
-                      })}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
 
             {attachments.length > 0 && (
-              <div>
-                <span className="mb-2 block text-sm font-medium">
-                  Attachments
-                </span>
+              <section>
+                <h3 className="mb-2 text-sm font-medium">Attachments</h3>
                 <div className="flex flex-col gap-2">
                   {attachments.map((attachment, index) =>
                     isImage(attachment.url) ? (
@@ -199,26 +177,50 @@ export const IssueDialog = ({ issue }: IssueDialogProps) => {
                     )
                   )}
                 </div>
+              </section>
+            )}
+          </div>
+
+          <aside className="flex flex-col gap-4">
+            <div>
+              <span className="mb-1 block text-sm font-medium">Author</span>
+              <UserValueCard
+                member={author}
+                loading={loadingUsers}
+                emptyLabel="Unknown author"
+              />
+            </div>
+            <div>
+              <span className="mb-1 block text-sm font-medium">Assignee</span>
+              <UserValueCard
+                member={assignee}
+                loading={loadingUsers}
+                emptyLabel="Not set"
+              />
+            </div>
+            {issue.dueDate && (
+              <div>
+                <span className="mb-1 block text-sm font-medium">Due Date</span>
+                <span className="text-muted-foreground text-sm">
+                  {issue.dueDate}
+                </span>
               </div>
             )}
-
             <Button
               variant="destructive"
-              className="mt-2 gap-2"
+              className="mt-auto"
               disabled={deleteIssueStatus.loading}
               onClick={() => dispatch(deleteIssue(id))}
             >
-              <Trash className="h-4 w-4" />
-              <span>
-                {deleteIssueStatus.loading ? 'Deleting...' : 'Delete'}
-              </span>
+              <Trash data-icon="inline-start" />
+              {deleteIssueStatus.loading ? 'Deleting...' : 'Delete'}
             </Button>
             {deleteIssueStatus.error && (
-              <span className="text-sm text-red-500">
+              <span className="text-destructive text-sm">
                 {deleteIssueStatus.error}
               </span>
             )}
-          </div>
+          </aside>
         </div>
       </DialogContent>
     </Dialog>

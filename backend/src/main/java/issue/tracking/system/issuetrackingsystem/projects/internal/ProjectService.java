@@ -52,15 +52,18 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
     @Override
     @Transactional
     public void updateMemberRole(Long projectId, Long actorUserId, Long userId, String roleId) {
+        Project project = projectRepository.findById(projectId)
+            .orElseThrow(() -> new IllegalArgumentException("Project not found"));
         if (!projectConfigService.hasPermission(projectId, actorUserId, "members.assignRole")) {
             throw new SecurityException("Insufficient permissions to assign roles");
         }
         if (!projectConfigService.hasRole(projectId, roleId)) {
             throw new IllegalArgumentException("Project role not found");
         }
+        if (project.getOwnerId().equals(userId)) {
+            throw new SecurityException("Project owner role cannot be changed");
+        }
 
-        Project project = projectRepository.findById(projectId)
-            .orElseThrow(() -> new IllegalArgumentException("Project not found"));
         ProjectMember member = project.getMembers().stream()
             .filter(item -> item.getUserId().equals(userId))
             .findFirst()
@@ -158,7 +161,8 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
                         user.map(UserDto::email).orElse("") ,
                         role.id(),
                         role.name(),
-                        role.permissions()
+                        role.permissions(),
+                        member.getUserId().equals(project.getOwnerId())
                     );
                 })
                 .toList())
@@ -214,14 +218,14 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
 
     @Override
     @Transactional
-    public void removeUser(Long projectId, Long ownerId, Long userId) {
+    public void removeUser(Long projectId, Long actorUserId, Long userId) {
         Project project = projectRepository.findById(projectId)
             .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-        if (!projectConfigService.hasPermission(projectId, ownerId, "members.remove")) {
+        if (!projectConfigService.hasPermission(projectId, actorUserId, "members.remove")) {
             throw new SecurityException("Insufficient permissions to remove members");
         }
-        if (ownerId.equals(userId)) {
-            throw new SecurityException("Owner cannot remove themselves");
+        if (project.getOwnerId().equals(userId)) {
+            throw new SecurityException("Project owner cannot be removed");
         }
         boolean removed = project.getMembers().removeIf(m -> m.getUserId().equals(userId));
         if (removed) {

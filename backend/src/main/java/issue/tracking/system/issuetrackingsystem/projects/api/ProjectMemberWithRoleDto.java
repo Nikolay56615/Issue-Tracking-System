@@ -6,6 +6,7 @@ public record ProjectMemberWithRoleDto(
     String email,
     String roleId,
     String roleName,
-    java.util.List<String> permissions
+    java.util.List<String> permissions,
+    boolean projectOwner
 ) {}
 

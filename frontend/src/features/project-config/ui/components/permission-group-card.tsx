@@ -13,6 +13,7 @@ import type { PermissionGroupCardProps } from './types.ts';
 
 export const PermissionGroupCard = ({
   role,
+  disabled = false,
   updateRole,
 }: PermissionGroupCardProps) => (
   <>
@@ -28,6 +29,7 @@ export const PermissionGroupCard = ({
                 <input
                   type="checkbox"
                   checked={checked}
+                  disabled={disabled}
                   onChange={(event) =>
                     updateRole(role.id, (current) => ({
                       ...current,

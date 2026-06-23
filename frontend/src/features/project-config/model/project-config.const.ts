@@ -5,6 +5,7 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   'issue.create': 'Can create new issues in the project.',
   'issue.edit': 'Can update issue details and move allowed issue statuses.',
   'issue.remove': 'Can move issues to trash.',
+  'members.view': 'Can open the project member directory.',
   'members.invite': 'Can invite users to the project.',
   'members.remove': 'Can remove users from the project.',
   'members.assignRole': 'Can change project member roles.',

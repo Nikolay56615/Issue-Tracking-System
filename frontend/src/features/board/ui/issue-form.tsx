@@ -41,6 +41,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -217,6 +218,15 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       return `${field.name} must be checked or unchecked`;
     }
 
+    if (field.type === 'enum' && value != null) {
+      if (
+        typeof value !== 'string' ||
+        !field.config.options.some((option) => option.id === value)
+      ) {
+        return `${field.name} contains an unavailable option`;
+      }
+    }
+
     if (field.type === 'user_reference' && value != null) {
       const availableMembers = getAssignableMembersForField(
         field,
@@ -285,6 +295,31 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
           />
           <span>Checked</span>
         </label>
+      );
+    }
+
+    if (field.type === 'enum') {
+      return (
+        <Select
+          value={typeof value === 'string' ? value : 'none'}
+          onValueChange={(nextValue) =>
+            setFieldValue(field.id, nextValue === 'none' ? null : nextValue)
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={field.name} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="none">Not set</SelectItem>
+              {field.config.options.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       );
     }
 
@@ -422,13 +457,19 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
         {mode === 'add' ? (
           <Button variant="default">Add Issue</Button>
         ) : (
-          <Button className="ml-auto" size="sm" variant="ghost">
+          <Button
+            className="ml-auto"
+            size="sm"
+            variant="ghost"
+            aria-label="Edit issue"
+          >
             <Pencil />
           </Button>
         )}
       </DialogTrigger>
       <DialogContent
-        className="max-h-[95vh] min-w-[60vw] overflow-x-hidden overflow-y-auto"
+        className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-4xl flex-col
+          overflow-hidden sm:max-w-4xl"
       >
         <DialogHeader>
           <DialogTitle>
@@ -436,7 +477,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto pr-2">
           <div className="flex flex-col gap-3">
             <Label>Issue Name</Label>
             <Input
@@ -485,7 +526,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
             </div>
           </div>
 
-          <div className="flex w-full max-w-[54vw] flex-col gap-3">
+          <div className="flex w-full flex-col gap-3">
             <Label>Issue Description</Label>
             <div className="rounded-lg border">
               <Plate editor={editor}>
@@ -509,7 +550,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
                     I
                   </MarkToolbarButton>
                 </FixedToolbar>
-                <EditorContainer className="h-90">
+                <EditorContainer className="min-h-64 max-h-80 overflow-y-auto">
                   <Editor />
                 </EditorContainer>
               </Plate>

@@ -103,6 +103,7 @@ export const ProjectSettingsPage = () => {
     string | null
   >(null);
   const [expandedFieldId, setExpandedFieldId] = useState<string | null>(null);
+  const [hasImportedTemplate, setHasImportedTemplate] = useState(false);
 
   useEffect(() => {
     if (!projectId || Number.isNaN(projectId)) return;
@@ -258,10 +259,13 @@ export const ProjectSettingsPage = () => {
   };
 
   const addRole = () => {
+    const nextRole = createRoleDraft(draft.projectId);
     updateDraft((current) => ({
       ...current,
-      roles: [...current.roles, createRoleDraft(current.projectId)],
+      roles: [nextRole, ...current.roles],
     }));
+    setExpandedRoleId(nextRole.id);
+    toast.info('Role added');
   };
 
   const deleteRole = (roleId: string) => {
@@ -308,16 +312,22 @@ export const ProjectSettingsPage = () => {
   };
 
   const addStatus = () => {
+    const nextStatus = createStatusDraft(draft.projectId, 1);
     updateDraft((current) => ({
       ...current,
       lifecycle: {
         ...current.lifecycle,
         statuses: [
-          ...current.lifecycle.statuses,
-          createStatusDraft(current.projectId, current.lifecycle.statuses.length + 1),
+          nextStatus,
+          ...current.lifecycle.statuses.map((status) => ({
+            ...status,
+            displayOrder: status.displayOrder + 1,
+          })),
         ],
       },
     }));
+    setExpandedStatusId(nextStatus.id);
+    toast.info('Status added');
   };
 
   const deleteStatus = (statusId: string) => {
@@ -376,25 +386,36 @@ export const ProjectSettingsPage = () => {
       ...current,
       lifecycle: {
         ...current.lifecycle,
-        transitions: [...current.lifecycle.transitions, nextTransition],
+        transitions: [nextTransition, ...current.lifecycle.transitions],
       },
     }));
+    setExpandedTransitionId(nextTransition.id);
+    toast.info('Transition added');
   };
 
   const addField = () => {
+    const nextField = createFieldDraft(draft.projectId);
     updateDraft((current) => {
-      const nextField = createFieldDraft(current.projectId);
+      const currentOrder = getNormalizedFieldOrder(current);
+      const nameIndex = currentOrder.indexOf('name');
+      const insertIndex = nameIndex === -1 ? 0 : nameIndex + 1;
 
       return {
         ...current,
-        customFields: [...current.customFields, nextField],
-        fieldOrder: [...getNormalizedFieldOrder(current), nextField.id],
-        boardCardFieldIds: [
-          ...getNormalizedBoardCardFieldIds(current),
+        customFields: [nextField, ...current.customFields],
+        fieldOrder: [
+          ...currentOrder.slice(0, insertIndex),
           nextField.id,
+          ...currentOrder.slice(insertIndex),
+        ],
+        boardCardFieldIds: [
+          nextField.id,
+          ...getNormalizedBoardCardFieldIds(current),
         ],
       };
     });
+    setExpandedFieldId(nextField.id);
+    toast.info('Field added');
   };
 
   const deleteField = (fieldId: string) => {
@@ -449,8 +470,50 @@ export const ProjectSettingsPage = () => {
 
   const save = async () => {
     try {
+      const createdRoles = draft.roles.filter(
+        (role) => !config?.roles.some((savedRole) => savedRole.id === role.id)
+      ).length;
+      const createdFields = draft.customFields.filter(
+        (field) =>
+          !config?.customFields.some((savedField) => savedField.id === field.id)
+      ).length;
+      const createdStatuses = draft.lifecycle.statuses.filter(
+        (status) =>
+          !config?.lifecycle.statuses.some(
+            (savedStatus) => savedStatus.id === status.id
+          )
+      ).length;
+      const createdTransitions = draft.lifecycle.transitions.filter(
+        (transition) =>
+          !config?.lifecycle.transitions.some(
+            (savedTransition) => savedTransition.id === transition.id
+          )
+      ).length;
       await dispatch(saveProjectConfig({ projectId, config: draft })).unwrap();
-      toast.success('Project config saved');
+      const createdParts = [
+        createdRoles
+          ? `${createdRoles} role${createdRoles === 1 ? '' : 's'}`
+          : '',
+        createdFields
+          ? `${createdFields} field${createdFields === 1 ? '' : 's'}`
+          : '',
+        createdStatuses
+          ? `${createdStatuses} status${createdStatuses === 1 ? '' : 'es'}`
+          : '',
+        createdTransitions
+          ? `${createdTransitions} transition${createdTransitions === 1 ? '' : 's'}`
+          : '',
+      ].filter(Boolean);
+      const resultParts = [
+        hasImportedTemplate ? 'template imported' : '',
+        createdParts.length ? `created ${createdParts.join(', ')}` : '',
+      ].filter(Boolean);
+      toast.success(
+        resultParts.length
+          ? `Project settings saved · ${resultParts.join(' · ')}`
+          : 'Project settings saved'
+      );
+      setHasImportedTemplate(false);
     } catch (saveErrorValue) {
       toast.error(String(saveErrorValue));
     }
@@ -482,6 +545,43 @@ export const ProjectSettingsPage = () => {
       toast.success('Template applied');
     } catch (applyErrorValue) {
       toast.error(String(applyErrorValue));
+    }
+  };
+
+  const handleImportTemplate = async (file: File) => {
+    try {
+      const parsed = JSON.parse(await file.text()) as {
+        config?: Partial<ProjectConfig>;
+      } & Partial<ProjectConfig>;
+      const imported = parsed.config ?? parsed;
+      if (
+        !Array.isArray(imported.roles) ||
+        !imported.lifecycle ||
+        !Array.isArray(imported.lifecycle.statuses) ||
+        !Array.isArray(imported.lifecycle.transitions) ||
+        !Array.isArray(imported.customFields)
+      ) {
+        throw new Error('The selected file is not a project template');
+      }
+
+      const importedDraft: ProjectConfig = {
+        ...draft,
+        ...imported,
+        projectId,
+        updatedAt: draft.updatedAt,
+      };
+      importedDraft.fieldOrder = getNormalizedFieldOrder(importedDraft);
+      importedDraft.boardCardFieldIds =
+        getNormalizedBoardCardFieldIds(importedDraft);
+      setDraft(importedDraft);
+      setHasImportedTemplate(true);
+      toast.success('Template loaded');
+    } catch (importError) {
+      toast.error(
+        importError instanceof Error
+          ? importError.message
+          : 'Failed to import template'
+      );
     }
   };
 
@@ -664,6 +764,7 @@ export const ProjectSettingsPage = () => {
               sourceProjects={sourceProjects}
               handleExportTemplate={handleExportTemplate}
               handleApplyTemplate={handleApplyTemplate}
+              handleImportTemplate={handleImportTemplate}
             />
           </TabsContent>
         </Tabs>

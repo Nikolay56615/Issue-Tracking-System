@@ -81,7 +81,7 @@ const BoardSkeleton = ({ statuses }: { statuses: CustomStatus[] }) => {
         {skeletonStatuses.map((status, columnIndex) => (
           <Card
             key={status.id}
-            className="flex w-80 flex-col gap-0 py-4"
+            className="flex w-80 min-w-80 shrink-0 flex-col gap-0 py-4"
           >
             <CardHeader className="gap-0 px-4 pb-4">
               <div className="flex items-center justify-between gap-3">

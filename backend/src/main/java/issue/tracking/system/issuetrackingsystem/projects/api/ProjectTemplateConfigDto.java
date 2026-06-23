@@ -6,5 +6,6 @@ public record ProjectTemplateConfigDto(
     List<CustomRoleDto> roles,
     LifecycleConfigDto lifecycle,
     List<CustomFieldDefinitionDto> customFields,
-    List<String> fieldOrder
+    List<String> fieldOrder,
+    List<String> boardCardFieldIds
 ) {}

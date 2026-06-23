@@ -194,6 +194,34 @@ export const IssueCard = ({
             return null;
           }
 
+          if (field.type === 'enum') {
+            const option = field.config.options.find(
+              (item) => item.id === value
+            );
+            if (!option) return null;
+            const color = option.color.replace('#', '');
+            const red = Number.parseInt(color.slice(0, 2), 16);
+            const green = Number.parseInt(color.slice(2, 4), 16);
+            const blue = Number.parseInt(color.slice(4, 6), 16);
+            const textColor =
+              red * 0.299 + green * 0.587 + blue * 0.114 > 160
+                ? '#111827'
+                : '#ffffff';
+
+            return (
+              <div key={field.id} className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">{field.name}:</span>
+                <span
+                  className="inline-flex items-center rounded-full border px-2.5
+                    py-0.5 font-medium"
+                  style={{ backgroundColor: option.color, color: textColor }}
+                >
+                  {option.label}
+                </span>
+              </div>
+            );
+          }
+
           return (
             <span key={field.id} className="text-muted-foreground text-xs">
               {field.name}:{' '}

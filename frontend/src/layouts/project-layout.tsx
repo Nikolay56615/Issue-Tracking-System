@@ -1,10 +1,19 @@
-import { generatePath, Link, NavLink, Outlet, useParams } from 'react-router';
+import {
+  generatePath,
+  Link,
+  Navigate,
+  NavLink,
+  Outlet,
+  useLocation,
+  useParams,
+} from 'react-router';
 import { Routes } from '@/shared/constants/routes.ts';
 import { Button } from '@/components/ui/button.tsx';
 import { cn } from '@/lib/utils.ts';
 import { LogoutButton } from '@/components/logout-button.tsx';
 import { useEffect } from 'react';
-import type { CustomRole } from '@/features/profile';
+import { Loader2 } from 'lucide-react';
+import type { CustomRole, PermissionKey } from '@/features/profile';
 import {
   fetchCurrentProjectRole,
   hasPermission,
@@ -18,9 +27,12 @@ const canOpenSettings = (role: CustomRole | null) =>
 export const ProjectLayout = () => {
   const { projectId } = useParams();
   const dispatch = useAppDispatch();
-  const { currentRole: role, currentRoleProjectId } = useAppSelector(
-    (state) => state.projectConfig
-  );
+  const location = useLocation();
+  const {
+    currentRole: role,
+    currentRoleProjectId,
+    currentRoleLoading,
+  } = useAppSelector((state) => state.projectConfig);
   const numericProjectId = Number(projectId);
 
   useEffect(() => {
@@ -31,6 +43,31 @@ export const ProjectLayout = () => {
   }, [dispatch, numericProjectId, projectId]);
 
   const projectRole = currentRoleProjectId === numericProjectId ? role : null;
+  const requiredPermission: PermissionKey = location.pathname.endsWith('/users')
+    ? 'members.view'
+    : location.pathname.endsWith('/settings')
+      ? 'settings.manage'
+      : 'issue.view';
+
+  if (!projectId || Number.isNaN(numericProjectId)) {
+    return <Navigate to={Routes.PROFILE} replace />;
+  }
+
+  if (
+    currentRoleProjectId !== numericProjectId ||
+    currentRoleLoading === 'idle' ||
+    currentRoleLoading === 'pending'
+  ) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loader2 className="text-muted-foreground size-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!hasPermission(projectRole, requiredPermission)) {
+    return <Navigate to={Routes.PROFILE} replace />;
+  }
 
   return (
     <>
@@ -43,7 +80,7 @@ export const ProjectLayout = () => {
               Issue Tracker
             </span>
           </Link>
-          <NavLink
+          {hasPermission(projectRole, 'issue.view') && <NavLink
             to={generatePath(Routes.BOARD, { projectId })}
             className={({ isActive }) =>
               cn(isActive && 'bg-accent rounded-md', 'ml-5')
@@ -52,8 +89,8 @@ export const ProjectLayout = () => {
             <Button className="h-9 cursor-pointer" variant="ghost">
               Board
             </Button>
-          </NavLink>
-          <NavLink
+          </NavLink>}
+          {hasPermission(projectRole, 'members.view') && <NavLink
             to={generatePath(Routes.USERS, { projectId })}
             className={({ isActive }) =>
               cn(isActive && 'bg-accent rounded-md')
@@ -62,8 +99,8 @@ export const ProjectLayout = () => {
             <Button className="h-9 cursor-pointer" variant="ghost">
               Users
             </Button>
-          </NavLink>
-          <NavLink
+          </NavLink>}
+          {hasPermission(projectRole, 'issue.view') && <NavLink
             to={generatePath(Routes.TRASH, { projectId })}
             className={({ isActive }) =>
               cn(isActive && 'bg-accent rounded-md')
@@ -72,7 +109,7 @@ export const ProjectLayout = () => {
             <Button className="h-9 cursor-pointer" variant="ghost">
               Trash
             </Button>
-          </NavLink>
+          </NavLink>}
           {canOpenSettings(projectRole) && (
             <NavLink
               to={generatePath(Routes.SETTINGS, { projectId })}

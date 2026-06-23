@@ -30,7 +30,7 @@ export const StatusColumn = ({
     <Card
       ref={setNodeRef}
       className={cn(
-        'flex w-80 flex-col gap-0 py-4 transition-opacity',
+        'flex w-80 min-w-80 shrink-0 flex-col gap-0 py-4 transition-opacity',
         isOver && 'opacity-80'
       )}
     >

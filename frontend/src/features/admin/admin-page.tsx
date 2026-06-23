@@ -53,7 +53,7 @@ export const AdminPage = () => {
         ]);
         setUsers(loadedUsers);
         setProjects(loadedProjects);
-      } catch (error) {
+      } catch {
         toast.error('Failed to load admin data');
       } finally {
         setLoading(false);
@@ -73,7 +73,7 @@ export const AdminPage = () => {
       const user = await action();
       setUsers((current) => replaceUser(current, user));
       toast.success(successMessage);
-    } catch (error) {
+    } catch {
       toast.error('Admin action failed');
     } finally {
       setBusyKey(null);
@@ -94,7 +94,7 @@ export const AdminPage = () => {
       await action();
       await reloadProjects();
       toast.success(successMessage);
-    } catch (error) {
+    } catch {
       toast.error('Project admin action failed');
     } finally {
       setBusyKey(null);

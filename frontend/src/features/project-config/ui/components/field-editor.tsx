@@ -1,4 +1,4 @@
-import { Trash } from 'lucide-react';
+import { Plus, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
@@ -227,6 +227,110 @@ export const FieldEditor = ({
       {field.type === 'checkbox' && (
         <div className="text-muted-foreground text-sm">
           This field stores a checked or unchecked value.
+        </div>
+      )}
+
+      {field.type === 'enum' && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <Label>Badge options</Label>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                updateField(field.id, (current) =>
+                  current.type === 'enum'
+                    ? {
+                        ...current,
+                        config: {
+                          options: [
+                            ...current.config.options,
+                            {
+                              id: `${current.id}-option-${Date.now()}`,
+                              label: `Option ${current.config.options.length + 1}`,
+                              color: '#64748b',
+                            },
+                          ],
+                        },
+                      }
+                    : current
+                )
+              }
+            >
+              <Plus data-icon="inline-start" />
+              Add option
+            </Button>
+          </div>
+          {field.config.options.map((option) => (
+            <div
+              key={option.id}
+              className="grid items-center gap-2 md:grid-cols-[48px_1fr_auto]"
+            >
+              <Input
+                type="color"
+                value={option.color}
+                aria-label={`${option.label} color`}
+                onChange={(event) =>
+                  updateField(field.id, (current) =>
+                    current.type === 'enum'
+                      ? {
+                          ...current,
+                          config: {
+                            options: current.config.options.map((item) =>
+                              item.id === option.id
+                                ? { ...item, color: event.target.value }
+                                : item
+                            ),
+                          },
+                        }
+                      : current
+                  )
+                }
+              />
+              <Input
+                value={option.label}
+                aria-label="Option label"
+                onChange={(event) =>
+                  updateField(field.id, (current) =>
+                    current.type === 'enum'
+                      ? {
+                          ...current,
+                          config: {
+                            options: current.config.options.map((item) =>
+                              item.id === option.id
+                                ? { ...item, label: event.target.value }
+                                : item
+                            ),
+                          },
+                        }
+                      : current
+                  )
+                }
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={`Delete ${option.label}`}
+                disabled={field.config.options.length === 1}
+                onClick={() =>
+                  updateField(field.id, (current) =>
+                    current.type === 'enum'
+                      ? {
+                          ...current,
+                          config: {
+                            options: current.config.options.filter(
+                              (item) => item.id !== option.id
+                            ),
+                          },
+                        }
+                      : current
+                  )
+                }
+              >
+                <Trash />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 

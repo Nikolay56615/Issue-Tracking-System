@@ -52,6 +52,7 @@ export interface SortableSettingsRowProps {
 
 export interface PermissionGroupCardProps {
   role: CustomRole;
+  disabled?: boolean;
   updateRole: (
     roleId: string,
     updater: (roleItem: CustomRole) => CustomRole
@@ -61,7 +62,7 @@ export interface PermissionGroupCardProps {
 export interface RoleCardProps {
   role: CustomRole;
   isOpen: boolean;
-  users: Array<{ roleId: string }>;
+  users: Array<{ roleId: string; projectOwner: boolean }>;
   onToggle: () => void;
   updateRole: (
     roleId: string,

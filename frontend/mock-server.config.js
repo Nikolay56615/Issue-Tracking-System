@@ -5,6 +5,7 @@ const PERMISSION_KEYS = [
   'issue.create',
   'issue.edit',
   'issue.remove',
+  'members.view',
   'members.invite',
   'members.remove',
   'members.assignRole',
@@ -221,6 +222,7 @@ const createDefaultProjectConfig = (projectId) => {
     'issue.create',
     'issue.edit',
     'issue.remove',
+    'members.view',
     'members.invite',
     'members.remove',
     'members.assignRole',
@@ -234,10 +236,12 @@ const createDefaultProjectConfig = (projectId) => {
     'issue.view',
     'issue.create',
     'issue.edit',
+    'members.view',
   ]);
   const reviewer = createRole(projectId, 'reviewer', 'Reviewer', [
     'issue.view',
     'issue.edit',
+    'members.view',
   ]);
 
   const backlog = createStatus(projectId, 'backlog', 'Backlog', 1, '#64748b', true);
@@ -297,6 +301,7 @@ const createQaVisionProjectConfig = (projectId) => {
     'issue.create',
     'issue.edit',
     'issue.remove',
+    'members.view',
     'members.invite',
     'members.remove',
     'members.assignRole',
@@ -310,11 +315,17 @@ const createQaVisionProjectConfig = (projectId) => {
     'issue.view',
     'issue.create',
     'issue.edit',
+    'members.view',
   ]);
-  const qa = createRole(projectId, 'qa', 'QA', ['issue.view', 'issue.edit']);
+  const qa = createRole(projectId, 'qa', 'QA', [
+    'issue.view',
+    'issue.edit',
+    'members.view',
+  ]);
   const qaLead = createRole(projectId, 'qa-lead', 'QA Lead', [
     'issue.view',
     'issue.edit',
+    'members.view',
     'template.export',
   ]);
 
@@ -719,6 +730,7 @@ const toMemberProfile = (projectId, member) => {
     roleId: member.roleId,
     roleName: role?.name ?? 'Unknown',
     permissions: role?.permissions ?? [],
+    projectOwner: user.id === getProject(projectId)?.ownerId,
   };
 };
 
@@ -818,6 +830,23 @@ const cloneConfigForProject = (projectId, templateConfig) => {
         type: field.type,
         required: field.required,
         config: {},
+      };
+    }
+
+    if (field.type === 'enum') {
+      return {
+        id,
+        projectId,
+        name: field.name,
+        type: 'enum',
+        required: field.required,
+        config: {
+          options: field.config.options.map((option, optionIndex) => ({
+            id: `${id}-option-${slugify(option.label || optionIndex + 1)}`,
+            label: option.label,
+            color: option.color,
+          })),
+        },
       };
     }
 
@@ -1010,6 +1039,17 @@ const validateCustomFieldValue = (projectId, config, field, value, issueId = nul
   if (field.type === 'checkbox') {
     if (typeof value !== 'boolean') {
       return `${field.name} must be checked or unchecked`;
+    }
+
+    return null;
+  }
+
+  if (field.type === 'enum') {
+    if (
+      typeof value !== 'string' ||
+      !field.config.options.some((option) => option.id === value)
+    ) {
+      return `${field.name} contains an unavailable option`;
     }
 
     return null;
@@ -1219,6 +1259,10 @@ const toLifecycleGraph = (lifecycle) => ({
 });
 
 const removeProjectMember = (projectId, userId) => {
+  if (getProject(projectId)?.ownerId === userId) {
+    return error(403, 'Project owner cannot be removed');
+  }
+
   const projectMemberIndex = members.findIndex(
     (member) => member.projectId === projectId && member.userId === userId
   );
@@ -1236,6 +1280,7 @@ const validateProjectConfig = (projectId, config) => {
     'number',
     'date',
     'checkbox',
+    'enum',
     'user_reference',
     'issue_reference',
   ]);
@@ -1287,6 +1332,20 @@ const validateProjectConfig = (projectId, config) => {
       field.config.allowedRoleIds.some((roleId) => !roleIds.has(roleId))
     ) {
       return `${field.name} references a missing role`;
+    }
+    if (
+      field.type === 'enum' &&
+      (!Array.isArray(field.config.options) ||
+        field.config.options.length === 0 ||
+        field.config.options.some(
+          (option, index, options) =>
+            !option.id ||
+            !option.label?.trim() ||
+            !/^#[0-9a-f]{6}$/i.test(option.color) ||
+            options.findIndex((item) => item.id === option.id) !== index
+        ))
+    ) {
+      return `${field.name} must have valid unique badge options`;
     }
   }
 
@@ -1628,7 +1687,7 @@ const config = [
       }),
       route('/projects/:projectId/members', 'get', (request) => {
         const projectId = getId(request, 'projectId');
-        const access = ensureProjectAccess(request, projectId);
+        const access = ensureProjectAccess(request, projectId, 'members.view');
         if (access.response) return access.response;
 
         return ok(getProjectMembers(projectId).map((member) => toMemberProfile(projectId, member)));
@@ -1701,6 +1760,9 @@ const config = [
         const member = getMember(projectId, getId(request, 'userId'));
         if (!member) {
           return error(404, 'Member not found');
+        }
+        if (member.userId === access.project.ownerId) {
+          return error(403, 'Project owner role cannot be changed');
         }
 
         const roleId = String(request.body.roleId);

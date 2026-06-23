@@ -13,15 +13,38 @@ import type { RootState } from '@/store/types.ts';
 
 const fetchProjectPermissions = async (
   projects: Project[]
-): Promise<ProjectPermissionsById> => {
-  const entries = await Promise.all(
+): Promise<{
+  projects: Project[];
+  projectPermissions: ProjectPermissionsById;
+}> => {
+  const results = await Promise.all(
     projects.map(async (project) => {
-      const { role } = await ProfileRequests.getMyRole(project.id);
-      return [project.id, role.permissions] as [number, PermissionKey[]];
+      try {
+        const { role } = await ProfileRequests.getMyRole(project.id);
+        return { project, permissions: role.permissions };
+      } catch (error: unknown) {
+        if (
+          error instanceof AxiosError &&
+          (error.response?.status === 401 || error.response?.status === 403)
+        ) {
+          return null;
+        }
+
+        throw error;
+      }
     })
   );
+  const accessible = results.filter(
+    (result): result is { project: Project; permissions: PermissionKey[] } =>
+      result !== null
+  );
 
-  return Object.fromEntries(entries);
+  return {
+    projects: accessible.map((result) => result.project),
+    projectPermissions: Object.fromEntries(
+      accessible.map((result) => [result.project.id, result.permissions])
+    ),
+  };
 };
 
 export const fetchProjects = createAsyncThunk<
@@ -31,9 +54,7 @@ export const fetchProjects = createAsyncThunk<
 >('projects', async (_, { rejectWithValue }) => {
   try {
     const projects = await ProfileRequests.fetchProjects();
-    const projectPermissions = await fetchProjectPermissions(projects);
-
-    return { projects, projectPermissions };
+    return await fetchProjectPermissions(projects);
   } catch (error: unknown) {
     return rejectWithValue(getApiErrorMessage(error));
   }

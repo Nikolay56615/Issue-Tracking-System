@@ -42,12 +42,14 @@ public class ProjectController {
 
     @GetMapping("/{id}")
     public ProjectDto getById(@PathVariable Long id) {
+        requireProjectMember(id);
         return queryApi.getProjectById(id)
             .orElseThrow(() -> new IllegalArgumentException("Project not found"));
     }
 
     @GetMapping("/{id}/members")
     public List<ProjectMemberWithRoleDto> getMembers(@PathVariable Long id) {
+        requirePermission(id, "members.view");
         return queryApi.getProjectMembersWithRoles(id);
     }
 
@@ -56,6 +58,7 @@ public class ProjectController {
         @PathVariable Long id,
         @RequestParam String query
     ) {
+        requirePermission(id, "members.invite");
         return queryApi.findUsersNotInProject(id, query);
     }
 
@@ -85,7 +88,7 @@ public class ProjectController {
 
     @GetMapping("/{id}/template")
     public ProjectTemplateDto exportTemplate(@PathVariable Long id) {
-        requireProjectMember(id);
+        requirePermission(id, "template.export");
         return projectConfigService.exportTemplate(id);
     }
 

@@ -8,6 +8,7 @@ import issue.tracking.system.issuetrackingsystem.issue.api.AttachmentDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueFilterDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueQueryApi;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
 import issue.tracking.system.issuetrackingsystem.users.api.CurrentUserProvider;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class IssueController {
     private final IssueCommandApi commandApi;
     private final IssueQueryApi queryApi;
     private final CurrentUserProvider userProvider;
+    private final ProjectAccessApi projectAccessApi;
 
     // --- COMMANDS ---
 
@@ -114,11 +116,13 @@ public class IssueController {
     @PostMapping("/board")
     public List<IssueDto> getBoard(@RequestParam Long projectId,
                                    @RequestBody(required = false) IssueFilterDto filter) {
+        requirePermission(projectId, "issue.view");
         return queryApi.getBoardIssues(projectId, filter);
     }
 
     @GetMapping("/trash")
     public List<IssueDto> getTrash(@RequestParam Long projectId) {
+        requirePermission(projectId, "issue.view");
         return queryApi.getTrashBin(projectId);
     }
 
@@ -133,5 +137,12 @@ public class IssueController {
             return "unknown.file";
         }
         return url.substring(url.lastIndexOf("/") + 1);
+    }
+
+    private void requirePermission(Long projectId, String permission) {
+        Long userId = userProvider.getCurrentUserId();
+        if (!projectAccessApi.hasPermission(userId, projectId, permission)) {
+            throw new SecurityException("Insufficient project permissions");
+        }
     }
 }

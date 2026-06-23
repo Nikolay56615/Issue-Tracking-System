@@ -29,6 +29,29 @@ final class ProjectConfigDefaults {
         "attachments"
     );
 
+    private static final List<String> DEFAULT_BOARD_CARD_SYSTEM_FIELDS = List.of(
+        "description",
+        "dueDate",
+        "type",
+        "priority"
+    );
+
+    static final List<String> OWNER_PERMISSIONS = List.of(
+        "issue.view",
+        "issue.create",
+        "issue.edit",
+        "issue.remove",
+        "members.view",
+        "members.invite",
+        "members.remove",
+        "members.assignRole",
+        "settings.manage",
+        "project.archive",
+        "project.restore",
+        "template.export",
+        "template.apply"
+    );
+
     private ProjectConfigDefaults() {}
 
     static ProjectTemplateConfigDto defaultTemplate(Long projectId) {
@@ -39,7 +62,8 @@ final class ProjectConfigDefaults {
             roles,
             new LifecycleConfigDto(false, statuses, defaultTransitions(roles)),
             List.of(),
-            SYSTEM_FIELD_ORDER
+            SYSTEM_FIELD_ORDER,
+            DEFAULT_BOARD_CARD_SYSTEM_FIELDS
         );
     }
 
@@ -49,13 +73,13 @@ final class ProjectConfigDefaults {
                 WORKER,
                 projectId,
                 "Worker",
-                List.of("issue.view", "issue.create", "issue.edit")
+                List.of("issue.view", "issue.create", "issue.edit", "members.view")
             ),
             new CustomRoleDto(
                 REVIEWER,
                 projectId,
                 "Reviewer",
-                List.of("issue.view", "issue.create", "issue.edit", "issue.remove")
+                List.of("issue.view", "issue.create", "issue.edit", "issue.remove", "members.view")
             ),
             new CustomRoleDto(
                 ADMIN,
@@ -66,6 +90,7 @@ final class ProjectConfigDefaults {
                     "issue.create",
                     "issue.edit",
                     "issue.remove",
+                    "members.view",
                     "members.invite",
                     "members.remove",
                     "members.assignRole",
@@ -74,26 +99,12 @@ final class ProjectConfigDefaults {
                     "template.apply"
                 )
             ),
-            new CustomRoleDto(
-                OWNER,
-                projectId,
-                "Owner",
-                List.of(
-                    "issue.view",
-                    "issue.create",
-                    "issue.edit",
-                    "issue.remove",
-                    "members.invite",
-                    "members.remove",
-                    "members.assignRole",
-                    "settings.manage",
-                    "project.archive",
-                    "project.restore",
-                    "template.export",
-                    "template.apply"
-                )
-            )
+            ownerRole(projectId, "Owner")
         );
+    }
+
+    static CustomRoleDto ownerRole(Long projectId, String name) {
+        return new CustomRoleDto(OWNER, projectId, name, OWNER_PERMISSIONS);
     }
 
     static List<CustomStatusDto> defaultStatuses(Long projectId) {
@@ -168,5 +179,11 @@ final class ProjectConfigDefaults {
         List<String> order = new ArrayList<>(SYSTEM_FIELD_ORDER);
         customFields.stream().map(CustomFieldDefinitionDto::id).forEach(order::add);
         return order;
+    }
+
+    static List<String> defaultBoardCardFieldIds(List<CustomFieldDefinitionDto> customFields) {
+        List<String> fieldIds = new ArrayList<>(DEFAULT_BOARD_CARD_SYSTEM_FIELDS);
+        customFields.stream().map(CustomFieldDefinitionDto::id).forEach(fieldIds::add);
+        return fieldIds;
     }
 }

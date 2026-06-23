@@ -14,8 +14,12 @@ export const RoleCard = ({
   onToggle,
   updateRole,
   deleteRole,
-}: RoleCardProps) => (
-  <div className="rounded-lg border">
+}: RoleCardProps) => {
+  const isOwnerRole = users.some(
+    (user) => user.projectOwner && user.roleId === role.id
+  );
+
+  return <div className="rounded-lg border">
     <RowToggleButton
       title={role.name}
       subtitle={`${role.permissions.length} permissions`}
@@ -30,6 +34,7 @@ export const RoleCard = ({
             <Label>Role name</Label>
             <Input
               value={role.name}
+              disabled={isOwnerRole}
               onChange={(event) =>
                 updateRole(role.id, (current) => ({
                   ...current,
@@ -38,16 +43,25 @@ export const RoleCard = ({
               }
             />
           </div>
-          <Button size="sm" variant="ghost" onClick={() => deleteRole(role.id)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={isOwnerRole}
+            onClick={() => deleteRole(role.id)}
+          >
             <Trash data-icon="inline-start" />
             Delete
           </Button>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <PermissionGroupCard role={role} updateRole={updateRole} />
+          <PermissionGroupCard
+            role={role}
+            disabled={isOwnerRole}
+            updateRole={updateRole}
+          />
         </div>
       </div>
     )}
-  </div>
-);
+  </div>;
+};

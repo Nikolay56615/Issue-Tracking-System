@@ -49,7 +49,12 @@ export const UserCard = ({
         <span className="text-gray-600 dark:text-gray-300">
           {user.roleName}
         </span>
-        {canManageRoles && (
+        {user.projectOwner && (
+          <span className="text-muted-foreground mt-2 text-sm">
+            Project owner
+          </span>
+        )}
+        {canManageRoles && !user.projectOwner && (
           <div className="mt-2 flex items-center gap-2">
             <Select
               value={user.roleId}
@@ -69,7 +74,7 @@ export const UserCard = ({
             </Select>
           </div>
         )}
-        {!canManageRoles && canRemove && (
+        {!user.projectOwner && !canManageRoles && canRemove && (
           <div className="mt-2">
             <Button
               variant="outline"
@@ -81,7 +86,7 @@ export const UserCard = ({
             </Button>
           </div>
         )}
-        {canManageRoles && canRemove && (
+        {!user.projectOwner && canManageRoles && canRemove && (
           <div className="mt-2">
             <Button
               variant="outline"

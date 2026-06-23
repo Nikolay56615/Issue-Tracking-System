@@ -5,13 +5,14 @@ import type {
   CustomFieldType,
   OrderedIssueFieldEntry,
   ProjectConfig,
+  ProjectTemplate,
   Transition,
 } from '@/features/project-config/model';
 import type { CustomRole, Project } from '@/features/profile';
 
 export interface RolesTabProps {
   draft: ProjectConfig;
-  users: Array<{ roleId: string }>;
+  users: Array<{ roleId: string; projectOwner: boolean }>;
   expandedRoleId: string | null;
   setExpandedRoleId: (value: string | null) => void;
   addRole: () => void;
@@ -73,11 +74,12 @@ export interface FieldsTabProps {
 }
 
 export interface TemplatesTabProps {
-  exportedTemplate: unknown;
+  exportedTemplate: ProjectTemplate | null;
   templateLoading: 'idle' | 'pending' | 'succeeded' | 'failed';
   selectedTemplateProjectId: string;
   setSelectedTemplateProjectId: (value: string) => void;
   sourceProjects: Project[];
   handleExportTemplate: () => void;
   handleApplyTemplate: () => void;
+  handleImportTemplate: (file: File) => void;
 }

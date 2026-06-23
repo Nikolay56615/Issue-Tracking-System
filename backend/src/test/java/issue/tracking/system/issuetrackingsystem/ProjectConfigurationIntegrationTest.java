@@ -68,6 +68,21 @@ class ProjectConfigurationIntegrationTest {
     }
 
     @Test
+    void createdProjectOwnerGetsRoleObjectWithPermissions() throws Exception {
+        TestUser owner = register("role-owner");
+        long projectId = createProject(owner, "Role project");
+
+        MvcResult roleResult = mockMvc.perform(get("/api/projects/{id}/my-role", projectId)
+                .with(httpBasic(owner.email(), PASSWORD)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        Map<String, Object> role = object(readMap(roleResult).get("role"));
+        assertThat(text(role.get("id"))).isEqualTo("OWNER");
+        assertThat(listObjects(role.get("permissions"))).isNotEmpty();
+    }
+
+    @Test
     void disabledTransitionRulesAllowAnyProjectMemberToMoveIssueAnywhere() throws Exception {
         TestUser owner = register("free-owner");
         TestUser worker = register("free-worker");

@@ -180,7 +180,8 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
                         user.map(UserDto::email).orElse("") ,
                         role.id(),
                         role.name(),
-                        role.permissions()
+                        role.permissions(),
+                        project.getOwnerId().equals(member.getUserId())
                     );
                 })
                 .toList())

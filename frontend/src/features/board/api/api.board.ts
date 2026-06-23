@@ -9,6 +9,7 @@ import type {
   UpdateIssueRequest,
   UploadResponse,
 } from '@/features/board/model/board.types.ts';
+import { normalizeProjectRoleResponse } from '@/features/profile/model/project-role.utils.ts';
 
 export const createIssue = async (request: CreateIssueRequest) => {
   const { data } = await axiosInstance.post<Issue>('/issues', request);
@@ -60,11 +61,14 @@ export const getLifecycleGraph = async () => {
 };
 
 export const getMyRole = async (id: number) => {
-  const { data } = await axiosInstance.get<CurrentProjectRoleResponse>(
+  const { data } = await axiosInstance.get<unknown>(
     `/projects/${id}/my-role`
   );
 
-  return data;
+  return normalizeProjectRoleResponse(
+    data,
+    id
+  ) satisfies CurrentProjectRoleResponse;
 };
 
 export const downloadAttachment = async (filename: string) => {

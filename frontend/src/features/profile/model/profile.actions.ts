@@ -91,12 +91,8 @@ export const createProject = createAsyncThunk<
     const { role } = await ProfileRequests.getMyRole(project.id);
 
     return { project, permissions: role.permissions };
-  } catch (e) {
-    if (e instanceof AxiosError) {
-      return rejectWithValue(e.response?.data?.message || 'Error happened');
-    }
-
-    return rejectWithValue('Error happened');
+  } catch (error: unknown) {
+    return rejectWithValue(getApiErrorMessage(error));
   }
 });
 

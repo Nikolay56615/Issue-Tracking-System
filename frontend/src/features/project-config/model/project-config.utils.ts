@@ -28,6 +28,7 @@ export const FIELD_TYPE_OPTIONS: CustomFieldType[] = [
   'number',
   'date',
   'checkbox',
+  'enum',
   'user_reference',
   'issue_reference',
   'enum',
@@ -409,6 +410,23 @@ export const toCheckboxConfig = (field: CustomFieldDefinition) => ({
   config: {},
 });
 
+export const toEnumConfig = (field: CustomFieldDefinition) => ({
+  ...field,
+  type: 'enum' as const,
+  config: {
+    options:
+      field.type === 'enum'
+        ? field.config.options
+        : [
+            {
+              id: `${field.id}-option-1`,
+              label: 'Option 1',
+              color: '#2563eb',
+            },
+          ],
+  },
+});
+
 export const toUserReferenceConfig = (
   field: CustomFieldDefinition,
   roles: CustomRole[]
@@ -457,6 +475,7 @@ export const switchFieldType = (
   if (type === 'number') return toNumberConfig(field);
   if (type === 'date') return toDateConfig(field);
   if (type === 'checkbox') return toCheckboxConfig(field);
+  if (type === 'enum') return toEnumConfig(field);
   if (type === 'user_reference') return toUserReferenceConfig(field, roles);
   if (type === 'enum') return toEnumConfig(field);
   return toIssueReferenceConfig(field);

@@ -9,6 +9,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -191,6 +192,34 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
       );
     }
 
+    if (field.type === 'enum') {
+      return (
+        <Select
+          value={typeof value === 'string' ? value : 'all'}
+          onValueChange={(nextValue) =>
+            setLocalCustomFilters((prev) => ({
+              ...prev,
+              [field.id]: nextValue === 'all' ? null : nextValue,
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={field.name} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="all">Any</SelectItem>
+              {field.config.options.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      );
+    }
+
     if (field.type === 'user_reference') {
       const allowedMembers = getAssignableMembersForField(field, projectMembers);
 
@@ -270,7 +299,10 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
           Filters
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="mr-4 w-96 p-4" align="start">
+      <PopoverContent
+        className="mr-4 max-h-[calc(100vh-2rem)] w-96 overflow-y-auto p-4"
+        align="start"
+      >
         <div className="space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium">Type</label>

@@ -56,7 +56,7 @@ export const AuthForm = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<Mode>('register');
+  const [mode, setMode] = useState<Mode>('login');
 
   const form = useForm<z.infer<typeof authFormSchema>>({
     resolver: zodResolver(authFormSchema),

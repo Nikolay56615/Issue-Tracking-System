@@ -19,6 +19,7 @@ export type CustomFieldType =
   | 'number'
   | 'date'
   | 'checkbox'
+  | 'enum'
   | 'user_reference'
   | 'issue_reference'
   | 'enum';
@@ -57,6 +58,19 @@ export interface CheckboxFieldDefinition extends BaseCustomFieldDefinition {
   config: Record<string, never>;
 }
 
+export interface EnumFieldOption {
+  id: string;
+  label: string;
+  color: string;
+}
+
+export interface EnumFieldDefinition extends BaseCustomFieldDefinition {
+  type: 'enum';
+  config: {
+    options: EnumFieldOption[];
+  };
+}
+
 export interface UserReferenceFieldDefinition
   extends BaseCustomFieldDefinition {
   type: 'user_reference';
@@ -89,6 +103,7 @@ export type CustomFieldDefinition =
   | NumberFieldDefinition
   | DateFieldDefinition
   | CheckboxFieldDefinition
+  | EnumFieldDefinition
   | UserReferenceFieldDefinition
   | IssueReferenceFieldDefinition
   | EnumFieldDefinition;
@@ -162,7 +177,12 @@ export const PERMISSION_GROUPS: Array<{
   },
   {
     label: 'Members',
-    permissions: ['members.invite', 'members.remove', 'members.assignRole'],
+    permissions: [
+      'members.view',
+      'members.invite',
+      'members.remove',
+      'members.assignRole',
+    ],
   },
   {
     label: 'Project Settings',

@@ -93,7 +93,8 @@ const profileSlice = createSlice({
       })
       .addCase(createProject.rejected, (state, action) => {
         state.createProjectLoading = 'failed';
-        state.profileError = action.payload ?? 'Failed to fetch current user';
+        state.createProjectError =
+          action.payload ?? 'Failed to create project';
       })
       .addCase(archiveProject.pending, (state, action) => {
         const id = action.meta.arg;

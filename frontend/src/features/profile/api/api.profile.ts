@@ -7,6 +7,7 @@ import type {
   UpdateProjectMemberRoleRequest,
   UserProfile,
 } from '@/features/profile/model/profile.types.ts';
+import { normalizeProjectRoleResponse } from '@/features/profile/model/project-role.utils.ts';
 
 export const fetchProjects = async () => {
   const { data } = await axiosInstance.get<Project[]>('/projects');
@@ -33,11 +34,14 @@ export const createProject = async ({
 };
 
 export const getMyRole = async (id: number) => {
-  const { data } = await axiosInstance.get<CurrentProjectRoleResponse>(
+  const { data } = await axiosInstance.get<unknown>(
     `/projects/${id}/my-role`
   );
 
-  return data;
+  return normalizeProjectRoleResponse(
+    data,
+    id
+  ) satisfies CurrentProjectRoleResponse;
 };
 
 export const inviteUser = async ({

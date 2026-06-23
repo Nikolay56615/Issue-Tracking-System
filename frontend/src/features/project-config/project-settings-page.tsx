@@ -511,6 +511,42 @@ export const ProjectSettingsPage = () => {
     }
   };
 
+  const handleImportTemplate = async (file: File) => {
+    try {
+      const parsed = JSON.parse(await file.text()) as {
+        config?: Partial<ProjectConfig>;
+      } & Partial<ProjectConfig>;
+      const imported = parsed.config ?? parsed;
+      if (
+        !Array.isArray(imported.roles) ||
+        !imported.lifecycle ||
+        !Array.isArray(imported.lifecycle.statuses) ||
+        !Array.isArray(imported.lifecycle.transitions) ||
+        !Array.isArray(imported.customFields)
+      ) {
+        throw new Error('The selected file is not a project template');
+      }
+
+      const importedDraft: ProjectConfig = {
+        ...draft,
+        ...imported,
+        projectId,
+        updatedAt: draft.updatedAt,
+      };
+      importedDraft.fieldOrder = getNormalizedFieldOrder(importedDraft);
+      importedDraft.boardCardFieldIds =
+        getNormalizedBoardCardFieldIds(importedDraft);
+      setDraft(importedDraft);
+      toast.success('Template loaded');
+    } catch (importError) {
+      toast.error(
+        importError instanceof Error
+          ? importError.message
+          : 'Failed to import template'
+      );
+    }
+  };
+
   const handleStatusDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -703,6 +739,7 @@ export const ProjectSettingsPage = () => {
               sourceProjects={sourceProjects}
               handleExportTemplate={handleExportTemplate}
               handleApplyTemplate={handleApplyTemplate}
+              handleImportTemplate={handleImportTemplate}
             />
           </TabsContent>
         </Tabs>

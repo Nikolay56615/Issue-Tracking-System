@@ -243,12 +243,6 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       }
     }
 
-    if (field.type === 'enum' && value != null) {
-      if (!field.config.options.some((option) => option.id === value)) {
-        return `${field.name} references an unavailable option`;
-      }
-    }
-
     return null;
   };
 
@@ -373,26 +367,7 @@ export const IssueForm = ({ mode, projectId, issue }: IssueFormProps) => {
       );
     }
 
-    return (
-      <Select
-        value={value == null ? 'none' : String(value)}
-        onValueChange={(nextValue) =>
-          setFieldValue(field.id, nextValue === 'none' ? null : nextValue)
-        }
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder={field.name} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">Not set</SelectItem>
-          {field.config.options.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
+    return null;
   };
 
   const onSubmit = async () => {

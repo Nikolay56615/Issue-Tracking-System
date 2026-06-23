@@ -266,29 +266,7 @@ export const FiltersPopover = ({ projectId }: FiltersPopoverProps) => {
       );
     }
 
-    return (
-      <Select
-        value={value == null ? 'all' : String(value)}
-        onValueChange={(nextValue) =>
-          setLocalCustomFilters((prev) => ({
-            ...prev,
-            [field.id]: nextValue === 'all' ? null : nextValue,
-          }))
-        }
-      >
-        <SelectTrigger>
-          <SelectValue placeholder={field.name} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Any option</SelectItem>
-          {field.config.options.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
+    return null;
   };
 
   return (

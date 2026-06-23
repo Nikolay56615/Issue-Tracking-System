@@ -21,8 +21,7 @@ export type CustomFieldType =
   | 'checkbox'
   | 'enum'
   | 'user_reference'
-  | 'issue_reference'
-  | 'enum';
+  | 'issue_reference';
 
 export interface BaseCustomFieldDefinition {
   id: string;
@@ -85,19 +84,6 @@ export interface IssueReferenceFieldDefinition
   config: Record<string, never>;
 }
 
-export interface EnumFieldOption {
-  id: string;
-  label: string;
-  color: string;
-}
-
-export interface EnumFieldDefinition extends BaseCustomFieldDefinition {
-  type: 'enum';
-  config: {
-    options: EnumFieldOption[];
-  };
-}
-
 export type CustomFieldDefinition =
   | TextFieldDefinition
   | NumberFieldDefinition
@@ -105,8 +91,7 @@ export type CustomFieldDefinition =
   | CheckboxFieldDefinition
   | EnumFieldDefinition
   | UserReferenceFieldDefinition
-  | IssueReferenceFieldDefinition
-  | EnumFieldDefinition;
+  | IssueReferenceFieldDefinition;
 
 export interface CustomStatus {
   id: string;

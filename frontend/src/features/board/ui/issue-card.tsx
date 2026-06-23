@@ -19,7 +19,6 @@ import {
   getBoardCardFieldEntries,
   getCustomFieldById,
 } from '@/features/project-config/model';
-import { EnumFieldBadge } from '@/features/board/ui/enum-field-badge.tsx';
 
 interface IssueCardProps {
   issue: Issue;
@@ -226,14 +225,10 @@ export const IssueCard = ({
           return (
             <span key={field.id} className="text-muted-foreground text-xs">
               {field.name}:{' '}
-              {field.type === 'enum' ? (
-                <EnumFieldBadge field={field} value={value} />
-              ) : (
-                formatCustomFieldValue(field, value, {
-                  issues,
-                  members,
-                })
-              )}
+              {formatCustomFieldValue(field, value, {
+                issues,
+                members,
+              })}
             </span>
           );
         })}

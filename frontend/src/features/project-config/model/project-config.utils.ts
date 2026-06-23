@@ -31,7 +31,6 @@ export const FIELD_TYPE_OPTIONS: CustomFieldType[] = [
   'enum',
   'user_reference',
   'issue_reference',
-  'enum',
 ];
 
 export const CONDITION_EDITOR_OPTIONS = [
@@ -449,23 +448,6 @@ export const toIssueReferenceConfig = (field: CustomFieldDefinition) => ({
   config: {},
 });
 
-export const toEnumConfig = (field: CustomFieldDefinition) => ({
-  ...field,
-  type: 'enum' as const,
-  config: {
-    options:
-      field.type === 'enum'
-        ? field.config.options
-        : [
-            {
-              id: 'blocked',
-              label: 'Blocked',
-              color: '#ef4444',
-            },
-          ],
-  },
-});
-
 export const switchFieldType = (
   field: CustomFieldDefinition,
   type: CustomFieldType,
@@ -477,7 +459,6 @@ export const switchFieldType = (
   if (type === 'checkbox') return toCheckboxConfig(field);
   if (type === 'enum') return toEnumConfig(field);
   if (type === 'user_reference') return toUserReferenceConfig(field, roles);
-  if (type === 'enum') return toEnumConfig(field);
   return toIssueReferenceConfig(field);
 };
 

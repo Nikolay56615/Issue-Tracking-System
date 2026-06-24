@@ -2116,25 +2116,8 @@ const config = [
           return error(400, 'Target status does not exist');
         }
 
-        if (access.config.lifecycle.transitionRulesEnabled === false) {
-          issue.status = nextStatus;
-          return ok();
-        }
-
-        if (!hasPermission(access.role, 'issue.edit')) {
-          return error(403, 'Insufficient permissions');
-        }
-
-        const transition = access.config.lifecycle.transitions.find(
-          (item) =>
-            item.fromStatusId === issue.status && item.toStatusId === nextStatus
-        );
-        if (!transition) {
-          return error(400, 'Transition is not configured');
-        }
-
-        if (!isTransitionAllowed(issue, transition, access.user.id, access.role.id)) {
-          return error(403, 'Transition is not allowed for the current user');
+        if (!canTransitionIssue(issue, nextStatus, access)) {
+          return error(403, 'Transition denied by lifecycle rules');
         }
 
         issue.status = nextStatus;

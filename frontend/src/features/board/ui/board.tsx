@@ -201,9 +201,18 @@ export const Board = ({ projectId }: { projectId: number }) => {
 
     if (statusChangeLoading[draggedIssue.id]) return;
 
-    const overStatus = over.id as IssueStatus;
+    const overId = over.id;
+    const overIssue = displayIssues.find((i) => i.id === Number(overId));
+    const overStatus =
+      typeof overId === 'string' && statusIds.includes(overId as IssueStatus)
+        ? (overId as IssueStatus)
+        : overIssue?.status;
 
-    if (!statusIds.includes(overStatus) || draggedIssue.status === overStatus) {
+    if (
+      !overStatus ||
+      !statusIds.includes(overStatus) ||
+      draggedIssue.status === overStatus
+    ) {
       return;
     }
 

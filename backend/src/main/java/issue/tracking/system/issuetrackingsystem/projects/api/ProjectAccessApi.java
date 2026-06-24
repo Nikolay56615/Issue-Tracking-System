@@ -1,8 +1,6 @@
 package issue.tracking.system.issuetrackingsystem.projects.api;
 
 import java.util.Optional;
-import java.util.List;
-import java.util.Map;
 
 public interface ProjectAccessApi {
     /**
@@ -20,14 +18,4 @@ public interface ProjectAccessApi {
     Optional<String> getUserRole(Long userId, Long projectId);
 
     boolean hasPermission(Long userId, Long projectId, String permission);
-
-    boolean canTransitionIssue(
-        Long userId,
-        Long projectId,
-        String fromStatusId,
-        String toStatusId,
-        Long authorId,
-        List<Long> assigneeIds,
-        Map<String, Object> customFields
-    );
 }

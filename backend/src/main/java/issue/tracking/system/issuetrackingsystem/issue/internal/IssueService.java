@@ -4,8 +4,9 @@ import issue.tracking.system.issuetrackingsystem.issue.api.*;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.CustomFieldDefinitionDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectConfigDto;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectIssueConfigApi;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectLifecyclePolicyApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
-import issue.tracking.system.issuetrackingsystem.projects.internal.ProjectConfigService;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
@@ -29,8 +30,9 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     private final IssueRepository issueRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ProjectAccessApi projectAccess;
+    private final ProjectLifecyclePolicyApi lifecyclePolicyApi;
     private final ProjectQueryApi projectQueryApi;
-    private final ProjectConfigService projectConfigService;
+    private final ProjectIssueConfigApi projectIssueConfigApi;
     private final FileStorageApi fileStorage;
     private final IssueMapper mapper;
 
@@ -64,8 +66,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             throw new SecurityException("Assignees must be project members");
         }
 
-        ProjectConfigDto config = projectConfigService.getOrCreateConfig(projectId);
-        Map<String, Object> sanitizedCustomFields = projectConfigService.sanitizeCustomFields(
+        Map<String, Object> sanitizedCustomFields = projectIssueConfigApi.sanitizeCustomFields(
             projectId,
             customFields,
             null
@@ -79,7 +80,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         issue.setType(type);
         issue.setPriority(priority);
         issue.setAssigneeIds(new ArrayList<>(selectedAssigneeIds));
-        issue.setStatus(projectConfigService.getInitialStatusId(projectId));
+        issue.setStatus(projectIssueConfigApi.getInitialStatusId(projectId));
         issue.setStartDate(LocalDate.now());
         if (dueDate != null) {
             issue.setDueDate(dueDate);
@@ -167,15 +168,15 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
 
         if (customFields != null) {
             issue.setCustomFieldsJson(mapper.writeCustomFields(
-                projectConfigService.sanitizeCustomFields(issue.getProjectId(), customFields, issue.getId())
+                projectIssueConfigApi.sanitizeCustomFields(issue.getProjectId(), customFields, issue.getId())
             ));
         }
 
         if (status != null && !status.equals(issue.getStatus())) {
-            if (!projectConfigService.statusExists(issue.getProjectId(), status)) {
+            if (!projectIssueConfigApi.statusExists(issue.getProjectId(), status)) {
                 throw new IllegalArgumentException("Target status does not exist");
             }
-            if (!projectAccess.canTransitionIssue(
+            if (!lifecyclePolicyApi.canTransitionIssue(
                 userId,
                 issue.getProjectId(),
                 issue.getStatus(),
@@ -237,11 +238,11 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         if (!projectAccess.hasAccess(userId, issue.getProjectId())) {
             throw new SecurityException("User is not a member of the project");
         }
-        if (!projectConfigService.statusExists(issue.getProjectId(), newStatus)) {
+        if (!projectIssueConfigApi.statusExists(issue.getProjectId(), newStatus)) {
             throw new IllegalArgumentException("Target status does not exist");
         }
 
-        if (!projectAccess.canTransitionIssue(
+        if (!lifecyclePolicyApi.canTransitionIssue(
             userId,
             issue.getProjectId(),
             issue.getStatus(),
@@ -314,7 +315,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
                     .collect(Collectors.toCollection(ArrayList::new));
                 issue.setAssigneeIds(assignees);
                 if (assignees.isEmpty()) {
-                    issue.setStatus(projectConfigService.getInitialStatusId(projectId));
+                    issue.setStatus(projectIssueConfigApi.getInitialStatusId(projectId));
                 }
                 issueRepository.save(issue);
             }
@@ -336,7 +337,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
     @Transactional(readOnly = true)
     public List<IssueDto> getBoardIssues(Long userId, Long projectId, IssueFilterDto filter) {
         requireIssueView(userId, projectId);
-        ProjectConfigDto config = projectConfigService.getOrCreateConfig(projectId);
+        ProjectConfigDto config = projectIssueConfigApi.getOrCreateConfig(projectId);
         List<Issue> issues = issueRepository.findAllActiveByProjectId(projectId);
         Stream<Issue> stream = issues.stream();
 

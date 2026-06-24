@@ -7,12 +7,13 @@ import issue.tracking.system.issuetrackingsystem.bff.dto.InviteUserRequest;
 import issue.tracking.system.issuetrackingsystem.bff.dto.UpdateProjectMemberRoleRequest;
 import issue.tracking.system.issuetrackingsystem.projects.api.CurrentProjectRoleResponse;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectCommandApi;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectConfigCommandApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectConfigDto;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectConfigQueryApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectMemberWithRoleDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectTemplateDto;
-import issue.tracking.system.issuetrackingsystem.projects.internal.ProjectConfigService;
 import issue.tracking.system.issuetrackingsystem.users.api.CurrentUserProvider;
 import issue.tracking.system.issuetrackingsystem.users.api.UserDto;
 import issue.tracking.system.issuetrackingsystem.issue.api.IssueCommandApi;
@@ -29,9 +30,10 @@ public class ProjectController {
 
     private final ProjectCommandApi commandApi;
     private final ProjectQueryApi queryApi;
+    private final ProjectConfigCommandApi configCommandApi;
+    private final ProjectConfigQueryApi configQueryApi;
     private final CurrentUserProvider currentUserProvider;
     private final IssueCommandApi issueCommandApi;
-    private final ProjectConfigService projectConfigService;
 
     // --- QUERY ---
 
@@ -67,7 +69,7 @@ public class ProjectController {
     public CurrentProjectRoleResponse getMyRole(@PathVariable Long id) {
         Long userId = currentUserProvider.getCurrentUserId();
         return new CurrentProjectRoleResponse(
-            projectConfigService.getUserRole(id, userId)
+            configQueryApi.getUserRole(id, userId)
                 .orElseThrow(() -> new SecurityException("User is not a member of the project"))
         );
     }
@@ -75,7 +77,7 @@ public class ProjectController {
     @GetMapping("/{id}/config")
     public ProjectConfigDto getConfig(@PathVariable Long id) {
         requireProjectMember(id);
-        return projectConfigService.getOrCreateConfig(id);
+        return configQueryApi.getOrCreateConfig(id);
     }
 
     @PutMapping("/{id}/config")
@@ -84,13 +86,13 @@ public class ProjectController {
         @RequestBody ProjectConfigDto config
     ) {
         requirePermission(id, "settings.manage");
-        return projectConfigService.saveConfig(id, config);
+        return configCommandApi.saveConfig(id, config);
     }
 
     @GetMapping("/{id}/template")
     public ProjectTemplateDto exportTemplate(@PathVariable Long id) {
         requireProjectMember(id);
-        return projectConfigService.exportTemplate(id);
+        return configCommandApi.exportTemplate(id);
     }
 
     @PostMapping("/{id}/template")
@@ -100,7 +102,7 @@ public class ProjectController {
     ) {
         requirePermission(id, "template.apply");
         requireProjectMember(request.sourceProjectId());
-        return projectConfigService.applyTemplate(id, request.sourceProjectId());
+        return configCommandApi.applyTemplate(id, request.sourceProjectId());
     }
 
     @PostMapping("/{id}/template/import")
@@ -109,7 +111,7 @@ public class ProjectController {
         @Valid @RequestBody ImportProjectTemplateRequest request
     ) {
         requirePermission(id, "template.apply");
-        return projectConfigService.importTemplate(id, request.config());
+        return configCommandApi.importTemplate(id, request.config());
     }
 
     // --- COMMAND ---
@@ -120,7 +122,7 @@ public class ProjectController {
         ProjectDto project = commandApi.createProject(request.name(), userId);
         if (request.templateProjectId() != null) {
             requireProjectMember(request.templateProjectId());
-            projectConfigService.applyTemplate(project.id(), request.templateProjectId());
+            configCommandApi.applyTemplate(project.id(), request.templateProjectId());
         }
         return project;
     }
@@ -171,13 +173,13 @@ public class ProjectController {
 
     private void requireProjectMember(Long projectId) {
         Long userId = currentUserProvider.getCurrentUserId();
-        projectConfigService.getUserRole(projectId, userId)
+        configQueryApi.getUserRole(projectId, userId)
             .orElseThrow(() -> new SecurityException("User is not a member of the project"));
     }
 
     private void requirePermission(Long projectId, String permission) {
         Long userId = currentUserProvider.getCurrentUserId();
-        if (!projectConfigService.hasPermission(projectId, userId, permission)) {
+        if (!configQueryApi.hasPermission(projectId, userId, permission)) {
             throw new SecurityException("Insufficient project permissions");
         }
     }

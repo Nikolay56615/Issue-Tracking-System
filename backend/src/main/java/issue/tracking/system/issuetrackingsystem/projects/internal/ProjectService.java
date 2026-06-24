@@ -4,6 +4,7 @@ import issue.tracking.system.issuetrackingsystem.projects.api.ProjectAccessApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectCommandApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.CustomRoleDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectDto;
+import issue.tracking.system.issuetrackingsystem.projects.api.ProjectLifecyclePolicyApi;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectMemberWithRoleDto;
 import issue.tracking.system.issuetrackingsystem.projects.api.ProjectQueryApi;
 import issue.tracking.system.issuetrackingsystem.users.api.UserDto;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class ProjectService implements ProjectAccessApi, ProjectCommandApi, ProjectQueryApi {
+public class ProjectService implements ProjectAccessApi, ProjectCommandApi, ProjectQueryApi, ProjectLifecyclePolicyApi {
 
     private final ProjectRepository projectRepository;
     private final UserQueryApi userQueryApi;

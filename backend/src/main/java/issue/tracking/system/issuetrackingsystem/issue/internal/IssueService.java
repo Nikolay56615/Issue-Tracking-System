@@ -78,7 +78,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         issue.setDescription(description);
         issue.setType(type);
         issue.setPriority(priority);
-        issue.setAssigneeIds(selectedAssigneeIds);
+        issue.setAssigneeIds(new ArrayList<>(selectedAssigneeIds));
         issue.setStatus(projectConfigService.getInitialStatusId(projectId));
         issue.setStartDate(LocalDate.now());
         if (dueDate != null) {
@@ -158,7 +158,7 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
             if (!new HashSet<>(memberIds).containsAll(assigneeIds)) {
                 throw new SecurityException("Assignees must be project members");
             }
-            issue.setAssigneeIds(assigneeIds);
+            issue.setAssigneeIds(new ArrayList<>(assigneeIds));
         }
 
         if (dueDate != null) {
@@ -309,7 +309,9 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         for (Issue issue : assigned) {
             List<Long> assignees = issue.getAssigneeIds();
             if (assignees != null && assignees.contains(userId)) {
-                assignees = assignees.stream().filter(id -> !id.equals(userId)).toList();
+                assignees = assignees.stream()
+                    .filter(id -> !id.equals(userId))
+                    .collect(Collectors.toCollection(ArrayList::new));
                 issue.setAssigneeIds(assignees);
                 if (assignees.isEmpty()) {
                     issue.setStatus(projectConfigService.getInitialStatusId(projectId));

@@ -143,12 +143,8 @@ export interface FieldRowProps {
     roles: ProjectConfig['roles']
   ) => CustomFieldDefinition;
   deleteField: (fieldId: string) => void;
-}
-
-export interface BoardCardFieldRowProps {
-  fieldEntry: OrderedIssueFieldEntry;
-  checked: boolean;
-  onToggle: (fieldId: string) => void;
+  shownOnBoardCard: boolean;
+  toggleBoardCardField: (fieldId: string) => void;
 }
 
 export interface TemplatesContentProps {

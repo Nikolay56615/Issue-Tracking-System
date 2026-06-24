@@ -50,9 +50,11 @@ export const UserCard = ({
           {user.name}
         </h1>
         <span className="text-gray-600 dark:text-gray-300">{user.email}</span>
-        <span className="text-gray-600 dark:text-gray-300">
-          {user.roleName}
-        </span>
+        {!canManageRoles && (
+          <span className="text-gray-600 dark:text-gray-300">
+            {user.roleName}
+          </span>
+        )}
         {user.projectOwner && (
           <span className="text-muted-foreground mt-2 text-sm">
             Project owner

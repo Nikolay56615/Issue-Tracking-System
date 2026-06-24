@@ -625,8 +625,9 @@ export const ProjectSettingsPage = () => {
           </div>
           {hasUnsavedChanges && (
             <div
-              className="border-amber-300 bg-amber-50 px-3 py-2 text-sm
-                font-medium text-amber-800"
+              className="inline-flex h-9 items-center rounded-md
+                border border-amber-300 bg-amber-50 px-3 text-sm font-medium
+                text-amber-800 shadow-sm"
             >
               Unsaved changes
             </div>
@@ -712,7 +713,7 @@ export const ProjectSettingsPage = () => {
 
           <TabsContent
             value="fields"
-            className="mt-0 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]"
+            className="mt-0"
           >
             <FieldsTab
               draft={draft}

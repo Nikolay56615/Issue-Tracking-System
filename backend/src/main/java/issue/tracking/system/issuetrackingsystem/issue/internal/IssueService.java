@@ -309,10 +309,15 @@ public class IssueService implements IssueCommandApi, IssueQueryApi {
         for (Issue issue : assigned) {
             List<Long> assignees = issue.getAssigneeIds();
             if (assignees != null && assignees.contains(userId)) {
-                assignees = assignees.stream().filter(id -> !id.equals(userId)).toList();
-                issue.setAssigneeIds(assignees);
-                if (assignees.isEmpty()) {
-                    issue.setStatus(projectConfigService.getInitialStatusId(projectId));
+                // Используем ArrayList вместо toList(), чтобы получить изменяемый список
+                List<Long> filteredAssignees = assignees.stream()
+                        .filter(id -> !id.equals(userId))
+                        .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+
+                issue.setAssigneeIds(filteredAssignees);
+
+                if (filteredAssignees.isEmpty()) {
+                    issue.setStatus(IssueStatus.BACKLOG);
                 }
                 issueRepository.save(issue);
             }

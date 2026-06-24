@@ -235,9 +235,6 @@ export const FieldEditor = ({
           <div className="flex items-center justify-between gap-3">
             <div>
               <Label>Options</Label>
-              <p className="text-muted-foreground text-xs">
-                Stored value is option id; label and color are used for badges.
-              </p>
             </div>
             <Button
               size="sm"
@@ -271,30 +268,11 @@ export const FieldEditor = ({
             {field.config.options.map((option, optionIndex) => (
               <div
                 key={`${option.id}-${optionIndex}`}
-                className="grid gap-2 md:grid-cols-[1fr_1fr_110px_auto]"
+                className="grid gap-2 md:grid-cols-[1fr_110px_auto]"
               >
                 <Input
-                  aria-label="Option id"
-                  value={option.id}
-                  onChange={(event) =>
-                    updateField(field.id, (current) =>
-                      current.type === 'enum'
-                        ? {
-                            ...current,
-                            config: {
-                              options: current.config.options.map((item, index) =>
-                                index === optionIndex
-                                  ? { ...item, id: event.target.value }
-                                  : item
-                              ),
-                            },
-                          }
-                        : current
-                    )
-                  }
-                />
-                <Input
                   aria-label="Option label"
+                  placeholder="Option name"
                   value={option.label}
                   onChange={(event) =>
                     updateField(field.id, (current) =>

@@ -1,9 +1,11 @@
-FROM gradle:8.14.0-jdk21 AS build
+FROM eclipse-temurin:21-jdk-alpine AS build
 RUN umask 0000
+RUN apk add --no-cache bash
 WORKDIR /app
-COPY build.gradle settings.gradle ./
+COPY gradlew build.gradle settings.gradle ./
+COPY gradle ./gradle
 COPY src ./src
-RUN gradle build -x test --no-daemon
+RUN chmod +x gradlew && ./gradlew build -x test --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine
 RUN apk add --no-cache bash

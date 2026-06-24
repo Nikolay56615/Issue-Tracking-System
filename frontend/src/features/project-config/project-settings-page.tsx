@@ -37,10 +37,12 @@ import {
   getOrderedStatuses,
   hasPermission,
   hasValuesForField,
+  importProjectTemplate,
   saveProjectConfig,
   switchFieldType,
   type CustomFieldDefinition,
   type ProjectConfig,
+  type ProjectTemplate,
   type Transition,
 } from '@/features/project-config/model';
 import {
@@ -71,6 +73,22 @@ const areConfigsEqual = (
   return (
     JSON.stringify(omitUpdatedAt(left)) === JSON.stringify(omitUpdatedAt(right))
   );
+};
+
+const extractImportedTemplateConfig = (
+  value: unknown
+): ProjectTemplate['config'] => {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Template JSON must contain an object');
+  }
+
+  const maybeTemplate = value as { config?: unknown };
+  const config = maybeTemplate.config ?? value;
+  if (config === null || typeof config !== 'object') {
+    throw new Error('Template JSON must contain a config object');
+  }
+
+  return config as ProjectTemplate['config'];
 };
 
 export const ProjectSettingsPage = () => {
@@ -513,36 +531,21 @@ export const ProjectSettingsPage = () => {
 
   const handleImportTemplate = async (file: File) => {
     try {
-      const parsed = JSON.parse(await file.text()) as {
-        config?: Partial<ProjectConfig>;
-      } & Partial<ProjectConfig>;
-      const imported = parsed.config ?? parsed;
-      if (
-        !Array.isArray(imported.roles) ||
-        !imported.lifecycle ||
-        !Array.isArray(imported.lifecycle.statuses) ||
-        !Array.isArray(imported.lifecycle.transitions) ||
-        !Array.isArray(imported.customFields)
-      ) {
-        throw new Error('The selected file is not a project template');
-      }
-
-      const importedDraft: ProjectConfig = {
-        ...draft,
-        ...imported,
-        projectId,
-        updatedAt: draft.updatedAt,
-      };
-      importedDraft.fieldOrder = getNormalizedFieldOrder(importedDraft);
-      importedDraft.boardCardFieldIds =
-        getNormalizedBoardCardFieldIds(importedDraft);
-      setDraft(importedDraft);
-      toast.success('Template loaded');
-    } catch (importError) {
+      const parsed = JSON.parse(await file.text());
+      const importedConfig = await dispatch(
+        importProjectTemplate({
+          projectId,
+          config: extractImportedTemplateConfig(parsed),
+        })
+      ).unwrap();
+      setDraft(cloneConfig(importedConfig));
+      setSelectedTemplateProjectId('');
+      toast.success('Template imported');
+    } catch (importErrorValue) {
       toast.error(
-        importError instanceof Error
-          ? importError.message
-          : 'Failed to import template'
+        importErrorValue instanceof Error
+          ? importErrorValue.message
+          : String(importErrorValue)
       );
     }
   };

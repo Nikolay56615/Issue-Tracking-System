@@ -63,8 +63,8 @@ VALUES
   (1, $json$
 {
   "roles": [
-    {"id":"project-1-role-owner","projectId":1,"name":"Owner","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
-    {"id":"project-1-role-admin","projectId":1,"name":"Admin","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
+    {"id":"project-1-role-owner","projectId":1,"name":"Owner","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.view","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
+    {"id":"project-1-role-admin","projectId":1,"name":"Admin","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.view","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
     {"id":"project-1-role-developer","projectId":1,"name":"Developer","permissions":["issue.view","issue.create","issue.edit"]},
     {"id":"project-1-role-qa","projectId":1,"name":"QA","permissions":["issue.view","issue.edit"]},
     {"id":"project-1-role-qa-lead","projectId":1,"name":"QA Lead","permissions":["issue.view","issue.edit","template.export"]}
@@ -79,7 +79,8 @@ VALUES
       {"id":"project-1-status-done","projectId":1,"name":"Done","displayOrder":5,"color":"#16a34a","isInitial":false}
     ],
     "transitions": [
-      {"id":"project-1-transition-backlog-to-in-progress","fromStatusId":"project-1-status-backlog","toStatusId":"project-1-status-in-progress","conditions":[{"type":"role","roleId":"project-1-role-developer"},{"type":"role","roleId":"project-1-role-admin"},{"type":"role","roleId":"project-1-role-owner"},{"type":"author"},{"type":"assignee"}]},
+      {"id":"project-1-transition-backlog-to-in-progress","fromStatusId":"project-1-status-backlog","toStatusId":"project-1-status-in-progress","conditions":[{"type":"assignee"}]},
+      {"id":"project-1-transition-in-progress-to-backlog","fromStatusId":"project-1-status-in-progress","toStatusId":"project-1-status-backlog","conditions":[{"type":"assignee"}]},
       {"id":"project-1-transition-in-progress-to-review","fromStatusId":"project-1-status-in-progress","toStatusId":"project-1-status-review","conditions":[{"type":"role","roleId":"project-1-role-developer"},{"type":"role","roleId":"project-1-role-admin"},{"type":"role","roleId":"project-1-role-owner"},{"type":"assignee"}]},
       {"id":"project-1-transition-review-to-in-progress","fromStatusId":"project-1-status-review","toStatusId":"project-1-status-in-progress","conditions":[{"type":"role","roleId":"project-1-role-developer"},{"type":"role","roleId":"project-1-role-admin"},{"type":"role","roleId":"project-1-role-owner"},{"type":"author"}]},
       {"id":"project-1-transition-review-to-qa","fromStatusId":"project-1-status-review","toStatusId":"project-1-status-qa","conditions":[{"type":"role","roleId":"project-1-role-qa-lead"},{"type":"role","roleId":"project-1-role-admin"},{"type":"role","roleId":"project-1-role-owner"}]},
@@ -100,8 +101,8 @@ $json$, now()),
   (2, $json$
 {
   "roles": [
-    {"id":"project-2-role-owner","projectId":2,"name":"Owner","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
-    {"id":"project-2-role-admin","projectId":2,"name":"Admin","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
+    {"id":"project-2-role-owner","projectId":2,"name":"Owner","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.view","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
+    {"id":"project-2-role-admin","projectId":2,"name":"Admin","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.view","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
     {"id":"project-2-role-engineer","projectId":2,"name":"Engineer","permissions":["issue.view","issue.create","issue.edit"]},
     {"id":"project-2-role-reviewer","projectId":2,"name":"Reviewer","permissions":["issue.view","issue.edit"]},
     {"id":"project-2-role-designer","projectId":2,"name":"Designer","permissions":["issue.view","issue.create","issue.edit"]}
@@ -135,7 +136,7 @@ $json$, now()),
   (3, $json$
 {
   "roles": [
-    {"id":"project-3-role-owner","projectId":3,"name":"Owner","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
+    {"id":"project-3-role-owner","projectId":3,"name":"Owner","permissions":["issue.view","issue.create","issue.edit","issue.remove","members.view","members.invite","members.remove","members.assignRole","settings.manage","project.archive","project.restore","template.export","template.apply"]},
     {"id":"project-3-role-support","projectId":3,"name":"Support","permissions":["issue.view","issue.edit"]}
   ],
   "lifecycle": {

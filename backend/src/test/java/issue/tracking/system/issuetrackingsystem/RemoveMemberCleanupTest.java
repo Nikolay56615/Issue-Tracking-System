@@ -176,7 +176,7 @@ class RemoveMemberCleanupIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of(
                                 "userId", userId,
-                                "role", roleId
+                                "roleId", roleId
                         ))))
                 .andExpect(status().isOk());
     }

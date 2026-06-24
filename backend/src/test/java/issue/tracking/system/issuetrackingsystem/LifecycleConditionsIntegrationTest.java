@@ -46,6 +46,7 @@ class LifecycleConditionsIntegrationTest {
 
         long projectId = createProject(owner, "Graph transitions");
         invite(owner, projectId, worker.id(), "WORKER");
+        enableStrictLifecycle(owner, projectId);
 
         long issueId = createIssue(
                 owner,
@@ -78,6 +79,7 @@ class LifecycleConditionsIntegrationTest {
         TestUser owner = register("invalid-graph-owner");
 
         long projectId = createProject(owner, "Invalid graph");
+        enableStrictLifecycle(owner, projectId);
 
         long issueId = createIssue(
                 owner,
@@ -113,6 +115,7 @@ class LifecycleConditionsIntegrationTest {
         long projectId = createProject(owner, "Role transitions");
         invite(owner, projectId, worker.id(), "WORKER");
         invite(owner, projectId, reviewer.id(), "REVIEWER");
+        enableStrictLifecycle(owner, projectId);
 
         long issueId = createIssue(
                 owner,
@@ -151,6 +154,7 @@ class LifecycleConditionsIntegrationTest {
         long projectId = createProject(owner, "No assignee");
         invite(owner, projectId, worker1.id(), "WORKER");
         invite(owner, projectId, worker2.id(), "WORKER");
+        enableStrictLifecycle(owner, projectId);
 
         // Создаем задачу БЕЗ assignee
         long issueId = createIssue(
@@ -187,6 +191,7 @@ class LifecycleConditionsIntegrationTest {
         long projectId = createProject(owner, "Cancel issue");
         invite(owner, projectId, author.id(), "WORKER");
         invite(owner, projectId, worker.id(), "WORKER");
+        enableStrictLifecycle(owner, projectId);
 
         long issueId = createIssue(
                 author,
@@ -231,6 +236,56 @@ class LifecycleConditionsIntegrationTest {
                                 "attachments", list(issue.get("attachments"))
                         ))))
                 .andExpect(status().isOk());
+    }
+
+    private void enableStrictLifecycle(TestUser user, long projectId) throws Exception {
+
+        Map<String, Object> config = getProjectConfig(user, projectId);
+        Map<String, Object> lifecycle = mutableObject(config.get("lifecycle"));
+        lifecycle.put("transitionRulesEnabled", true);
+        lifecycle.put("transitions", List.of(
+                transition("BACKLOG__IN_PROGRESS", "BACKLOG", "IN_PROGRESS", List.of(condition("assignee"))),
+                transition("IN_PROGRESS__REVIEW", "IN_PROGRESS", "REVIEW", List.of(condition("assignee"))),
+                transition("REVIEW__DONE", "REVIEW", "DONE", List.of(
+                        condition("role", "REVIEWER"),
+                        condition("role", "ADMIN"),
+                        condition("role", "OWNER")
+                )),
+                transition("IN_PROGRESS__BACKLOG", "IN_PROGRESS", "BACKLOG", List.of(condition("author"))),
+                transition("REVIEW__IN_PROGRESS", "REVIEW", "IN_PROGRESS", List.of(
+                        condition("role", "REVIEWER"),
+                        condition("role", "ADMIN"),
+                        condition("role", "OWNER")
+                )),
+                transition("DONE__BACKLOG", "DONE", "BACKLOG", List.of(condition("role", "OWNER")))
+        ));
+        config.put("lifecycle", lifecycle);
+        saveProjectConfig(user, projectId, config);
+    }
+
+    private Map<String, Object> transition(
+            String id,
+            String fromStatusId,
+            String toStatusId,
+            List<Map<String, Object>> conditions
+    ) {
+        return Map.of(
+                "id", id,
+                "fromStatusId", fromStatusId,
+                "toStatusId", toStatusId,
+                "conditions", conditions
+        );
+    }
+
+    private Map<String, Object> condition(String type) {
+        return Map.of("type", type);
+    }
+
+    private Map<String, Object> condition(String type, String roleId) {
+        return Map.of(
+                "type", type,
+                "roleId", roleId
+        );
     }
 
     private TestUser register(String prefix) throws Exception {
@@ -285,7 +340,7 @@ class LifecycleConditionsIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of(
                                 "userId", userId,
-                                "role", role
+                                "roleId", role
                         ))))
                 .andExpect(status().isOk());
     }

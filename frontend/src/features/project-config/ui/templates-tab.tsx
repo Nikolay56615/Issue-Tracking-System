@@ -92,7 +92,7 @@ export const TemplatesTab = ({
 
     <SettingsSection
       title="Import Template"
-      helpText="Load an exported JSON template into this draft."
+      helpText="Import an exported JSON template and apply it to this project."
     >
       <div className="flex flex-col gap-2">
         <Label htmlFor="template-file">Template JSON</Label>

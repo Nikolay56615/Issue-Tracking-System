@@ -46,15 +46,12 @@ export const UserCard = ({
           {user.name}
         </h1>
         <span className="text-gray-600 dark:text-gray-300">{user.email}</span>
-        <span className="text-gray-600 dark:text-gray-300">
-          {user.roleName}
-        </span>
-        {user.projectOwner && (
-          <span className="text-muted-foreground mt-2 text-sm">
-            Project owner
+        {!canManageRoles && (
+          <span className="text-gray-600 dark:text-gray-300">
+            {user.roleName}
           </span>
         )}
-        {canManageRoles && !user.projectOwner && (
+        {canManageRoles && (
           <div className="mt-2 flex items-center gap-2">
             <Select
               value={user.roleId}
@@ -73,6 +70,11 @@ export const UserCard = ({
               </SelectContent>
             </Select>
           </div>
+        )}
+        {user.projectOwner && (
+          <span className="text-muted-foreground mt-2 text-sm">
+            Project owner
+          </span>
         )}
         {!user.projectOwner && !canManageRoles && canRemove && (
           <div className="mt-2">

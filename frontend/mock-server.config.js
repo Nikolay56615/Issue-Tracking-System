@@ -16,6 +16,13 @@ const PERMISSION_KEYS = [
   'template.apply',
 ];
 
+const OWNER_CRITICAL_PERMISSIONS = [
+  'settings.manage',
+  'members.invite',
+  'members.remove',
+  'members.assignRole',
+];
+
 const users = [
   {
     id: 1,
@@ -698,6 +705,37 @@ const getRole = (config, roleId) =>
 const hasPermission = (role, permission) =>
   Boolean(role?.permissions.includes(permission));
 
+const isOwnerLikeRoleDefinition = (role) =>
+  Boolean(
+    role &&
+      OWNER_CRITICAL_PERMISSIONS.every((permission) =>
+        role.permissions.includes(permission)
+      )
+  );
+
+const isOwnerLikeRole = (projectId, roleId, config = getConfig(projectId)) =>
+  isOwnerLikeRoleDefinition(getRole(config, roleId));
+
+const countOwnerLikeMembers = (projectId, config = getConfig(projectId)) =>
+  getProjectMembers(projectId).filter((member) =>
+    isOwnerLikeRole(projectId, member.roleId, config)
+  ).length;
+
+const reassignProjectOwner = (projectId, excludedUserId = null) => {
+  const project = getProject(projectId);
+  if (!project) return false;
+
+  const nextOwner = getProjectMembers(projectId).find(
+    (member) =>
+      member.userId !== excludedUserId &&
+      isOwnerLikeRole(projectId, member.roleId)
+  );
+  if (!nextOwner) return false;
+
+  project.ownerId = nextOwner.userId;
+  return true;
+};
+
 const getGlobalAdminRole = (projectId) => ({
   id: 'GLOBAL_ADMIN',
   projectId,
@@ -1000,6 +1038,7 @@ const getRoleByName = (config, name) =>
 const remapMembersToConfig = (projectId, previousConfig, nextConfig) => {
   const ownerRole =
     getRoleByName(nextConfig, 'Owner') ??
+    nextConfig.roles.find(isOwnerLikeRoleDefinition) ??
     nextConfig.roles.find((role) => hasPermission(role, 'settings.manage')) ??
     nextConfig.roles[0];
   const managerRole =
@@ -1322,10 +1361,6 @@ const toLifecycleGraph = (lifecycle) => ({
 });
 
 const removeProjectMember = (projectId, userId) => {
-  if (getProject(projectId)?.ownerId === userId) {
-    return error(403, 'Project owner cannot be removed');
-  }
-
   const projectMemberIndex = members.findIndex(
     (member) => member.projectId === projectId && member.userId === userId
   );
@@ -1333,7 +1368,19 @@ const removeProjectMember = (projectId, userId) => {
     return error(404, 'Member not found');
   }
 
+  const member = members[projectMemberIndex];
+  if (
+    isOwnerLikeRole(projectId, member.roleId) &&
+    countOwnerLikeMembers(projectId) <= 1
+  ) {
+    return error(403, 'Project must keep at least one owner');
+  }
+
   members.splice(projectMemberIndex, 1);
+  if (getProject(projectId)?.ownerId === userId) {
+    reassignProjectOwner(projectId);
+  }
+
   return ok();
 };
 
@@ -1376,6 +1423,9 @@ const validateProjectConfig = (projectId, config) => {
     getProjectMembers(projectId).some((member) => !roleIds.has(member.roleId))
   ) {
     return 'At least one project member is assigned to a missing role';
+  }
+  if (countOwnerLikeMembers(projectId, config) === 0) {
+    return 'Project must keep at least one owner';
   }
 
   const projectIssues = issues.filter(
@@ -1791,6 +1841,7 @@ const config = [
 
         const ownerRole =
           getRoleByName(nextConfig, 'Owner') ??
+          nextConfig.roles.find(isOwnerLikeRoleDefinition) ??
           nextConfig.roles.find((role) => hasPermission(role, 'settings.manage')) ??
           nextConfig.roles[0];
         members.push({
@@ -1865,6 +1916,9 @@ const config = [
           targetProjectId,
           normalizeTemplateConfig(sourceAccess.config)
         );
+        if (!nextConfig.roles.some(isOwnerLikeRoleDefinition)) {
+          return error(400, 'Project must keep at least one owner');
+        }
 
         remapMembersToConfig(targetProjectId, previousConfig, nextConfig);
         remapIssuesToConfig(targetProjectId, previousConfig, nextConfig);
@@ -1956,16 +2010,25 @@ const config = [
         if (!member) {
           return error(404, 'Member not found');
         }
-        if (member.userId === access.project.ownerId) {
-          return error(403, 'Project owner role cannot be changed');
-        }
 
         const roleId = String(request.body.roleId);
         if (!getRole(access.config, roleId)) {
           return error(400, 'Selected role does not exist');
         }
 
+        const previousRoleId = member.roleId;
         member.roleId = roleId;
+        if (countOwnerLikeMembers(projectId) === 0) {
+          member.roleId = previousRoleId;
+          return error(403, 'Project must keep at least one owner');
+        }
+        if (
+          member.userId === access.project.ownerId &&
+          !isOwnerLikeRole(projectId, roleId)
+        ) {
+          reassignProjectOwner(projectId, member.userId);
+        }
+
         return ok(toMemberProfile(projectId, member));
       }),
       route('/projects/:projectId/members/:userId', 'delete', (request) => {

@@ -22,72 +22,96 @@ const users = [
     email: 'owner@example.com',
     username: 'Alice Johnson',
     password: 'password',
+    globalAdmin: true,
+    active: true,
   },
   {
     id: 2,
     email: 'admin@example.com',
     username: 'Marina Petrova',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 3,
     email: 'developer@example.com',
     username: 'Ilya Sokolov',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 4,
     email: 'qa@example.com',
     username: 'Nina Volkova',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 5,
     email: 'qalead@example.com',
     username: 'Pavel Smirnov',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 6,
     email: 'reviewer@example.com',
     username: 'Roman Orlov',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 7,
     email: 'analyst@example.com',
     username: 'Sofia Ivanova',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 8,
     email: 'designer@example.com',
     username: 'Daria Kuznetsova',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 9,
     email: 'support@example.com',
     username: 'Mikhail Lebedev',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 10,
     email: 'devops@example.com',
     username: 'Kirill Morozov',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 11,
     email: 'product@example.com',
     username: 'Elena Fedorova',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
   {
     id: 12,
     email: 'intern@example.com',
     username: 'Artem Volkov',
     password: 'password',
+    globalAdmin: false,
+    active: true,
   },
 ];
 
@@ -626,8 +650,10 @@ const getCurrentUser = (request) => {
   const [email, password] = decoded.split(':');
 
   return (
-    users.find((user) => user.email === email && user.password === password) ??
-    null
+    users.find(
+      (user) =>
+        user.email === email && user.password === password && user.active
+    ) ?? null
   );
 };
 
@@ -672,6 +698,26 @@ const getRole = (config, roleId) =>
 const hasPermission = (role, permission) =>
   Boolean(role?.permissions.includes(permission));
 
+const getGlobalAdminRole = (projectId) => ({
+  id: 'GLOBAL_ADMIN',
+  projectId,
+  name: 'Global Admin',
+  permissions: [...PERMISSION_KEYS],
+});
+
+const activeGlobalAdminCount = () =>
+  users.filter((user) => user.active && user.globalAdmin).length;
+
+const requireGlobalAdmin = (request) => {
+  const { user, response } = requireUser(request);
+  if (response) return { user: null, response };
+  if (!user.globalAdmin) {
+    return { user, response: error(401, 'Global admin access required') };
+  }
+
+  return { user, response: null };
+};
+
 const ensureProjectAccess = (request, projectId, permission = null) => {
   const { user, response } = requireUser(request);
   if (response) {
@@ -686,6 +732,17 @@ const ensureProjectAccess = (request, projectId, permission = null) => {
   const config = getConfig(projectId);
   if (!config) {
     return { response: error(404, 'Project config not found') };
+  }
+
+  if (user.globalAdmin) {
+    return {
+      user,
+      project,
+      config,
+      member: null,
+      role: getGlobalAdminRole(projectId),
+      response: null,
+    };
   }
 
   const member = getMember(projectId, user.id);
@@ -709,6 +766,8 @@ const toProfile = (user) => ({
   id: user.id,
   email: user.email,
   username: user.username,
+  globalAdmin: Boolean(user.globalAdmin),
+  active: user.active !== false,
 });
 
 const toProject = (project) => ({
@@ -1224,6 +1283,10 @@ const canTransitionIssue = (issue, toStatus, access) => {
   );
   if (!statusExists) return false;
 
+  if (access.user.globalAdmin) {
+    return true;
+  }
+
   if (access.config.lifecycle.transitionRulesEnabled === false) {
     return true;
   }
@@ -1522,6 +1585,8 @@ const config = [
           email,
           username,
           password,
+          globalAdmin: false,
+          active: true,
         };
         users.push(user);
 
@@ -1530,7 +1595,8 @@ const config = [
       route('/auth/login', 'post', (request) => {
         const { email, password } = request.body;
         const user = users.find(
-          (item) => item.email === email && item.password === password
+          (item) =>
+            item.email === email && item.password === password && item.active
         );
 
         return user ? ok('OK') : error(401, 'Invalid credentials');
@@ -1548,6 +1614,7 @@ const config = [
         const query = String(request.query.query ?? '').toLowerCase();
         return ok(
           users
+            .filter((user) => user.active)
             .filter(
               (user) =>
                 user.email.toLowerCase().includes(query) ||
@@ -1556,17 +1623,137 @@ const config = [
             .map(toProfile)
         );
       }),
+      route('/admin/users', 'get', (request) => {
+        const { response } = requireGlobalAdmin(request);
+        if (response) return response;
+
+        return ok(users.map(toProfile));
+      }),
+      route('/admin/users/:id/global-admin', 'put', (request) => {
+        const { user: actor, response } = requireGlobalAdmin(request);
+        if (response) return response;
+
+        const user = getUserById(getId(request));
+        if (!user) {
+          return error(404, 'User not found');
+        }
+
+        const globalAdmin = Boolean(request.body.globalAdmin);
+        if (actor.id === user.id && !globalAdmin) {
+          return error(401, 'Global admin cannot remove their own admin access');
+        }
+        if (
+          !globalAdmin &&
+          user.globalAdmin &&
+          activeGlobalAdminCount() <= 1
+        ) {
+          return error(401, 'At least one active global admin is required');
+        }
+
+        user.globalAdmin = globalAdmin;
+        return ok(toProfile(user));
+      }),
+      route('/admin/users/:id', 'delete', (request) => {
+        const { user: actor, response } = requireGlobalAdmin(request);
+        if (response) return response;
+
+        const user = getUserById(getId(request));
+        if (!user) {
+          return error(404, 'User not found');
+        }
+        if (actor.id === user.id) {
+          return error(401, 'Global admin cannot deactivate themselves');
+        }
+        if (user.globalAdmin && activeGlobalAdminCount() <= 1) {
+          return error(401, 'At least one active global admin is required');
+        }
+
+        user.active = false;
+        return ok(toProfile(user));
+      }),
+      route('/admin/users/:id/restore', 'post', (request) => {
+        const { response } = requireGlobalAdmin(request);
+        if (response) return response;
+
+        const user = getUserById(getId(request));
+        if (!user) {
+          return error(404, 'User not found');
+        }
+
+        user.active = true;
+        return ok(toProfile(user));
+      }),
+      route('/admin/projects', 'get', (request) => {
+        const { response } = requireGlobalAdmin(request);
+        if (response) return response;
+
+        return ok(projects.map(toProject));
+      }),
+      route('/admin/projects/:id/archive', 'post', (request) => {
+        const { response } = requireGlobalAdmin(request);
+        if (response) return response;
+
+        const project = getProject(getId(request));
+        if (!project) {
+          return error(404, 'Project not found');
+        }
+
+        project.archived = true;
+        return ok();
+      }),
+      route('/admin/projects/:id/restore', 'post', (request) => {
+        const { response } = requireGlobalAdmin(request);
+        if (response) return response;
+
+        const project = getProject(getId(request));
+        if (!project) {
+          return error(404, 'Project not found');
+        }
+
+        project.archived = false;
+        return ok();
+      }),
+      route('/admin/projects/:id', 'delete', (request) => {
+        const { response } = requireGlobalAdmin(request);
+        if (response) return response;
+
+        const projectId = getId(request);
+        const projectIndex = projects.findIndex(
+          (project) => project.id === projectId
+        );
+        if (projectIndex === -1) {
+          return error(404, 'Project not found');
+        }
+
+        projects.splice(projectIndex, 1);
+        projectConfigs.delete(projectId);
+        for (let index = members.length - 1; index >= 0; index--) {
+          if (members[index].projectId === projectId) {
+            members.splice(index, 1);
+          }
+        }
+        for (let index = issues.length - 1; index >= 0; index--) {
+          if (issues[index].projectId === projectId) {
+            deletedIssueIds.delete(issues[index].id);
+            issues.splice(index, 1);
+          }
+        }
+
+        return ok();
+      }),
       route('/projects', 'get', (request) => {
         const { user, response } = requireUser(request);
         if (response) return response;
 
-        const visibleProjects = members
-          .filter((member) => member.userId === user.id)
-          .map((member) => {
-            const project = getProject(member.projectId);
-            return project ? toProject(project) : null;
-          })
-          .filter(Boolean);
+        const visibleProjects = user.globalAdmin
+          ? projects.map(toProject)
+          : members
+              .filter((member) => member.userId === user.id)
+              .map((member) => {
+                const project = getProject(member.projectId);
+                return project ? toProject(project) : null;
+              })
+              .filter(Boolean);
 
         return ok(visibleProjects);
       }),
@@ -1690,7 +1877,11 @@ const config = [
         const access = ensureProjectAccess(request, projectId, 'members.view');
         if (access.response) return access.response;
 
-        return ok(getProjectMembers(projectId).map((member) => toMemberProfile(projectId, member)));
+        return ok(
+          getProjectMembers(projectId).map((member) =>
+            toMemberProfile(projectId, member)
+          )
+        );
       }),
       route('/projects/:projectId/invite-candidates', 'get', (request) => {
         const projectId = getId(request, 'projectId');
@@ -1704,6 +1895,7 @@ const config = [
 
         return ok(
           users
+            .filter((user) => user.active)
             .filter((user) => !projectMemberIds.has(user.id))
             .filter(
               (user) =>
@@ -1733,6 +1925,9 @@ const config = [
         const invitedUser = getUserById(Number(request.body.userId));
         if (!invitedUser) {
           return error(404, 'User not found');
+        }
+        if (!invitedUser.active) {
+          return error(400, 'User is inactive');
         }
 
         const existingMember = getMember(projectId, invitedUser.id);

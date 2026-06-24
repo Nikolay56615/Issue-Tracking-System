@@ -8,8 +8,8 @@ DELETE FROM users;
 
 INSERT INTO users (id, email, username, password_hash, global_admin, active, created_at)
 VALUES
-  (1, 'owner@example.com', 'Alice Johnson', '$2a$10$JO0PHXyvRaCmubqeMy/jhOq2N89edHqIL/ZWFVVierc4mBwyr32A6', true, true, now()),
-  (2, 'admin@example.com', 'Marina Petrova', '$2a$10$JO0PHXyvRaCmubqeMy/jhOq2N89edHqIL/ZWFVVierc4mBwyr32A6', false, true, now()),
+  (1, 'owner@example.com', 'Alice Johnson', '$2a$10$JO0PHXyvRaCmubqeMy/jhOq2N89edHqIL/ZWFVVierc4mBwyr32A6', false, true, now()),
+  (2, 'admin@example.com', 'Marina Petrova', '$2a$10$JO0PHXyvRaCmubqeMy/jhOq2N89edHqIL/ZWFVVierc4mBwyr32A6', true, true, now()),
   (3, 'developer@example.com', 'Ilya Sokolov', '$2a$10$JO0PHXyvRaCmubqeMy/jhOq2N89edHqIL/ZWFVVierc4mBwyr32A6', false, true, now()),
   (4, 'qa@example.com', 'Nina Volkova', '$2a$10$JO0PHXyvRaCmubqeMy/jhOq2N89edHqIL/ZWFVVierc4mBwyr32A6', false, true, now()),
   (5, 'qalead@example.com', 'Pavel Smirnov', '$2a$10$JO0PHXyvRaCmubqeMy/jhOq2N89edHqIL/ZWFVVierc4mBwyr32A6', false, true, now()),

@@ -29,7 +29,7 @@ const users = [
     email: 'owner@example.com',
     username: 'Alice Johnson',
     password: 'password',
-    globalAdmin: true,
+    globalAdmin: false,
     active: true,
   },
   {
@@ -37,7 +37,7 @@ const users = [
     email: 'admin@example.com',
     username: 'Marina Petrova',
     password: 'password',
-    globalAdmin: false,
+    globalAdmin: true,
     active: true,
   },
   {

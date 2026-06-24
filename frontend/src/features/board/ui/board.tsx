@@ -43,6 +43,10 @@ const isTransitionAllowed = (
     return true;
   }
 
+  if (currentRoleId === 'GLOBAL_ADMIN') {
+    return true;
+  }
+
   return transitions.some((transition) => {
     if (
       transition.fromStatusId !== issue.status ||
@@ -256,6 +260,10 @@ export const Board = ({ projectId }: { projectId: number }) => {
 
   const canDrag = (issue: Issue): boolean => {
     if (activeProjectConfig === null || role === null) return false;
+
+    if (role.id === 'GLOBAL_ADMIN') {
+      return true;
+    }
 
     if (!transitionRulesEnabled) {
       return true;

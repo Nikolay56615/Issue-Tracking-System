@@ -284,6 +284,10 @@ export const isTransitionAllowedForIssue = (params: {
     return false;
   }
 
+  if (currentRoleId === 'GLOBAL_ADMIN') {
+    return true;
+  }
+
   return transition.conditions.some((condition) => {
     if (condition.type === 'role') {
       return condition.roleId === currentRoleId;

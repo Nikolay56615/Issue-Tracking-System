@@ -73,10 +73,7 @@ export const fetchCurrentProjectRole = createAsyncThunk<
         return false;
       }
 
-      return !(
-        projectConfig.currentRoleLoading === 'succeeded' &&
-        currentProjectId === projectId
-      );
+      return true;
     },
   }
 );

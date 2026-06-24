@@ -57,7 +57,6 @@ const usersSlice = createSlice({
       })
       .addCase(updateProjectUserRole.rejected, (state, action) => {
         state.roleUpdateLoadingByUserId[action.meta.arg.userId] = false;
-        state.error = action.payload ?? 'Failed to update member role';
       })
       .addCase(removeProjectUser.pending, (state, action) => {
         state.removingByUserId[action.meta.arg.userId] = true;
@@ -68,7 +67,6 @@ const usersSlice = createSlice({
       })
       .addCase(removeProjectUser.rejected, (state, action) => {
         state.removingByUserId[action.meta.arg.userId] = false;
-        state.error = action.payload ?? 'Failed to remove member';
       });
   },
 });

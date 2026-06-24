@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { ProjectConfig } from '@/features/project-config/model/project-config.types.ts';
 import {
   applyProjectTemplate,
@@ -14,6 +14,7 @@ import {
   getNormalizedFieldOrder,
 } from '@/features/project-config/model/project-config.utils.ts';
 import type { CustomRole } from '@/features/profile';
+import { logout } from '@/features/auth/model/auth.reducer.ts';
 
 interface ProjectConfigState {
   config: ProjectConfig | null;
@@ -60,7 +61,25 @@ const normalizeConfig = (config: ProjectConfig): ProjectConfig => ({
 const projectConfigSlice = createSlice({
   name: 'projectConfig',
   initialState,
-  reducers: {},
+  reducers: {
+    setCurrentProjectRole: (
+      state,
+      action: PayloadAction<{ projectId: number; role: CustomRole }>
+    ) => {
+      state.currentRole = action.payload.role;
+      state.currentRoleProjectId = action.payload.projectId;
+      state.currentRoleLoading = 'succeeded';
+      state.currentRoleError = null;
+    },
+    clearCurrentProjectRole: (state, action: PayloadAction<number>) => {
+      if (state.currentRoleProjectId !== action.payload) {
+        return;
+      }
+      state.currentRole = null;
+      state.currentRoleLoading = 'idle';
+      state.currentRoleError = null;
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchProjectConfig.pending, (state, action) => {
@@ -148,8 +167,16 @@ const projectConfigSlice = createSlice({
         state.templateLoading = 'failed';
         state.templateError =
           action.payload ?? 'Failed to import project template';
+      })
+      .addCase(logout, (state) => {
+        state.currentRole = null;
+        state.currentRoleProjectId = null;
+        state.currentRoleLoading = 'idle';
+        state.currentRoleError = null;
       });
   },
 });
 
+export const { clearCurrentProjectRole, setCurrentProjectRole } =
+  projectConfigSlice.actions;
 export const projectConfigReducer = projectConfigSlice.reducer;

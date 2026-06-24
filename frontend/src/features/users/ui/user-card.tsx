@@ -55,16 +55,6 @@ export const UserCard = ({
             {user.roleName}
           </span>
         )}
-        {user.projectOwner && (
-          <span className="text-muted-foreground mt-2 text-sm">
-            Project owner
-          </span>
-        )}
-        {ownerLocked && (
-          <span className="text-muted-foreground mt-2 text-sm">
-            Last owner in project
-          </span>
-        )}
         {canManageRoles && (
           <div className="mt-2 flex items-center gap-2">
             <Select

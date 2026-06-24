@@ -10,10 +10,13 @@ import {
   updateProjectUserRole,
 } from '@/features/users/model/users.actions.ts';
 import {
+  clearCurrentProjectRole,
   fetchCurrentProjectRole,
   fetchProjectConfig,
   hasPermission,
+  setCurrentProjectRole,
 } from '@/features/project-config/model';
+import { fetchProjects } from '@/features/profile/model/profile.actions.ts';
 
 export const UsersPage = () => {
   const params = useParams();
@@ -27,6 +30,7 @@ export const UsersPage = () => {
     currentRoleProjectId,
     currentRoleLoading,
   } = useAppSelector((state) => state.projectConfig);
+  const { profile } = useAppSelector((state) => state.profile);
 
   useEffect(() => {
     dispatch(getProjectUsers(projectId));
@@ -34,13 +38,19 @@ export const UsersPage = () => {
     dispatch(fetchCurrentProjectRole(projectId));
   }, [dispatch, projectId]);
 
+  const availableRoles = projectConfig?.roles ?? [];
+  const currentMember = users.find((user) => user.id === profile.id);
+  const currentMemberRole =
+    currentMember == null
+      ? null
+      : availableRoles.find((role) => role.id === currentMember.roleId) ?? null;
   const projectRole =
-    currentRoleProjectId === projectId ? currentRole : null;
+    currentMemberRole ??
+    (currentRoleProjectId === projectId ? currentRole : null);
   const roleLoading =
     currentRoleProjectId !== projectId || currentRoleLoading === 'pending';
   const canManageRoles = hasPermission(projectRole, 'members.assignRole');
   const canRemove = hasPermission(projectRole, 'members.remove');
-  const availableRoles = projectConfig?.roles ?? [];
   const ownerCriticalPermissions = [
     'settings.manage',
     'members.invite',
@@ -98,13 +108,35 @@ export const UsersPage = () => {
                   updateProjectUserRole({ projectId, userId: user.id, roleId })
                 )
                   .unwrap()
-                  .then(() => toast.success('Member role updated'))
+                  .then((updatedUser) => {
+                    if (updatedUser.id === profile.id) {
+                      dispatch(
+                        setCurrentProjectRole({
+                          projectId,
+                          role: {
+                            id: updatedUser.roleId,
+                            projectId,
+                            name: updatedUser.roleName,
+                            permissions: updatedUser.permissions,
+                          },
+                        })
+                      );
+                      dispatch(fetchProjects());
+                    }
+                    toast.success('Member role updated');
+                  })
                   .catch((updateError) => toast.error(String(updateError)));
               }}
               onRemove={() => {
                 dispatch(removeProjectUser({ projectId, userId: user.id }))
                   .unwrap()
-                  .then(() => toast.success('Member removed'))
+                  .then(() => {
+                    if (user.id === profile.id) {
+                      dispatch(clearCurrentProjectRole(projectId));
+                      dispatch(fetchProjects());
+                    }
+                    toast.success('Member removed');
+                  })
                   .catch((removeError) => toast.error(String(removeError)));
               }}
             />

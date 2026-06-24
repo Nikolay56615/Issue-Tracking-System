@@ -2,6 +2,7 @@ package issue.tracking.system.issuetrackingsystem.bff;
 
 import issue.tracking.system.issuetrackingsystem.bff.dto.ApplyProjectTemplateRequest;
 import issue.tracking.system.issuetrackingsystem.bff.dto.CreateProjectRequest;
+import issue.tracking.system.issuetrackingsystem.bff.dto.ImportProjectTemplateRequest;
 import issue.tracking.system.issuetrackingsystem.bff.dto.InviteUserRequest;
 import issue.tracking.system.issuetrackingsystem.bff.dto.UpdateProjectMemberRoleRequest;
 import issue.tracking.system.issuetrackingsystem.projects.api.CurrentProjectRoleResponse;
@@ -49,7 +50,7 @@ public class ProjectController {
 
     @GetMapping("/{id}/members")
     public List<ProjectMemberWithRoleDto> getMembers(@PathVariable Long id) {
-        requireProjectMember(id);
+        requirePermission(id, "members.view");
         return queryApi.getProjectMembersWithRoles(id);
     }
 
@@ -100,6 +101,15 @@ public class ProjectController {
         requirePermission(id, "template.apply");
         requireProjectMember(request.sourceProjectId());
         return projectConfigService.applyTemplate(id, request.sourceProjectId());
+    }
+
+    @PostMapping("/{id}/template/import")
+    public ProjectConfigDto importTemplate(
+        @PathVariable Long id,
+        @Valid @RequestBody ImportProjectTemplateRequest request
+    ) {
+        requirePermission(id, "template.apply");
+        return projectConfigService.importTemplate(id, request.config());
     }
 
     // --- COMMAND ---

@@ -128,3 +128,23 @@ export const applyProjectTemplate = createAsyncThunk<
     }
   }
 );
+
+export const importProjectTemplate = createAsyncThunk<
+  ProjectConfig,
+  { projectId: number; config: ProjectTemplate['config'] },
+  { rejectValue: string }
+>(
+  'project-config/import-template',
+  async ({ projectId, config }, { rejectWithValue }) => {
+    try {
+      return await ProjectConfigRequests.importProjectTemplate(
+        projectId,
+        config
+      );
+    } catch (error: unknown) {
+      return rejectWithValue(
+        getApiErrorMessage(error, 'Failed to import project template')
+      );
+    }
+  }
+);

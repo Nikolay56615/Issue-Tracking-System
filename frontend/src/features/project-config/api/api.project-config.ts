@@ -45,3 +45,17 @@ export const applyProjectTemplate = async (
 
   return data;
 };
+
+export const importProjectTemplate = async (
+  projectId: number,
+  config: ProjectTemplate['config']
+) => {
+  const { data } = await axiosInstance.post<ProjectConfig>(
+    `/projects/${projectId}/template/import`,
+    {
+      config,
+    }
+  );
+
+  return data;
+};

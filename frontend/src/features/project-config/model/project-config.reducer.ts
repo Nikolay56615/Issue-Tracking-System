@@ -5,6 +5,7 @@ import {
   exportProjectTemplate,
   fetchCurrentProjectRole,
   fetchProjectConfig,
+  importProjectTemplate,
   saveProjectConfig,
 } from '@/features/project-config/model/project-config.actions.ts';
 import type { ProjectTemplate } from '@/features/project-config/model/project-config.types.ts';
@@ -133,6 +134,20 @@ const projectConfigSlice = createSlice({
         state.templateLoading = 'failed';
         state.templateError =
           action.payload ?? 'Failed to apply project template';
+      })
+      .addCase(importProjectTemplate.pending, (state) => {
+        state.templateLoading = 'pending';
+        state.templateError = null;
+      })
+      .addCase(importProjectTemplate.fulfilled, (state, action) => {
+        state.templateLoading = 'succeeded';
+        state.config = normalizeConfig(action.payload);
+        state.configProjectId = action.payload.projectId;
+      })
+      .addCase(importProjectTemplate.rejected, (state, action) => {
+        state.templateLoading = 'failed';
+        state.templateError =
+          action.payload ?? 'Failed to import project template';
       });
   },
 });

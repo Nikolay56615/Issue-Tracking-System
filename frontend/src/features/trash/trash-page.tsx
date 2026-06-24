@@ -4,6 +4,8 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { getTrash, restoreIssue } from '@/features/trash/model/trash.actions';
 import { TrashIssueCard } from '@/features/trash/ui/trash-issue-card.tsx';
 import { Loader2 } from 'lucide-react';
+import { fetchProjectConfig } from '@/features/project-config/model';
+import { getProjectUsers } from '@/features/users';
 
 export const TrashPage = () => {
   const params = useParams();
@@ -15,6 +17,8 @@ export const TrashPage = () => {
 
   useEffect(() => {
     if (!Number.isNaN(projectId)) {
+      dispatch(fetchProjectConfig(projectId));
+      dispatch(getProjectUsers(projectId));
       dispatch(getTrash(projectId));
     }
   }, [dispatch, projectId]);
@@ -32,18 +36,27 @@ export const TrashPage = () => {
   }
 
   return (
-    <div className="mx-auto my-0 grid max-w-320 grid-cols-3 gap-4 pt-4">
-      {items.length === 0 && <div>No deleted issues</div>}
+    <div className="w-full px-4 py-8 sm:px-6 lg:px-8">
+      <div
+        className="mx-auto grid w-full max-w-320
+          grid-cols-[repeat(auto-fill,286px)] justify-start gap-4"
+      >
+        {items.length === 0 && (
+          <div className="text-muted-foreground col-span-full">
+            No deleted issues
+          </div>
+        )}
 
-      {items.map((issue) => (
-        <TrashIssueCard
-          key={issue.id}
-          issue={issue}
-          restoring={restoreLoadingIds.includes(issue.id)}
-          restoreError={restoreErrors[issue.id] ?? null}
-          onRestore={(id) => dispatch(restoreIssue(id))}
-        />
-      ))}
+        {items.map((issue) => (
+          <TrashIssueCard
+            key={issue.id}
+            issue={issue}
+            restoring={restoreLoadingIds.includes(issue.id)}
+            restoreError={restoreErrors[issue.id] ?? null}
+            onRestore={(id) => dispatch(restoreIssue(id))}
+          />
+        ))}
+      </div>
     </div>
   );
 };

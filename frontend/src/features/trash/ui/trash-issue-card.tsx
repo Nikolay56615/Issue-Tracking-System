@@ -6,8 +6,9 @@ import {
   CardFooter,
   CardHeader,
 } from '@/components/ui/card.tsx';
-import { IssueDialog, PriorityBadge, TypeBadge } from '@/features/board';
+import { IssueDialog } from '@/features/board';
 import { Button } from '@/components/ui/button.tsx';
+import { IssueCardFields } from '@/features/board/ui/issue-card-fields.tsx';
 
 interface TrashIssueCardProps {
   issue: Issue;
@@ -23,18 +24,14 @@ export const TrashIssueCard = ({
   restoreError,
 }: TrashIssueCardProps) => {
   return (
-    <Card className="w-50 gap-2 text-start">
+    <Card className="w-full gap-2 text-start">
       <CardHeader className="items-center gap-0">
         <IssueDialog issue={issue} />
       </CardHeader>
-      <CardContent className="line-clamp-3 text-sm">
-        {issue.description}
+      <CardContent className="flex flex-col items-start gap-2 text-sm">
+        <IssueCardFields issue={issue} />
       </CardContent>
       <CardFooter className="flex flex-col items-center justify-between gap-2">
-        <div className="flex gap-2">
-          <TypeBadge type={issue.type} />
-          <PriorityBadge priority={issue.priority} />
-        </div>
         <div className="flex flex-col gap-2">
           <Button
             className="cursor-pointer"

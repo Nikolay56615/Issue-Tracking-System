@@ -69,14 +69,12 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
             .filter(item -> item.getUserId().equals(userId))
             .findFirst()
             .orElseThrow(() -> new IllegalArgumentException("Project member not found"));
-        if (project.getOwnerId().equals(userId)) {
-            CustomRoleDto role = projectConfigService.getRoleById(projectId, roleId)
-                .orElseThrow(() -> new IllegalArgumentException("Project role not found"));
-            if (!role.permissions().containsAll(ProjectConfigDefaults.OWNER_CRITICAL_PERMISSIONS)) {
-                throw new SecurityException("Project owner must keep owner-critical permissions");
-            }
-        }
+
         member.setRoleId(roleId);
+        ensureProjectKeepsOwnerLikeMember(projectId, project);
+        if (project.getOwnerId().equals(userId) && !isOwnerLikeRole(projectId, roleId)) {
+            reassignProjectOwner(projectId, project);
+        }
         projectRepository.save(project);
     }
 
@@ -246,11 +244,22 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
             && !projectConfigService.hasPermission(projectId, ownerId, "members.remove")) {
             throw new SecurityException("Insufficient permissions to remove members");
         }
-        if (project.getOwnerId().equals(userId)) {
-            throw new SecurityException("Project owner cannot be removed");
+
+        ProjectMember member = project.getMembers().stream()
+            .filter(item -> item.getUserId().equals(userId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Project member not found"));
+        boolean removingOwnerLike = isOwnerLikeRole(projectId, member.getRoleId());
+        long ownerLikeMembers = countOwnerLikeMembers(projectId, project);
+        if (removingOwnerLike && ownerLikeMembers <= 1) {
+            throw new SecurityException("Project must keep at least one owner");
         }
+
         boolean removed = project.getMembers().removeIf(m -> m.getUserId().equals(userId));
         if (removed) {
+            if (project.getOwnerId().equals(userId)) {
+                reassignProjectOwner(projectId, project);
+            }
             projectRepository.save(project);
         }
     }
@@ -264,5 +273,37 @@ public class ProjectService implements ProjectAccessApi, ProjectCommandApi, Proj
                 .findFirst())
             .map(ProjectMember::getRoleId)
             .orElse(null);
+    }
+
+    private void ensureProjectKeepsOwnerLikeMember(Long projectId, Project project) {
+        if (countOwnerLikeMembers(projectId, project) == 0) {
+            throw new SecurityException("Project must keep at least one owner");
+        }
+    }
+
+    private long countOwnerLikeMembers(Long projectId, Project project) {
+        return project.getMembers().stream()
+            .filter(member -> isOwnerLikeRole(projectId, member.getRoleId()))
+            .count();
+    }
+
+    private boolean isOwnerLikeRole(Long projectId, String roleId) {
+        return projectConfigService.getRoleById(projectId, roleId)
+            .map(role -> role.permissions().containsAll(ProjectConfigDefaults.OWNER_CRITICAL_PERMISSIONS))
+            .orElse(false);
+    }
+
+    private void reassignProjectOwner(Long projectId, Project project) {
+        Long nextOwnerId = project.getMembers().stream()
+            .filter(member -> isOwnerLikeRole(projectId, member.getRoleId()))
+            .map(ProjectMember::getUserId)
+            .filter(userId -> !userId.equals(project.getOwnerId()))
+            .findFirst()
+            .or(() -> project.getMembers().stream()
+                .filter(member -> isOwnerLikeRole(projectId, member.getRoleId()))
+                .map(ProjectMember::getUserId)
+                .findFirst())
+            .orElseThrow(() -> new SecurityException("Project must keep at least one owner"));
+        project.setOwnerId(nextOwnerId);
     }
 }

@@ -2,6 +2,7 @@ package issue.tracking.system.issuetrackingsystem;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -187,8 +188,20 @@ class ProjectConfigurationIntegrationTest {
 
         Map<String, Object> targetConfig = getProjectConfig(owner, targetProjectId);
         assertThat(list(targetConfig.get("customFields")))
-            .extracting(field -> text(field.get("id")))
-            .contains("releaseDate");
+            .extracting(field -> text(field.get("name")))
+            .contains("Release date");
+
+        long importTargetProjectId = createProject(owner, "Import target project");
+        mockMvc.perform(post("/api/projects/{id}/template/import", importTargetProjectId)
+                .with(httpBasic(owner.email(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("config", template.get("config")))))
+            .andExpect(status().isOk());
+
+        Map<String, Object> importTargetConfig = getProjectConfig(owner, importTargetProjectId);
+        assertThat(list(importTargetConfig.get("customFields")))
+            .extracting(field -> text(field.get("name")))
+            .contains("Release date");
     }
 
     @Test
@@ -254,12 +267,47 @@ class ProjectConfigurationIntegrationTest {
     }
 
     @Test
-    void projectOwnerCannotLoseOwnerCriticalAccess() throws Exception {
-        TestUser owner = register("owner-guard");
-        long projectId = createProject(owner, "Owner guard project");
+    void ownerLikeMemberCanRemoveAnotherOwnerAndProjectOwnerIsReassigned() throws Exception {
+        TestUser owner = register("owner-remove-primary");
+        TestUser secondOwner = register("owner-remove-secondary");
+        long projectId = createProject(owner, "Owner removal project");
+        invite(owner, projectId, secondOwner.id(), "OWNER");
 
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                .delete("/api/projects/{id}/members/{userId}", projectId, owner.id())
+        mockMvc.perform(delete("/api/projects/{id}/members/{userId}", projectId, owner.id())
+                .with(httpBasic(secondOwner.email(), PASSWORD)))
+            .andExpect(status().isOk());
+
+        assertThat(number(getProject(secondOwner, projectId).get("ownerId"))).isEqualTo(secondOwner.id());
+        assertThat(projectIds(owner)).doesNotContain(projectId);
+    }
+
+    @Test
+    void ownerLikeMemberCanDemoteAnotherOwnerAndProjectOwnerIsReassigned() throws Exception {
+        TestUser owner = register("owner-demote-primary");
+        TestUser secondOwner = register("owner-demote-secondary");
+        long projectId = createProject(owner, "Owner demotion project");
+        invite(owner, projectId, secondOwner.id(), "OWNER");
+
+        mockMvc.perform(put("/api/projects/{id}/members/{userId}/role", projectId, owner.id())
+                .with(httpBasic(secondOwner.email(), PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("roleId", "WORKER"))))
+            .andExpect(status().isOk());
+
+        assertThat(number(getProject(secondOwner, projectId).get("ownerId"))).isEqualTo(secondOwner.id());
+        assertThat(getMembers(secondOwner, projectId).stream()
+            .filter(member -> number(member.get("id")) == owner.id())
+            .findFirst()
+            .map(member -> text(member.get("roleId"))))
+            .contains("WORKER");
+    }
+
+    @Test
+    void lastOwnerLikeMemberCannotBeRemovedOrDemoted() throws Exception {
+        TestUser owner = register("last-owner-guard");
+        long projectId = createProject(owner, "Last owner guard project");
+
+        mockMvc.perform(delete("/api/projects/{id}/members/{userId}", projectId, owner.id())
                 .with(httpBasic(owner.email(), PASSWORD)))
             .andExpect(status().isUnauthorized());
 
@@ -268,6 +316,12 @@ class ProjectConfigurationIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("roleId", "WORKER"))))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void projectConfigCannotRemoveAllOwnerCriticalRolesFromMembers() throws Exception {
+        TestUser owner = register("owner-config-guard");
+        long projectId = createProject(owner, "Owner config guard project");
 
         Map<String, Object> config = getProjectConfig(owner, projectId);
         List<Map<String, Object>> roles = new ArrayList<>(list(config.get("roles")));
@@ -450,6 +504,22 @@ class ProjectConfigurationIntegrationTest {
             .andExpect(status().isOk())
             .andReturn();
         return readMap(result);
+    }
+
+    private Map<String, Object> getProject(TestUser user, long projectId) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/projects/{id}", projectId)
+                .with(httpBasic(user.email(), PASSWORD)))
+            .andExpect(status().isOk())
+            .andReturn();
+        return readMap(result);
+    }
+
+    private List<Map<String, Object>> getMembers(TestUser user, long projectId) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/projects/{id}/members", projectId)
+                .with(httpBasic(user.email(), PASSWORD)))
+            .andExpect(status().isOk())
+            .andReturn();
+        return objectMapper.readValue(result.getResponse().getContentAsString(), LIST_OF_MAPS_TYPE);
     }
 
     private void saveProjectConfig(TestUser user, long projectId, Map<String, Object> config) throws Exception {

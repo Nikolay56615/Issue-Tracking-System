@@ -17,6 +17,8 @@ interface UserCardProps {
   canRemove: boolean;
   roleUpdating: boolean;
   removing: boolean;
+  ownerLocked: boolean;
+  canSelectRole: (role: CustomRole) => boolean;
   onRoleChange: (roleId: string) => void;
   onRemove: () => void;
 }
@@ -28,6 +30,8 @@ export const UserCard = ({
   canRemove,
   roleUpdating,
   removing,
+  ownerLocked,
+  canSelectRole,
   onRoleChange,
   onRemove,
 }: UserCardProps) => {
@@ -54,7 +58,12 @@ export const UserCard = ({
             Project owner
           </span>
         )}
-        {canManageRoles && !user.projectOwner && (
+        {ownerLocked && (
+          <span className="text-muted-foreground mt-2 text-sm">
+            Last owner in project
+          </span>
+        )}
+        {canManageRoles && (
           <div className="mt-2 flex items-center gap-2">
             <Select
               value={user.roleId}
@@ -66,7 +75,11 @@ export const UserCard = ({
               </SelectTrigger>
               <SelectContent>
                 {availableRoles.map((role) => (
-                  <SelectItem key={role.id} value={role.id}>
+                  <SelectItem
+                    key={role.id}
+                    value={role.id}
+                    disabled={!canSelectRole(role)}
+                  >
                     {role.name}
                   </SelectItem>
                 ))}
@@ -74,24 +87,24 @@ export const UserCard = ({
             </Select>
           </div>
         )}
-        {!user.projectOwner && !canManageRoles && canRemove && (
+        {!canManageRoles && canRemove && (
           <div className="mt-2">
             <Button
               variant="outline"
               size="sm"
-              disabled={removing}
+              disabled={removing || ownerLocked}
               onClick={onRemove}
             >
               {removing ? 'Removing...' : 'Remove'}
             </Button>
           </div>
         )}
-        {!user.projectOwner && canManageRoles && canRemove && (
+        {canManageRoles && canRemove && (
           <div className="mt-2">
             <Button
               variant="outline"
               size="sm"
-              disabled={removing}
+              disabled={removing || ownerLocked}
               onClick={onRemove}
             >
               {removing ? 'Removing...' : 'Remove'}
